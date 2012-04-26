@@ -1,0 +1,14 @@
+iwkmail
+-------
+
+iwkmail is an experiment to create a hybrid application, combining a web based UI
+and a GObject based application logic.
+
+It uses:
+* JQuery and JQuery-Mobile for UI side.
+* WebKitGtk and Gtk for C/GObject side of UI.
+* Camel as a mail protocols implementation.
+
+Parts of code are derived from Modest Mail.
+
+iwkmail stands for Igalia WebKit Mail.
