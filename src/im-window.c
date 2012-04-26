@@ -44,17 +44,6 @@ im_window_class_init (ImWindowClass *klass)
 }
 
 static void
-on_resource_request_starting (WebKitWebView         *web_view,
-			      WebKitWebFrame        *web_frame,
-			      WebKitWebResource     *web_resource,
-			      WebKitNetworkRequest  *request,
-			      WebKitNetworkResponse *response,
-			      gpointer               user_data)
-{
-  g_debug ("Hola");
-}
-
-static void
 im_window_init (ImWindow *window)
 {
   ImWindowPrivate *priv;
@@ -84,9 +73,6 @@ im_window_init (ImWindow *window)
   webkit_web_view_load_uri (WEBKIT_WEB_VIEW (priv->webview),
 			    main_view_uri);
   g_free (main_view_uri);
-
-  g_signal_connect (G_OBJECT (priv->webview), "resource-request-starting",
-		    G_CALLBACK (on_resource_request_starting), window);
 
   g_signal_connect (G_OBJECT (window), "delete-event",
 		    G_CALLBACK (on_delete_event), window);

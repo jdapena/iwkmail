@@ -10,19 +10,14 @@ function refreshAccountCounts ()
     for (i in globalStatus.folders) {
 	account = globalStatus.folders[i];
 	accountId = account.accountId;
-	console.log(JSON.stringify(account));
 	inbox = account.folders["INBOX"];
 	accountItemId = "account-item-"+accountId;
-	console.log(JSON.stringify (inbox));
 	$("#page-accounts #account-item-"+accountId+" .account-count").text(inbox.unreadCount);
 	if (inbox.unreadCount > 0) {
-	    console.log("Marking as visible");
 	    $("#page-accounts #account-item-"+accountId+" .account-count").show();
 	} else {
-	    console.log("Marking as non visible");
 	    $("#page-accounts #account-item-"+accountId+" .account-count").hide();
 	}
-	console.log($("#page-accounts #account-item-"+accountId).html());
     }
     $("#page-accounts #accounts-list").listview('refresh');
 }
@@ -57,10 +52,8 @@ function showFolders(accountId)
 		    a.appendChild(countSpan);
 		    unreadCount = folder.unreadCount;
 		}
-		console.log("Processing "+fullName);
 		if (fullName == "INBOX") {
 		    accountItemId = "account-item-"+accountId;
-		    console.log("Going to update entry for "+accountId);
 		    $("#page-accounts #"+accountItemId+" .countSpan:first").text(unreadCount);
 		    if (unreadCount > 0)
 			$("#page-accounts #"+accountItemId+" .countSpan:first").show();
