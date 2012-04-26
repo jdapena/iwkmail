@@ -1,6 +1,23 @@
-/* Based on ModestAccountMgr */
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*- */
 
-/* Copyright (c) 2006, Nokia Corporation
+/* im-account-mgr.c : account settings persistent storage */
+
+/*
+ * Authors:
+ *  Jose Dapena Paz <jdapena@igalia.com>
+ *  Sergio Villar Senin <svillar@igalia.com>
+ *  Felipe Erias Morandeira <femorandeira@igalia.com>
+ *  Dirk-Jan C. Binnema
+ *  Philip Van Hoof
+ *  Murray Cumming
+ *  Arne Zellentin
+ *  Johannes Schmid
+ *  Nils Faerber
+ *
+ * Copyright (c) 2012, Igalia, S.L.
+ *
+ * Work derived from Modest:
+ * Copyright (c) 2006, Nokia Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

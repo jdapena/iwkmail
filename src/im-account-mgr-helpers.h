@@ -1,4 +1,19 @@
-/* Copyright (c) 2006, Nokia Corporation
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*- */
+
+/* im-account-mgr-helpers.h : helpers methods for dealing with ImAccountMgr */
+
+/*
+ * Authors:
+ *  Jose Dapena Paz <jdapena@igalia.com>
+ *  Sergio Villar Senin <svillar@igalia.com>
+ *  Alberto Garcia Gonzalez <agarcia@igalia.com>
+ *  Dirk-Jan C. Binnema
+ *  Murray Cumming
+ *
+ * Copyright (c) 2012, Igalia, S.L.
+ *
+ * Work derived from Modest:
+ * Copyright (c) 2006, Nokia Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

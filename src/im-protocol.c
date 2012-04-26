@@ -1,6 +1,16 @@
-/* Based on ModestProtocol */
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*- */
 
-/* Copyright (c) 2008, Nokia Corporation
+/* im-protocol.c : protocol metainformation */
+
+/*
+ * Authors:
+ *  Jose Dapena Paz <jdapena@igalia.com>
+ *  Sergio Villar Senin <svillar@igalia.com>
+ *
+ * Copyright (c) 2012, Igalia, S.L.
+ *
+ * Work derived from Modest:
+ * Copyright (c) 2008, Nokia Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

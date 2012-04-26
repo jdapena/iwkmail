@@ -1,6 +1,28 @@
-/* Based on ModestTnyAccountStore */
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*- */
 
-/* Copyright (c) 2006, Nokia Corporation
+/* im-service-mgr.h : CamelService stores and transports manager */
+
+/*
+ * Authors:
+ *  Jose Dapena Paz <jdapena@igalia.com>
+ *  Sergio Villar Senin <svillar@igalia.com>
+ *  Alberto Garcia <agarcia@igalia.com>
+ *  Felipe Erias Morandeira <femorandeira@igalia.com>
+ *  Javier Fernandez Garcia-Boente <jfernandez@igalia.com>
+ *  Dirk-Jan C. Binnema <dirk-jan.binnema@nokia.com>
+ *  Murray Cumming <murrayc@murrayc.com>
+ *  Nils Faerber <nils@kernelconcepts.de>
+ *  Florian Boor <florian@kernelconcepts.de>
+ *  Silvan Marco Fin <silvan@kernelconcepts.de>
+ *  Philip Van Hoof <philip@codeminded.be>
+ *  Armin Burgmeier <armin@openismus.com>
+ *  Arne Zellentin <arne@kernelconcepts.de>
+ *  Johannes Schmid <johannes.schmid@openismus.com>
+ *
+ * Copyright (c) 2012, Igalia, S.L.
+ *
+ * Work derived from Modest:
+ * Copyright (c) 2006, Nokia Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

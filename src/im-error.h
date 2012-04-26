@@ -1,6 +1,12 @@
-/* Based on ModestError */
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*- */
 
-/* Copyright (c) 2006, Nokia Corporation
+/* im-error.h : Error handling */
+
+/*
+ * Authors:
+ *  Jose Dapena Paz <jdapena@igalia.com>
+ *
+ * Copyright (c) 2012, Igalia, S.L.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
