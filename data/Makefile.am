@@ -1,1 +1,1 @@
-SUBDIRS= html js
+SUBDIRS= html js css

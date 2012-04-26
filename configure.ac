@@ -151,6 +151,7 @@ src/Makefile
 data/Makefile
 data/html/Makefile
 data/js/Makefile
+data/css/Makefile
 po/Makefile.in
 ])
 
