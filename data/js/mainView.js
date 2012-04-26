@@ -3,6 +3,12 @@ var globalStatus = {
     folders: [],
 };
 
+function showError (e)
+{
+    $("#error-dialog #error-message").text(e);
+    $.mobile.changePage("#error-dialog");
+}
+
 function refreshAccountCounts ()
 {
     $("#page-accounts #accounts-list").listview();
@@ -127,6 +133,7 @@ function refreshAccounts ()
 	    $("#page-accounts #accounts-list").append(li);
 	    $("#page-accounts #accounts-list").listview('refresh');
 
+	    sync();
 	});
 	request.fail(function(jqXHR, textStatus) {
 	});
@@ -140,6 +147,7 @@ function refreshAccounts ()
 function addAccount (data)
 {
     try {
+	$.mobile.showPageLoadingMsg();
 	var request = $.ajax({
 	    type: "GET",
 	    crossDomain: true,
@@ -149,11 +157,19 @@ function addAccount (data)
 	    data: { formData: data}
 	});
 	request.done(function (msg) {
-	    refreshAccounts();
+	    if (msg.is_ok) {
+		$.mobile.changePage("#page-accounts");
+		refreshAccounts();
+	    } else {
+		showError (msg.error);
+	    }
 	});
 	request.fail(function(jqXHR, textStatus) {
 	});
 	request.error(function(jqXHR, textStatus, errorThrown) {
+	});
+	request.complete(function(jqXHR, textStatus) {
+	    $.mobile.hidePageLoadingMsg();
 	});
     } catch (e) {
 	console.log(e.message);
@@ -227,18 +243,10 @@ function clearForm(form)
 $(function () {
     $("#form-add-account").submit(function () {
 	try {
-	    account = {
-		name: $("#accountname", this).val(),
-		fullname: $("#fullname", this).val(),
-		emailaddress: $("#emailaddress", this).val()
-		
-	    };
-
 	    addAccount($(this).serialize());
 	} catch (e) {
 	    console.log(e.message);
 	}
-	$.mobile.changePage("#page-accounts");
 	return false;
     });
 
@@ -252,5 +260,4 @@ $(function () {
     });
 
     refreshAccounts();
-    sync ();
 });
