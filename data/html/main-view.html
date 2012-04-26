@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1"> 
+    
+    <title>Mail message</title>
+    <!-- <link rel="stylesheet" href="css/jquery-mobile-1.1.0.min.css"/> -->
+    <!-- <script src="js/jquery-1.7.1.min.js"></script> -->
+    <!-- <script src="js/jquery.mobile-1.1.0.min.js"/></script> -->
+
+    <link rel="stylesheet" href="http://code.jquery.com/mobile/1.1.0/jquery.mobile-1.1.0.min.css" />
+    <script src="http://code.jquery.com/jquery-1.6.4.min.js"></script>
+    <script src="http://code.jquery.com/mobile/1.1.0/jquery.mobile-1.1.0.min.js"></script>
+
+    <script src="../js/mainView.js"></script>
+    </script>
+   </head>
+
+  <body>
+
+    <div data-role="page" id="page-accounts" data-add-back-btn="true">
+      <div data-role="header">
+	<h3>Accounts</h3>
+	<a onClick="sync()">Sync</a>
+      </div>
+
+      <div data-role="content">
+	<ul data-role="listview" data-inset="false" id="accounts-list">
+	  <li>
+	    <a href="#create-account" id="add-account-button" data-role="button" data-icon="plus">Add account</a>
+	  </li>
+	</ul>
+      </div>
+    </div>
+
+    <div data-role="page" id="page-folders" data-add-back-btn="true">
+      <div data-role="header">
+	<h3 id="page-folders-title">Folders</h3>
+	<a onClick="sync()" class="ui-btn-right">Sync</a>
+      </div>
+
+      <div data-role="content">
+	<ul data-role="listview" data-inset="false" id="folders-list">
+	</ul>
+      </div>
+    </div>
+
+    <div data-role="page" id="create-account" data-add-back-btn="true">
+      <div data-role="header">
+	<h3>Add new account</h3>
+      </div>
+      <div data-role="content">
+	<form action="#page-accounts" id="form-add-account">
+	  <ul data-role="listview">
+	    <li data-role="fieldcontain">
+	      <label for="accountname">Account name:</label>
+	      <input type="text" name="accountname" id="accountname" value="" />
+	    </li>
+	    <li data-role="fieldcontain">
+	      <label for="fullname">Your name:</label>
+	      <input type="text" name="fullname" id="fullname" value="" />
+	    </li>
+	    <li data-role="fieldcontain">
+	      <label for="emailaddress">Email address:</label>
+	      <input type="text" name="emailaddress" id="emailaddress" value="" />
+	    </li>
+	    <li data-role="list-divider">Incoming settings</li>
+	    <li data-role="fieldcontain">
+	      <fieldset data-role="controlgroup" data-type="horizontal">
+		<legend>Protocol</legend>
+		<input type="radio" name="incoming-protocol-choice" id="incoming-protocol-imap" value="imap" checked="checked" />
+		<label for="incoming-protocol-imap">IMAP</label>
+		<input type="radio" name="incoming-protocol-choice" id="incoming-protocol-pop" value="pop" />
+		<label for="incoming-protocol-pop">POP3</label>
+	      </fieldset>
+	    </li>
+	    <li data-role="fieldcontain">
+	      <label for="incoming-server-host">Host:</label>
+	      <input type="text" name="incoming-server-host" id="incoming-server-host" required="required" value="" placeholder="mail.example.com"/>
+	    </li>
+	    <li data-role="fieldcontain">
+	      <fieldset data-role="controlgroup" data-type="horizontal">
+		<legend>Security protocol</legend>
+		<input type="radio" name="incoming-security-choice" id="incoming-security-none" value="none" checked="checked" />
+		<label for="incoming-security-none">None</label>
+		<input type="radio" name="incoming-security-choice" id="incoming-security-ssl" value="ssl" />
+		<label for="incoming-security-ssl">SSL</label>
+		<input type="radio" name="incoming-security-choice" id="incoming-security-tls" value="tls" />
+		<label for="incoming-security-tls">TLS</label>
+	      </fieldset>
+	    </li>
+	    <li data-role="fieldcontain">
+	      <label for="incoming-server-port">Port:</label>
+	      <input type="number" name="incoming-server-port" id="incoming-server-port" min=1 max=65534 required="required" value="" />
+	    </li>
+	    <li data-role="fieldcontain">
+	      <label for="incoming-server-username">User name:</label>
+	      <input type="text" name="incoming-server-username" id="incoming-server-username" value="" />
+	    </li>
+	    <li data-role="fieldcontain">
+	      <label for="incoming-server-password">Password:</label>
+	      <input type="password" name="incoming-server-password" id="incoming-server-password" value="" />
+	    </li>
+	    <li data-role="list-divider">Outgoing settings</li>
+	    <li data-role="fieldcontain">
+	      <label for="outgoing-server-host">Host:</label>
+	      <input type="text" name="outgoing-server-host" id="outgoing-server-host" value="" required="required" placeholder="smtp.example.com"/>
+	    </li>
+	    <li data-role="fieldcontain">
+	      <fieldset data-role="controlgroup" data-type="horizontal">
+		<legend>Security protocol</legend>
+		<input type="radio" name="outgoing-security-choice" id="outgoing-security-none" value="none" checked="checked" />
+		<label for="outgoing-security-none">None</label>
+		<input type="radio" name="outgoing-security-choice" id="outgoing-security-ssl" value="ssl" />
+		<label for="outgoing-security-ssl">SSL</label>
+		<input type="radio" name="outgoing-security-choice" id="outgoing-security-tls" value="tls" />
+		<label for="outgoing-security-tls">TLS</label>
+	      </fieldset>
+	    </li>
+	    <li data-role="fieldcontain">
+	      <label for="incoming-server-port">Port:</label>
+	      <input type="number" name="outgoing-server-port" id="outgoing-server-port" min=1 max=65534 required="required" value="" />
+	    <li data-role="fieldcontain">
+	      <fieldset data-role="controlgroup" data-type="horizontal">
+		<legend>Authentication:</legend>
+		<input type="radio" name="outgoing-auth-choice" id="outgoing-auth-none" value="none" checked="checked" />
+		<label for="outgoing-auth-none">None</label>
+		<input type="radio" name="outgoing-auth-choice" id="outgoing-auth-login" value="login" />
+		<label for="outgoing-auth-login">Login</label>
+		<input type="radio" name="outgoing-auth-choice" id="outgoing-auth-crammd5" value="crammd5" />
+		<label for="outgoing-auth-crammd5">CRAM-MD5</label>
+	      </fieldset>
+	    </li>
+	    <li data-role="fieldcontain">
+	      <label for="outgoing-server-username">User name:</label>
+	      <input type="text" name="outgoing-server-username" id="outgoing-server-username" value="" />
+	    </li>
+	    <li data-role="fieldcontain">
+	      <label for="outgoing-server-password">Password:</label>
+	      <input type="password" name="outgoing-server-password" id="outgoing-server-password" value="" />
+	    </li>
+	    <li class="ui-body ui-body-b">
+	      <fieldset class="ui-grid-a">
+		<div class="ui-block-a"><button type="button" id="cancel-add-account" data-theme="d">Cancel</button></div>
+		<div class="ui-block-b"><button type="submit" data-icon="plus" data-theme="a">Save</button></div>
+	      </fieldset>
+	    </li>
+	  </ul>
+	</form>
+      </div>
+    </div>
+
+
+
+  </body>
+</html>

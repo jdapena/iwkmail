@@ -2,13 +2,46 @@ NULL =
 
 bin_PROGRAMS = iwkmail
 
+iwkmail_headers = \
+	im-account-mgr.h \
+	im-account-mgr-helpers.h \
+	im-account-mgr-priv.h \
+	im-account-protocol.h \
+	im-account-settings.h \
+	im-conf.h \
+	im-error.h \
+	im-pair.h \
+	im-protocol-registry.h \
+	im-protocol.h \
+	im-server-account-settings.h \
+	im-service-mgr.h \
+	im-soup-request.h \
+	im-window.h \
+	$(NULL)
+
 iwkmail_SOURCES = \
-	im-main.c
+	$(iwkmail_headers) \
+	im-account-mgr.c \
+	im-account-mgr-helpers.c \
+	im-account-protocol.c \
+	im-account-settings.c \
+	im-conf.c \
+	im-error.c \
+	im-main.c \
+	im-pair.c \
+	im-protocol.c \
+	im-protocol-registry.c \
+	im-server-account-settings.c \
+	im-service-mgr.c \
+	im-soup-request.c \
+	im-window.c \
+	$(NULL)
 
 iwkmail_CFLAGS = \
 	$(DEPENDENCIES_CFLAGS) \
 	$(WEBKIT_CFLAGS) \
-	$(AM_CFLAGS)
+	$(AM_CFLAGS) \
+	-DHTMLDIR=\""$(datadir)/iwkmail/html/"\"
 
 iwkmail_LDFLAGS = -dlopen self
 

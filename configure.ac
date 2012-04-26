@@ -51,9 +51,12 @@ fi
 
 GLIB_REQUIRED=2.32.0
 GTK_REQUIRED=3.4.0
+GCONF_REQUIRED=3.2.0
 WEBKIT_GTK_REQUIRED=1.7.92
 LIBSOUP_GNOME_REQUIRED=2.37.1
 GSETTINGS_DESKTOP_SCHEMAS_REQUIRED=0.0.1
+JSON_GLIB_REQUIRED=0.14.1
+CAMEL_REQUIRED=3.2.0
 
 PKG_CHECK_MODULES([DEPENDENCIES], [
 		  glib-2.0 >= $GLIB_REQUIRED
@@ -62,12 +65,15 @@ PKG_CHECK_MODULES([DEPENDENCIES], [
 		  gio-unix-2.0 >= $GLIB_REQUIRED
 		  gtk+-3.0 >= $GTK_REQUIRED
 		  gtk+-unix-print-3.0 >= $GTK_REQUIRED
+		  gconf-2.0 >= GCONF_REQUIRED
 		  ice
 		  x11
 		  sm
 		  webkitgtk-3.0 >= $WEBKIT_GTK_REQUIRED
 		  libsoup-gnome-2.4 >= $LIBSOUP_GNOME_REQUIRED
 		  gsettings-desktop-schemas >= $GSETTINGS_DESKTOP_SCHEMAS_REQUIRED
+		  json-glib-1.0 >= $JSON_GLIB_REQUIRED
+		  camel-1.2 >= $CAMEL_REQUIRED
 		  ])
 
 # ******************
@@ -142,6 +148,9 @@ AC_DEFINE([IWK_COMPILATION],[1],[Compiling epiphany])
 AC_CONFIG_FILES([
 Makefile
 src/Makefile
+data/Makefile
+data/html/Makefile
+data/js/Makefile
 po/Makefile.in
 ])
 
