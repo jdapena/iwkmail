@@ -485,18 +485,21 @@ fill_network_settings (ImServerAccountSettings *server,
 		       ImAccountType account_type,
 		       CamelNetworkSettings *network)
 {
-	ImProtocolRegistry *registry = im_protocol_registry_get_instance ();
 	ImProtocolType connection;
 	CamelNetworkSecurityMethod security_method;
 
 	if (account_type == IM_ACCOUNT_TYPE_TRANSPORT) {
 		ImProtocolType auth;
-		ImProtocol *auth_protocol;
+		const char *auth_mech = NULL;
 		auth = im_server_account_settings_get_auth_protocol (server);
-		auth_protocol = im_protocol_registry_get_protocol_by_type (registry, auth);
-		if (auth_protocol) {
-			camel_network_settings_set_auth_mechanism (network,
-								   im_protocol_get_name (auth_protocol));
+		if (auth == im_protocol_registry_get_password_auth_type_id ())
+			auth_mech = "LOGIN";
+		else if (auth == im_protocol_registry_get_crammd5_auth_type_id ()) {
+			auth_mech = "CRAM-MD5";
+		}
+		
+		if (auth_mech) {
+			camel_network_settings_set_auth_mechanism (network, auth_mech);
 		}
 	}
 

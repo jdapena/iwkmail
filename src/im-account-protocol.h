@@ -40,7 +40,7 @@
 
 #define IM_ACCOUNT_AUTH_MECH	 "auth_mech"	     /* string */
 #define IM_ACCOUNT_AUTH_MECH_VALUE_NONE "none"
-#define IM_ACCOUNT_AUTH_MECH_VALUE_PASSWORD "password"
+#define IM_ACCOUNT_AUTH_MECH_VALUE_LOGIN "password"
 #define IM_ACCOUNT_AUTH_MECH_VALUE_CRAMMD5 "cram-md5"
 
 

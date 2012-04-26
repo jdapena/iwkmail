@@ -558,7 +558,7 @@ im_protocol_registry_set_to_default (ImProtocolRegistry *self)
 				      NULL);
 	g_object_unref (protocol);
 
-	protocol = im_protocol_new (IM_ACCOUNT_AUTH_MECH_VALUE_PASSWORD, _("Login"));
+	protocol = im_protocol_new (IM_ACCOUNT_AUTH_MECH_VALUE_LOGIN, _("Login"));
 	password_auth_protocol_type_id = im_protocol_get_type_id (protocol);
 	im_protocol_set (protocol, IM_PROTOCOL_AUTH_ACCOUNT_OPTION, IM_ACCOUNT_AUTH_PASSWORD);
 	im_protocol_registry_add (self, protocol, 12,

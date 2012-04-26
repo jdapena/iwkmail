@@ -200,7 +200,7 @@ create_transport (GHashTable *params, GError **error)
 
 	auth_protocol = im_protocol_registry_get_protocol_by_name (im_protocol_registry_get_instance (),
 								   IM_PROTOCOL_REGISTRY_AUTH_PROTOCOLS,
-								       auth_str);
+								   auth_str);
 	if (auth_protocol == NULL) {
 		g_set_error (&_error, IM_ERROR_DOMAIN, IM_ERROR_SETTINGS_INVALID_AUTH_PROTOCOL,
 			     _("Invalid outgoing server authentication protocol"));
