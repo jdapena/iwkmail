@@ -61,9 +61,20 @@ null_means_empty (const gchar * str)
 	return str ? str : "";
 }
 
+/**
+ * im_account_mgr_set_enabled:
+ * @self: an #ImAccountMgr
+ * @name: the account name 
+ * @enabled: if %TRUE, the account will be enabled, if %FALSE, it will be disabled
+ * 
+ * enable/disabled an account
+ *
+ * Returns: %TRUE if successful, %FALSE otherwise
+ */
 gboolean
-im_account_mgr_set_enabled (ImAccountMgr *self, const gchar* name,
-					gboolean enabled)
+im_account_mgr_set_enabled (ImAccountMgr *self,
+			    const gchar* name,
+			    gboolean enabled)
 {
 	gboolean result;
 	result = im_account_mgr_set_bool (self, name, IM_ACCOUNT_ENABLED, enabled,FALSE);
@@ -71,26 +82,60 @@ im_account_mgr_set_enabled (ImAccountMgr *self, const gchar* name,
 }
 
 
+/**
+ * im_account_mgr_get_enabled:
+ * @self: an #ImAccountMgr
+ * @name: the account name
+ *
+ * check whether a certain account is enabled
+ *
+ * Returns: TRUE if it is enabled, FALSE otherwise
+ */
 gboolean
-im_account_mgr_get_enabled (ImAccountMgr *self, const gchar* name)
+im_account_mgr_get_enabled (ImAccountMgr *self,
+			    const gchar* name)
 {
 	return im_account_mgr_get_bool (self, name, IM_ACCOUNT_ENABLED, FALSE);
 }
 
-gboolean im_account_mgr_set_signature (ImAccountMgr *self, const gchar* name, 
-	const gchar* signature, gboolean use_signature)
+/**
+ * im_account_mgr_set_signature:
+ * @self: an #ImAccountMgr
+ * @name: the account name
+ * @signature: the signature text 
+ * @use_signature: Whether the signature should be used.
+ * 
+ * Sets the signature text for the account.
+ *
+ * Returns: %TRUE if it worked, %FALSE otherwise
+ */
+gboolean
+im_account_mgr_set_signature (ImAccountMgr *self, 
+			      const gchar* name, 
+			      const gchar* signature,
+			      gboolean use_signature)
 {
 	gboolean result = im_account_mgr_set_bool (self, name, IM_ACCOUNT_USE_SIGNATURE, 
-		use_signature, FALSE);
+						   use_signature, FALSE);
 	result = result && im_account_mgr_set_string (self, name, IM_ACCOUNT_SIGNATURE, 
-							  null_means_empty (signature), FALSE);
+						      null_means_empty (signature), FALSE);
 	return result;
 }
 
+/**
+ * im_account_mgr_get_signature:
+ * @self: an #ImAccountMgr
+ * @name: the account name
+ * @use_signature: (out): #gboolean pointer set to TRUE if the signature should be used.
+ *
+ * Gets the signature text for this account.
+ *
+ * Returns: (transfer full): The signature text
+ */
 gchar* 
 im_account_mgr_get_signature (ImAccountMgr *self, 
-				  const gchar* name, 
-				  gboolean* use_signature)
+			      const gchar* name, 
+			      gboolean* use_signature)
 {
 	*use_signature = 
 		im_account_mgr_get_bool (self, name, IM_ACCOUNT_USE_SIGNATURE, FALSE);
@@ -98,299 +143,211 @@ im_account_mgr_get_signature (ImAccountMgr *self,
 	return im_account_mgr_get_string (self, name, IM_ACCOUNT_SIGNATURE, FALSE);
 }
 
-ImProtocolType im_account_mgr_get_store_protocol (ImAccountMgr *self, const gchar* name)
+/**
+ * im_account_mgr_get_store_protocol:
+ * @self: an #ImAccountMgr
+ * @name: the account name
+ *
+ * Gets the protocol type (For instance, POP or IMAP) used for the store server account.
+ *
+ * Returns: an #ImProtocolType
+ */
+ImProtocolType
+im_account_mgr_get_store_protocol (ImAccountMgr *self, const gchar* name)
 {
        ImProtocolType result = IM_PROTOCOLS_STORE_POP; /* Arbitrary default */
        
        gchar *server_account_name = im_account_mgr_get_string (self, name,
-								   IM_ACCOUNT_STORE_ACCOUNT,
-								   FALSE);
+							       IM_ACCOUNT_STORE_ACCOUNT,
+							       FALSE);
        if (server_account_name) {
 	       ImServerAccountSettings* server_settings = 
-                       im_account_mgr_load_server_settings (self, server_account_name, FALSE);
-               result = im_server_account_settings_get_protocol (server_settings);
-	       
-               g_object_unref (server_settings);
-               
-               g_free (server_account_name);
+		       im_account_mgr_load_server_settings (self, server_account_name, FALSE);
+	       result = im_server_account_settings_get_protocol (server_settings);
+	 
+	       g_object_unref (server_settings);
+	       g_free (server_account_name);
        }
        
        return result;
 }
 
-
-gboolean 
-im_account_mgr_set_connection_specific_smtp (ImAccountMgr *self, 
-						 const gchar* connection_id, 
-						 const gchar* server_account_name)
-{
-	ImConf *conf;
-	gboolean result = TRUE;
-	GError *err = NULL;
-	GSList *list;
-
-	im_account_mgr_remove_connection_specific_smtp (self, connection_id);
-	
-	conf = IM_ACCOUNT_MGR_GET_PRIVATE (self)->im_conf;
-
-	list = im_conf_get_list (conf, IM_CONF_CONNECTION_SPECIFIC_SMTP_LIST,
-				 IM_CONF_VALUE_STRING, &err);
-	if (err) {
-		g_printerr ("im: %s: error getting list: %s.\n", __FUNCTION__, err->message);
-		g_error_free (err);
-		err = NULL;
-		result = FALSE;
-	} else {	
-		/* The server account is in the item after the connection name: */
-		list = g_slist_append (list, g_strdup (connection_id));
-		list = g_slist_append (list, g_strdup (server_account_name));
-	
-		/* Reset the changed list: */
-		im_conf_set_list (conf, IM_CONF_CONNECTION_SPECIFIC_SMTP_LIST, list,
-						    IM_CONF_VALUE_STRING, &err);
-		if (err) {
-			g_printerr ("im: %s: error setting list: %s.\n", __FUNCTION__, err->message);
-			g_error_free (err);
-			result = FALSE;
-		}
-	}
-				
-	/* Free the list */
-	if (list) {
-		g_slist_foreach (list, (GFunc) g_free, NULL);
-		g_slist_free (list);
-	}
-	
-	return result;
-}
-
 /**
- * im_account_mgr_remove_connection_specific_smtp
- * @self: a ImAccountMgr instance
- * @name: the account name
- * @connection_id: A libconic IAP connection id
- * 
- * Disassacoiate a server account to use with the specific connection for this account.
+ * im_account_mgr_get_server_account_username:
+ * @self: an #ImAccountMgr
+ * @account_name: The name of the server account.
  *
- * Returns: TRUE if it worked, FALSE otherwise
- */				 
-gboolean 
-im_account_mgr_remove_connection_specific_smtp (ImAccountMgr *self, 
-						    const gchar* connection_id)
-{
-	ImAccountMgrPrivate *priv = IM_ACCOUNT_MGR_GET_PRIVATE (self);
-	
-	gboolean result = TRUE;
-	GError *err = NULL;
-	GSList *list;
-	GSList *list_connection;
-
-	list = im_conf_get_list (priv->im_conf, 
-				 IM_CONF_CONNECTION_SPECIFIC_SMTP_LIST,
-				 IM_CONF_VALUE_STRING, &err);
-	if (err) {
-		g_printerr ("im: %s: error getting list: %s.\n", __FUNCTION__, err->message);
-		g_error_free (err);
-		err = NULL;
-		result = FALSE;
-	}
-
-	if (!list)
-		return FALSE;
-		
-	/* The server account is in the item after the connection name: */
-	list_connection = g_slist_find_custom (list, connection_id, (GCompareFunc)strcmp);
-	if (list_connection) {
-		GSList *account_node = g_slist_next (list_connection);
-		/* remove both items: */
-		list = g_slist_delete_link(list, list_connection);
-		list = g_slist_delete_link(list, account_node);
-	}
-	
-	/* Reset the changed list: */
-	im_conf_set_list (priv->im_conf, IM_CONF_CONNECTION_SPECIFIC_SMTP_LIST, list,
-						    IM_CONF_VALUE_STRING, &err);
-	if (err) {
-		g_printerr ("im: %s: error setting list: %s.\n", __FUNCTION__, err->message);
-		g_error_free (err);
-		result = FALSE;
-	}
-				
-	/* Free the list */
-	if (list) {
-		g_slist_foreach (list, (GFunc) g_free, NULL);
-		g_slist_free (list);
-	}
-	
-	return result;
-}
-
-
-gboolean im_account_mgr_get_use_connection_specific_smtp (ImAccountMgr *self, const gchar* account_name)
-{
-	return im_account_mgr_get_bool (self, account_name, 
-		IM_ACCOUNT_USE_CONNECTION_SPECIFIC_SMTP, FALSE);
-}
-
-gboolean im_account_mgr_set_use_connection_specific_smtp (ImAccountMgr *self, const gchar* account_name, 
-	gboolean new_value)
-{
-	return im_account_mgr_set_bool (self, account_name, IM_ACCOUNT_USE_CONNECTION_SPECIFIC_SMTP, 
-		new_value, FALSE);
-}
-
-/**
- * im_account_mgr_get_connection_specific_smtp
- * @self: a ImAccountMgr instance
- * @connection_id: A libconic IAP connection id
- * 
- * Retrieve a server account to use with this specific connection for this account.
+ * Gets the username this server account.
  *
- * Returns: a server account name to use for this connection, or NULL if none is specified.
- */			 
-gchar* im_account_mgr_get_connection_specific_smtp (ImAccountMgr *self,  const gchar* connection_id)
-{
-	ImAccountMgrPrivate *priv = IM_ACCOUNT_MGR_GET_PRIVATE (self);
-	gchar *result = NULL;
-	GError *err = NULL;
-	GSList *list, *iter;
-
-	list = im_conf_get_list (priv->im_conf, IM_CONF_CONNECTION_SPECIFIC_SMTP_LIST,
-						    IM_CONF_VALUE_STRING, &err);
-	if (err) {
-		g_printerr ("im: %s: error getting list: %s.\n", __FUNCTION__, err->message);
-		g_error_free (err);
-		err = NULL;
-	}
-
-	if (!list)
-		return NULL;
-
-	/* The server account is in the item after the connection name: */
-	iter = list;
-	while (iter) {
-		const gchar* this_connection_id = (const gchar*)(iter->data);
-		if (strcmp (this_connection_id, connection_id) == 0) {
-			iter = g_slist_next (iter);
-			
-			if (iter) {
-				const gchar* account_name = (const gchar*)(iter->data);
-				if (account_name) {
-					result = g_strdup (account_name);
-					break;
-				}
-			}
-		}
-		
-		/* Skip 2 to go to the next connection in the list: */
-		iter = g_slist_next (iter);
-		if (iter)
-			iter = g_slist_next (iter);
-	}
-		
-	/* Free the list */
-	if (list) {
-		g_slist_foreach (list, (GFunc) g_free, NULL);
-		g_slist_free (list);
-	}
-	
-	return result;
-}
-					 
+ * Returns: (transfer full): The username.
+ */
 gchar*
-im_account_mgr_get_server_account_username (ImAccountMgr *self, const gchar* account_name)
+im_account_mgr_get_server_account_username (ImAccountMgr *self,
+					    const gchar* account_name)
 {
 	return im_account_mgr_get_string (self, account_name, IM_ACCOUNT_USERNAME, 
-		TRUE /* server account */);
+					  TRUE /* server account */);
 }
 
+/**
+ * im_account_mgr_set_server_account_username:
+ * @self: an #ImAccountMgr
+ * @account_name: The name of a server account.
+ * @username: The new username.
+ *
+ * Sets the username this server account.
+ */
 void
-im_account_mgr_set_server_account_username (ImAccountMgr *self, const gchar* account_name, 
-	const gchar* username)
+im_account_mgr_set_server_account_username (ImAccountMgr *self,
+					    const gchar* account_name, 
+					    const gchar* username)
 {
 	/* Note that this won't work properly as long as the gconf cache is broken 
 	 * in Maemo Bora: */
 	gchar *existing_username = im_account_mgr_get_server_account_username(self, 
-		account_name);
+									      account_name);
 	
 	im_account_mgr_set_string (self, account_name, IM_ACCOUNT_USERNAME, 
-		username, TRUE /* server account */);
+				   username, TRUE /* server account */);
 		
 	/* We don't know anything about new usernames: */
 	if (strcmp (existing_username, username) != 0)
 		im_account_mgr_set_server_account_username_has_succeeded (self, account_name, FALSE);
-		
+	
 	g_free (existing_username);
 }
 
+/**
+ * im_account_mgr_get_server_account_username_has_succeeded:
+ * @self: an #ImAccountMgr
+ * @account_name: The name of a server account.
+ *
+ * Whether a connection has ever been successfully made to this account with 
+ * the current username. This can be used to avoid asking again for the username 
+ * when asking a second time for a non-stored password.
+ *
+ * Returns: %TRUE if the username is known to be correct.
+ */
 gboolean
-im_account_mgr_get_server_account_username_has_succeeded (ImAccountMgr *self, const gchar* account_name)
+im_account_mgr_get_server_account_username_has_succeeded (ImAccountMgr *self,
+							  const gchar* account_name)
 {
 	return im_account_mgr_get_bool (self, account_name, IM_ACCOUNT_USERNAME_HAS_SUCCEEDED, 
-					    TRUE /* server account */);
+					TRUE /* server account */);
 }
 
+/**
+ * im_account_mgr_set_server_account_username_has_succeeded:
+ * @self: an #ImAccountMgr
+ * @account_name: The name of a server account.
+ * @succeeded: Whether the username has succeeded
+ *
+ * Sets whether the username is known to be correct.
+ */
 void
 im_account_mgr_set_server_account_username_has_succeeded (ImAccountMgr *self, 
-						  const gchar* account_name, 
-						  gboolean succeeded)
+							  const gchar* account_name, 
+							  gboolean succeeded)
 {
 	im_account_mgr_set_bool (self, account_name, IM_ACCOUNT_USERNAME_HAS_SUCCEEDED, 
-				     succeeded, TRUE /* server account */);
+				 succeeded, TRUE /* server account */);
 }
 
+/**
+ * im_account_mgr_get_server_account_password:
+ * @self: an #ImAccountMgr
+ * @account_name: The name of a server account.
+ *
+ * Gets the password for this server account from the account settings.
+ *
+ * Returns: (transfer full): the password
+ */
 gchar*
-im_account_mgr_get_server_account_password (ImAccountMgr *self, const gchar* account_name)
+im_account_mgr_get_server_account_password (ImAccountMgr *self,
+					    const gchar* account_name)
 {
 	return im_account_mgr_get_string (self, account_name, IM_ACCOUNT_PASSWORD, 
 		TRUE /* server account */);	
 }
 
+/**
+ * im_account_mgr_get_server_account_has_password:
+ * @self: an #ImAccountMgr
+ * @account_name: The name of a server account.
+ *
+ * Gets whether a password has been set for this server account in the account settings.
+ * Returns: %TRUE if account has password, %FALSE otherwise
+ */
 gboolean
-im_account_mgr_get_server_account_has_password (ImAccountMgr *self, const gchar* account_name)
+im_account_mgr_get_server_account_has_password (ImAccountMgr *self,
+						const gchar* account_name)
 {
 	gboolean result = FALSE;
 	gchar *password = im_account_mgr_get_string (self, account_name, IM_ACCOUNT_PASSWORD, 
-		TRUE /* server account */);
+						     TRUE /* server account */);
 	if (password && strlen (password)) {
 		result = TRUE;
-	
+		
 		/* Clean password */
 		bzero (password, strlen (password));
 	}
-
+	
 	g_free (password);
 	return result;
 }
 			 
-	
+/**
+ * im_server_account_im_account_mgr_get_server_account_hostname:
+ * @self: an #ImAccountMgr
+ * @account_name: The name of a server account.
+ *
+ * Gets the hostname this server account.
+ *
+ * Returns: (transfer full): The hostname.
+ */
 gchar*
 im_account_mgr_get_server_account_hostname (ImAccountMgr *self, 
-						const gchar* account_name)
+					    const gchar* account_name)
 {
 	return im_account_mgr_get_string (self, 
-					      account_name, 
-					      IM_ACCOUNT_HOSTNAME, 
-					      TRUE /* server account */);
+					  account_name, 
+					  IM_ACCOUNT_HOSTNAME, 
+					  TRUE /* server account */);
 }
  
+/**
+ * im_server_account_im_account_mgr_set_server_account_hostname:
+ * @self: an #ImAccountMgr
+ * @account_name: The name of a server account.
+ * @hostname: The new hostname
+ *
+ * Sets the hostname this server account.
+ */
 void
 im_account_mgr_set_server_account_hostname (ImAccountMgr *self, 
-						const gchar *server_account_name,
-						const gchar *hostname)
+					    const gchar *server_account_name,
+					    const gchar *hostname)
 {
 	im_account_mgr_set_string (self, 
-				       server_account_name,
-				       IM_ACCOUNT_HOSTNAME, 
-				       hostname, 
-				       TRUE /* server account */);
+				   server_account_name,
+				   IM_ACCOUNT_HOSTNAME, 
+				   hostname, 
+				   TRUE /* server account */);
 }
 
 
-
+/**
+ * im_account_mgr_get_server_account_secure_auth:
+ * @self: an #ImAccountMgr
+ * @account_name: the name of the server account
+ *
+ * Obtains the authentication method for @account_name
+ *
+ * Returns: an #ImProtocolType
+ */
 ImProtocolType
 im_account_mgr_get_server_account_secure_auth (ImAccountMgr *self, 
-	const gchar* account_name)
+					       const gchar* account_name)
 {
 	ImProtocolRegistry *protocol_registry;
 	ImProtocolType result = IM_PROTOCOLS_AUTH_NONE;
@@ -414,9 +371,18 @@ im_account_mgr_get_server_account_secure_auth (ImAccountMgr *self,
 }
 
 
+/**
+ * im_account_mgr_get_server_account_secure_auth:
+ * @self: an #ImAccountMgr
+ * @account_name: the name of the server account
+ * @secure_auth: an #ImProtocolType
+ *
+ * Sets the authentication method for @account_name
+ */
 void
 im_account_mgr_set_server_account_secure_auth (ImAccountMgr *self, 
-	const gchar* account_name, ImProtocolType secure_auth)
+					       const gchar* account_name,
+					       ImProtocolType secure_auth)
 {
 	const gchar* str_value;
 	ImProtocolRegistry *protocol_registry;
@@ -431,25 +397,34 @@ im_account_mgr_set_server_account_secure_auth (ImAccountMgr *self,
 	im_account_mgr_set_string (self, account_name, IM_ACCOUNT_AUTH_MECH, str_value, TRUE);
 }
 
+/**
+ * im_server_account_data_get_server_account_security:
+ * @self: an #ImAccountMgr
+ * @account_name: The name of a server account.
+ *
+ * Gets the security protocol for this server account.
+ *
+ * Returns: an #ImProtocolType
+ */
 ImProtocolType
 im_account_mgr_get_server_account_security (ImAccountMgr *self, 
-	const gchar* account_name)
+					    const gchar* account_name)
 {
 	ImProtocolType result = IM_PROTOCOLS_CONNECTION_NONE;
 	gchar* value;
 
 	value = im_account_mgr_get_string (self, account_name, IM_ACCOUNT_SECURITY, 
-					       TRUE /* server account */);
+					   TRUE /* server account */);
 	if (value) {
 		ImProtocolRegistry *protocol_registry;
 		ImProtocol *protocol;
-
+		
 		protocol_registry = im_protocol_registry_get_instance ();
 		protocol = im_protocol_registry_get_protocol_by_name (protocol_registry,
-									  IM_PROTOCOL_REGISTRY_CONNECTION_PROTOCOLS,
-									  value);
+								      IM_PROTOCOL_REGISTRY_CONNECTION_PROTOCOLS,
+								      value);
 		g_free (value);
-
+		
 		if (protocol)
 			result = im_protocol_get_type_id (protocol);
 	}
@@ -457,10 +432,19 @@ im_account_mgr_get_server_account_security (ImAccountMgr *self,
 	return result;
 }
 
+
+/**
+ * im_account_mgr_set_server_account_security:
+ * @self: an #ImAccountMgr
+ * @account_name: the server account name
+ * @secure_auth: an #ImProtocolType
+ *
+ * Sets the security protocol for this server account.
+ */
 void
 im_account_mgr_set_server_account_security (ImAccountMgr *self, 
-						const gchar* account_name, 
-						ImProtocolType security)
+					    const gchar* account_name, 
+					    ImProtocolType security)
 {
 	const gchar* str_value;
 	ImProtocolRegistry *protocol_registry;
@@ -475,8 +459,20 @@ im_account_mgr_set_server_account_security (ImAccountMgr *self,
 	im_account_mgr_set_string (self, account_name, IM_ACCOUNT_SECURITY, str_value, TRUE);
 }
 
+/**
+ * im_account_mgr_load_server_settings:
+ * @self: an #ImAccountMgr
+ * @name: the server account name
+ * @is_transport_and_not_store: %TRUE if account is transport, %FALSE if it's store.
+ *
+ * Load @name server account settings.
+ *
+ * Returns: (transfer full): an #ImServerAccountSettings
+ */
 ImServerAccountSettings *
-im_account_mgr_load_server_settings (ImAccountMgr *self, const gchar* name, gboolean is_transport_and_not_store)
+im_account_mgr_load_server_settings (ImAccountMgr *self,
+				     const gchar* name,
+				     gboolean is_transport_and_not_store)
 {
 	ImServerAccountSettings *settings = NULL;
 	ImProtocol *protocol;
@@ -504,61 +500,61 @@ im_account_mgr_load_server_settings (ImAccountMgr *self, const gchar* name, gboo
 		protocol = im_protocol_registry_get_protocol_by_name (registry, tag, proto);
 
 		im_server_account_settings_set_protocol (settings,
-							     im_protocol_get_type_id (protocol));
+							 im_protocol_get_type_id (protocol));
 		g_free (proto);
 	} else {
 		goto on_error;
 	}
-
+	
 	im_server_account_settings_set_port (settings,
-						 im_account_mgr_get_int (self, name, IM_ACCOUNT_PORT, TRUE));
+					     im_account_mgr_get_int (self, name, IM_ACCOUNT_PORT, TRUE));
 
 	auth = im_account_mgr_get_string (self, name, IM_ACCOUNT_AUTH_MECH, TRUE);
 	if (auth) {
 		protocol = im_protocol_registry_get_protocol_by_name (registry, IM_PROTOCOL_REGISTRY_AUTH_PROTOCOLS, auth);
 		im_server_account_settings_set_auth_protocol (settings,
-								  im_protocol_get_type_id (protocol));
+							      im_protocol_get_type_id (protocol));
 		g_free (auth);
 	} else {
 		im_server_account_settings_set_auth_protocol (settings, IM_PROTOCOLS_AUTH_NONE);
 	}
-
+	
 	sec = im_account_mgr_get_string (self, name, IM_ACCOUNT_SECURITY, TRUE);
 	if (sec) {
 		protocol = im_protocol_registry_get_protocol_by_name (registry, IM_PROTOCOL_REGISTRY_CONNECTION_PROTOCOLS, sec);
 		im_server_account_settings_set_security_protocol (settings,
-								      im_protocol_get_type_id (protocol));
+								  im_protocol_get_type_id (protocol));
 		g_free (sec);
 	} else {
 		im_server_account_settings_set_security_protocol (settings,
-								      IM_PROTOCOLS_CONNECTION_NONE);
+								  IM_PROTOCOLS_CONNECTION_NONE);
 	}
-
+	
 	/* Username, password and URI. Note that the URI could include
 	   the former two, so in this case there is no need to have
 	   them */
 	username = im_account_mgr_get_string (self, name,
-						  IM_ACCOUNT_USERNAME,TRUE);
+					      IM_ACCOUNT_USERNAME,TRUE);
 	if (username)
 		im_server_account_settings_set_username (settings, username);
-
+	
 	pwd = im_account_mgr_get_string (self, name,
-					     IM_ACCOUNT_PASSWORD, TRUE);
+					 IM_ACCOUNT_PASSWORD, TRUE);
 	if (pwd) {
 		im_server_account_settings_set_password (settings, pwd);
 		g_free (pwd);
 	}
-
+	
 	uri = im_account_mgr_get_string (self, name,
-					     IM_ACCOUNT_URI, TRUE);
+					 IM_ACCOUNT_URI, TRUE);
 	if (uri)
 		im_server_account_settings_set_uri (settings, uri);
-
+	
 	hostname = im_account_mgr_get_string (self, name,
-						  IM_ACCOUNT_HOSTNAME,TRUE);
+					      IM_ACCOUNT_HOSTNAME,TRUE);
 	if (hostname)
 		im_server_account_settings_set_hostname (settings, hostname);
-
+	
 	if (!uri) {
 		if (!username || !hostname) {
 			g_free (username);
@@ -566,22 +562,31 @@ im_account_mgr_load_server_settings (ImAccountMgr *self, const gchar* name, gboo
 			goto on_error;
 		}
 	}
-
+	
 	g_free (username);
 	g_free (hostname);
 	g_free (uri);
-
+	
 	return settings;
-
+	
  on_error:
 	if (settings)
 		g_object_unref (settings);
 	return NULL;
 }
 
+/**
+ * im_account_mgr_save_server_settings:
+ * @self: an #ImAccountMgr instance
+ * @settings: an #ImServerAccountSettings
+ *
+ * Saves the server account settings to persistent storage
+ *
+ * Returns: %TRUE if successful, %FALSE otherwise.
+ */
 gboolean 
 im_account_mgr_save_server_settings (ImAccountMgr *self,
-					 ImServerAccountSettings *settings)
+				     ImServerAccountSettings *settings)
 {
 	gboolean has_errors = FALSE;
 	const gchar *account_name;
@@ -593,12 +598,12 @@ im_account_mgr_save_server_settings (ImAccountMgr *self,
 	g_return_val_if_fail (IM_IS_SERVER_ACCOUNT_SETTINGS (settings), FALSE);
 	protocol_registry = im_protocol_registry_get_instance ();
 	account_name = im_server_account_settings_get_account_name (settings);
-
+	
 	/* if we don't have a valid account name we cannot save */
 	g_return_val_if_fail (account_name, FALSE);
-
+	
 	protocol = im_protocol_registry_get_protocol_by_type (protocol_registry,
-								  im_server_account_settings_get_protocol (settings));
+							      im_server_account_settings_get_protocol (settings));
 	protocol_name = im_protocol_get_name (protocol);
 	uri = im_server_account_settings_get_uri (settings);
 	if (!uri) {
@@ -614,51 +619,61 @@ im_account_mgr_save_server_settings (ImAccountMgr *self,
 		password = null_means_empty (im_server_account_settings_get_password (settings));
 		port = im_server_account_settings_get_port (settings);
 		protocol = im_protocol_registry_get_protocol_by_type (protocol_registry,
-									  im_server_account_settings_get_auth_protocol (settings));
+								      im_server_account_settings_get_auth_protocol (settings));
 		auth_protocol_name = im_protocol_get_name (protocol);
 		protocol = im_protocol_registry_get_protocol_by_type (protocol_registry,
-									  im_server_account_settings_get_security_protocol (settings));
+								      im_server_account_settings_get_security_protocol (settings));
 		security_name = im_protocol_get_name (protocol);
-
+		
 		has_errors = !im_account_mgr_set_string (self, account_name, IM_ACCOUNT_HOSTNAME, 
-							    hostname, TRUE);
+							 hostname, TRUE);
 		if (!has_errors)
 			(has_errors = !im_account_mgr_set_string (self, account_name, IM_ACCOUNT_USERNAME,
-									   username, TRUE));
+								  username, TRUE));
 		if (!has_errors)
 			(has_errors = !im_account_mgr_set_string (self, account_name, IM_ACCOUNT_PASSWORD,
-									   password, TRUE));
+								  password, TRUE));
 		if (!has_errors)
 			(has_errors = !im_account_mgr_set_string (self, account_name, IM_ACCOUNT_PROTO,
-									   protocol_name, TRUE));
+								  protocol_name, TRUE));
 		if (!has_errors)
 			(has_errors = !im_account_mgr_set_int (self, account_name, IM_ACCOUNT_PORT,
-									port, TRUE));
+							       port, TRUE));
 		if (!has_errors)
 			(has_errors = !im_account_mgr_set_string (self, account_name, 
-									   IM_ACCOUNT_AUTH_MECH,
-									   auth_protocol_name, TRUE));		
+								  IM_ACCOUNT_AUTH_MECH,
+								  auth_protocol_name, TRUE));		
 		if (!has_errors)
 			(has_errors = !im_account_mgr_set_string (self, account_name, IM_ACCOUNT_SECURITY,
-									   security_name,
-									   TRUE));
+								  security_name,
+								  TRUE));
 	} else {
 		const gchar *uri = im_server_account_settings_get_uri (settings);
 		has_errors = !im_account_mgr_set_string (self, account_name, IM_ACCOUNT_URI,
-							    uri, TRUE);
+							 uri, TRUE);
 		if (!has_errors)
 			(has_errors = !im_account_mgr_set_string (self, account_name, IM_ACCOUNT_PROTO,
-									   protocol_name, TRUE));
+								  protocol_name, TRUE));
 	}
-
+	
 	return !has_errors;
-
+	
 }
 
 
+/**
+ * im_account_mgr_load_account_settings:
+ * @self: an #ImAccountMgr
+ * @name: the name of the account
+ * 
+ * get information about an account
+ *
+ * Returns: (transfer full): an #ImAccountSettings, or %NULL if account is not valid
+ * or does not exist.
+ */
 ImAccountSettings *
 im_account_mgr_load_account_settings (ImAccountMgr *self, 
-					  const gchar* name)
+				      const gchar *name)
 {
 	ImAccountSettings *settings;
 	gchar *string;
@@ -713,8 +728,6 @@ im_account_mgr_load_account_settings (ImAccountMgr *self,
 
 	im_account_settings_set_leave_messages_on_server 
 		(settings, im_account_mgr_get_leave_on_server (self, name));
-	im_account_settings_set_use_connection_specific_smtp 
-		(settings, im_account_mgr_get_use_connection_specific_smtp (self, name));
 
 	/* store */
 	server_account     = im_account_mgr_get_string (self, name,
@@ -760,9 +773,16 @@ im_account_mgr_load_account_settings (ImAccountMgr *self,
 	return settings;
 }
 
+/**
+ * im_account_mgr_save_account_settings:
+ * @self: an #ImAccountMgr
+ * @settings: an #ImAccountSettings
+ * 
+ * Saves to persistent storage @settings
+ */
 void
 im_account_mgr_save_account_settings (ImAccountMgr *mgr,
-					  ImAccountSettings *settings)
+				      ImAccountSettings *settings)
 {
 	const gchar *account_name;
 	ImServerAccountSettings *store_settings;
@@ -789,10 +809,6 @@ im_account_mgr_save_account_settings (ImAccountMgr *mgr,
 	im_account_mgr_set_signature (mgr, account_name,
 					  im_account_settings_get_signature (settings),
 					  im_account_settings_get_use_signature (settings));
-	im_account_mgr_set_use_connection_specific_smtp 
-		(mgr, account_name,
-		 im_account_settings_get_use_connection_specific_smtp (settings));
-
 	store_settings = im_account_settings_get_store_settings (settings);
 	if (store_settings) {
 		const gchar *store_account_name;
@@ -824,7 +840,14 @@ on_accounts_list_sort_by_title(gconstpointer a, gconstpointer b)
  	return g_utf8_collate((const gchar*)a, (const gchar*)b);
 }
 
-/** Get the first one, alphabetically, by title. */
+/**
+ * im_account_mgr_get_first_account_name:
+ * @self: an #ImAccountMgr
+ *
+ * Get the first one, alphabetically, by title.
+ *
+ * Returns: (transfer full): the name of the first account
+ */
 gchar* 
 im_account_mgr_get_first_account_name (ImAccountMgr *self)
 {
@@ -865,6 +888,16 @@ im_account_mgr_get_first_account_name (ImAccountMgr *self)
 	return result;
 }
 
+/**
+ * im_account_mgr_set_first_account_as_default:
+ * @self: an #ImAccountMgr
+ * 
+ * Guarantees that at least one account, if there are any accounts, is the default,
+ * so that im_account_mgr_get_default_account() will return non-NULL if there 
+ * are any accounts.
+ *
+ * Returns: %TRUE if succeeded, %FALSE otherwise
+ */
 gboolean
 im_account_mgr_set_first_account_as_default (ImAccountMgr *self)
 {
@@ -882,17 +915,29 @@ im_account_mgr_set_first_account_as_default (ImAccountMgr *self)
 	return result;
 }
 
+/**
+ * im_account_mgr_get_from_string:
+ * @self: a #ImAccountMgr
+ * @name: the account name
+ * @mailbox: the mailbox
+ *
+ * get the From: string for some account; ie. "Foo Bar" &lt;foo.bar@cuux.yy&gt;"
+ *
+ * Returns: (transfer full): the from-string, or %NULL in case of error
+ */
 gchar*
-im_account_mgr_get_from_string (ImAccountMgr *self, const gchar* name, const gchar *mailbox)
+im_account_mgr_get_from_string (ImAccountMgr *self,
+				const gchar* name,
+				const gchar *mailbox)
 {
 	gchar *from;
 	gchar *fullname, *email;
 	
 	g_return_val_if_fail (self, NULL);
 	g_return_val_if_fail (name, NULL);
-
+	
 	fullname      = im_account_mgr_get_string (self, name, IM_ACCOUNT_FULLNAME,
-							       FALSE);
+						   FALSE);
 	email         = im_account_mgr_get_string (self, name, IM_ACCOUNT_EMAIL,
 						   FALSE);
 	from = g_strdup_printf ("%s <%s>",
@@ -915,20 +960,20 @@ util_increment_name (const gchar* text)
   	gint name_len;
   	gchar *name_without_number;
   	gchar *result;
-
+	
 	g_return_val_if_fail (text, NULL);
-
+	
 	/* Get the end character,
 	 * also doing a UTF-8 validation which is required for using g_utf8_prev_char().
 	 */
 	if (!g_utf8_validate (text, -1, &end))
 		return NULL;
-  
+	
   	if (!end)
   		return NULL;
   		
   	--end; /* Go to before the null-termination. */
-  		
+	
   	/* Look at each UTF-8 characer, starting at the end: */
   	p = end;
   	alpha_end = NULL;
@@ -959,24 +1004,34 @@ util_increment_name (const gchar* text)
   	name_len = alpha_end - text;
   	name_without_number = g_malloc(name_len + 1);
   	memcpy (name_without_number, text, name_len);
-  	name_without_number[name_len] = 0;\
+  	name_without_number[name_len] = 0;	\
   	
-    /* Concatenate the text part and the new number: */	
+	/* Concatenate the text part and the new number: */	
   	result = g_strdup_printf("%s%d", name_without_number, num);
   	g_free (name_without_number);
   	
   	return result; 	
 }
 
+/**
+ * im_account_mgr_get_unused_account_name:
+ * @self: a #ImAccountMgr
+ * @name: The initial account name
+ *
+ * get an unused account name, based on a starting string.
+ *
+ * Returns: (transfer full): a valid non used name
+ */
 gchar*
-im_account_mgr_get_unused_account_name (ImAccountMgr *self, const gchar* starting_name,
-	gboolean server_account)
+im_account_mgr_get_unused_account_name (ImAccountMgr *self,
+					const gchar* starting_name,
+					gboolean server_account)
 {
 	gchar *account_name = g_strdup (starting_name);
-
+	
 	while (im_account_mgr_account_exists (self, 
-		account_name, server_account /*  server_account */)) {
-			
+					      account_name, 
+					      server_account /*  server_account */)) {
 		gchar * account_name2 = util_increment_name (account_name);
 		g_free (account_name);
 		account_name = account_name2;
@@ -985,13 +1040,23 @@ im_account_mgr_get_unused_account_name (ImAccountMgr *self, const gchar* startin
 	return account_name;
 }
 
+/**
+ * im_account_mgr_get_unused_account_display name:
+ * @self: a #ImAccountMgr
+ * @name: The initial account display name
+ *
+ * get an unused account display name, based on a starting string.
+ *
+ * Returns: (transfer full): the unused display name.
+ */
 gchar*
-im_account_mgr_get_unused_account_display_name (ImAccountMgr *self, const gchar* starting_name)
+im_account_mgr_get_unused_account_display_name (ImAccountMgr *self,
+						const gchar* starting_name)
 {
 	gchar *account_name = g_strdup (starting_name);
-
+	
 	while (im_account_mgr_account_with_display_name_exists (self, account_name)) {
-			
+		
 		gchar * account_name2 = util_increment_name (account_name);
 		g_free (account_name);
 		account_name = account_name2;
@@ -1000,10 +1065,19 @@ im_account_mgr_get_unused_account_display_name (ImAccountMgr *self, const gchar*
 	return account_name;
 }
 
+/**
+ * im_account_mgr_set_leave_on_server:
+ * @self: an #ImAccountMgr
+ * @account_name: the account name
+ * @leave_on_server: a #gboolean
+ *
+ * Sets if the account will leave messages on server
+ * or will it store locally (used in POP).
+ */
 void 
 im_account_mgr_set_leave_on_server (ImAccountMgr *self, 
-					const gchar *account_name, 
-					gboolean leave_on_server)
+				    const gchar *account_name, 
+				    gboolean leave_on_server)
 {
 	im_account_mgr_set_bool (self, 
 				     account_name,
@@ -1012,19 +1086,39 @@ im_account_mgr_set_leave_on_server (ImAccountMgr *self,
 				     FALSE);
 }
 
+/**
+ * im_account_mgr_get_leave_on_server:
+ * @self: an #ImAccountMgr
+ * @account_name: the account name
+ *
+ * Gets if the account will leave messages on server
+ * or will it store locally (used in POP).
+ *
+ * Returns: %TRUE if messages will be left on server, %FALSE otherwise.
+ */
 gboolean 
 im_account_mgr_get_leave_on_server (ImAccountMgr *self, 
-					const gchar* account_name)
+				    const gchar* account_name)
 {
 	return im_account_mgr_get_bool (self, 
-					    account_name,
-					    IM_ACCOUNT_LEAVE_ON_SERVER, 
-					    FALSE);
+					account_name,
+					IM_ACCOUNT_LEAVE_ON_SERVER, 
+					FALSE);
 }
 
+/**
+ * im_account_mgr_get_last_updated:
+ * @self: an #ImAccountMgr
+ * @account_name: account name
+ *
+ * Obtains the timestamp of the last time the account has been
+ * updated
+ *
+ * Returns: a timestamp.
+ */
 gint 
 im_account_mgr_get_last_updated (ImAccountMgr *self, 
-				     const gchar* account_name)
+				 const gchar* account_name)
 {
 	return im_account_mgr_get_int (self, 
 				       account_name, 
@@ -1032,6 +1126,15 @@ im_account_mgr_get_last_updated (ImAccountMgr *self,
 				       TRUE);
 }
 
+/**
+ * im_account_mgr_set_last_updated:
+ * @self: an #ImAccountMgr
+ * @account_name: account name
+ * @time: new timestamp
+ *
+ * Sets the timestamp of the last time the account has been
+ * updated
+ */
 void 
 im_account_mgr_set_last_updated (ImAccountMgr *self, 
 				     const gchar* account_name,
@@ -1042,17 +1145,26 @@ im_account_mgr_set_last_updated (ImAccountMgr *self,
 				IM_ACCOUNT_LAST_UPDATED, 
 				time, 
 				TRUE);
-
+	
 	/* if 'account_name' is not defined, use "<null>" string */
 	if (!account_name) {
 		account_name = "<null>";
 	}
-
 }
 
+/**
+ * im_account_mgr_get_has_new_mails:
+ * @self: an #ImAccountMgr
+ * @account_name: the account name
+ *
+ * Obtains if the account has new messages since last time user
+ * opened it.
+ *
+ * Returns: %TRUE if new messages have arrives
+ */
 gboolean
 im_account_mgr_get_has_new_mails (ImAccountMgr *self, 
-				      const gchar* account_name)
+				  const gchar* account_name)
 {
 	return im_account_mgr_get_bool (self,
 					account_name, 
@@ -1060,61 +1172,69 @@ im_account_mgr_get_has_new_mails (ImAccountMgr *self,
 					FALSE);
 }
 
+/**
+ * im_account_mgr_set_has_new_mails:
+ * @self: an #ImAccountMgr
+ * @account_name: the account name
+ * @has_new_mails: %TRUE to indicate there are new messages in the account.
+ *
+ * Sets if the message has new messages user hasn't checked before.
+ */
 void 
 im_account_mgr_set_has_new_mails (ImAccountMgr *self, 
-				      const gchar* account_name,
-				      gboolean has_new_mails)
+				  const gchar* account_name,
+				  gboolean has_new_mails)
 {
 	im_account_mgr_set_bool (self, 
-				     account_name, 
-				     IM_ACCOUNT_HAS_NEW_MAILS, 
-				     has_new_mails, 
-				     FALSE);
-
+				 account_name, 
+				 IM_ACCOUNT_HAS_NEW_MAILS, 
+				 has_new_mails, 
+				 FALSE);
+	
 	/* TODO: notify about changes */
 }
 
 gint  
 im_account_mgr_get_retrieve_limit (ImAccountMgr *self, 
-				       const gchar* account_name)
+				   const gchar* account_name)
 {
 	return im_account_mgr_get_int (self, 
-					   account_name,
-					   IM_ACCOUNT_LIMIT_RETRIEVE, 
-					   FALSE);
+				       account_name,
+				       IM_ACCOUNT_LIMIT_RETRIEVE, 
+				       FALSE);
 }
 
 void  
 im_account_mgr_set_retrieve_limit (ImAccountMgr *self, 
-				       const gchar* account_name,
-				       gint limit_retrieve)
+				   const gchar* account_name,
+				   gint limit_retrieve)
 {
 	im_account_mgr_set_int (self, 
-				    account_name,
-				    IM_ACCOUNT_LIMIT_RETRIEVE, 
-				    limit_retrieve, 
-				    FALSE /* not server account */);
+				account_name,
+				IM_ACCOUNT_LIMIT_RETRIEVE, 
+				limit_retrieve, 
+				FALSE /* not server account */);
 }
 
 gint  
 im_account_mgr_get_server_account_port (ImAccountMgr *self, 
-					    const gchar* account_name)
+					const gchar* account_name)
 {
 	return im_account_mgr_get_int (self, 
-					   account_name,
-					   IM_ACCOUNT_PORT, 
-					   TRUE);
+				       account_name,
+				       IM_ACCOUNT_PORT, 
+				       TRUE);
 }
 
 void
 im_account_mgr_set_server_account_port (ImAccountMgr *self, 
-					    const gchar *account_name,
-					    gint port_num)
+					const gchar *account_name,
+					gint port_num)
 {
 	im_account_mgr_set_int (self, 
-				    account_name,
-				    IM_ACCOUNT_PORT, 
-				    port_num, TRUE /* server account */);
+				account_name,
+				IM_ACCOUNT_PORT, 
+				port_num, TRUE /* server account */);
 }
 
 gchar* 
@@ -1123,11 +1243,11 @@ im_account_mgr_get_server_account_name (ImAccountMgr *self,
 					ImAccountType account_type)
 {
 	return im_account_mgr_get_string (self, 
-					      account_name,
-					      (account_type == IM_ACCOUNT_TYPE_STORE) ?
-					      IM_ACCOUNT_STORE_ACCOUNT :
-					      IM_ACCOUNT_TRANSPORT_ACCOUNT, 
-					      FALSE);
+					  account_name,
+					  (account_type == IM_ACCOUNT_TYPE_STORE) ?
+					  IM_ACCOUNT_STORE_ACCOUNT :
+					  IM_ACCOUNT_TRANSPORT_ACCOUNT, 
+					  FALSE);
 }
 
 gchar*
@@ -1137,18 +1257,18 @@ im_account_mgr_get_server_parent_account_name (ImAccountMgr *self,
 {
 	GSList *account_names, *node;
 	gchar *result = NULL;
-  
+	
 	account_names = im_account_mgr_account_names (self, TRUE);
 	for (node = account_names; result == NULL && node != NULL; node = g_slist_next (node)) {
 		char *server_name;
-
+		
 		server_name = im_account_mgr_get_server_account_name (self, (char *) node->data, account_type);
 		if (g_strcmp0 (server_name, server_account_name) == 0) {
 			result = g_strdup (node->data);
 		}
 		g_free (server_name);
 	}
-
+	
 	im_account_mgr_free_account_names (account_names);
 	return result;
 }
@@ -1193,51 +1313,50 @@ im_account_mgr_get_retrieve_type (ImAccountMgr *self,
 {
 	gchar *string;
 	ImAccountRetrieveType result;
-
+	
 	string =  im_account_mgr_get_string (self, 
-						 account_name,
-						 IM_ACCOUNT_RETRIEVE, 
-						 FALSE /* not server account */);
+					     account_name,
+					     IM_ACCOUNT_RETRIEVE, 
+					     FALSE /* not server account */);
 	result = get_retrieve_type (string);
 	g_free (string);
-
+	
 	return result;
 }
 
 void 
 im_account_mgr_set_retrieve_type (ImAccountMgr *self, 
-				      const gchar *account_name,
-				      ImAccountRetrieveType retrieve_type)
+				  const gchar *account_name,
+				  ImAccountRetrieveType retrieve_type)
 {
 	im_account_mgr_set_string (self, 
-				       account_name,
-				       IM_ACCOUNT_RETRIEVE, 
-				       get_retrieve_type_name (retrieve_type), 
-				       FALSE /* not server account */);
+				   account_name,
+				   IM_ACCOUNT_RETRIEVE, 
+				   get_retrieve_type_name (retrieve_type), 
+				   FALSE /* not server account */);
 }
 
 
 void
 im_account_mgr_set_user_fullname (ImAccountMgr *self, 
-				      const gchar *account_name,
-				      const gchar *fullname)
+				  const gchar *account_name,
+				  const gchar *fullname)
 {
 	im_account_mgr_set_string (self, 
-				       account_name,
-				       IM_ACCOUNT_FULLNAME, 
-				       fullname, 
-				       FALSE /* not server account */);
+				   account_name,
+				   IM_ACCOUNT_FULLNAME, 
+				   fullname, 
+				   FALSE /* not server account */);
 }
 
 void
 im_account_mgr_set_user_email (ImAccountMgr *self, 
-				   const gchar *account_name,
-				   const gchar *email)
+			       const gchar *account_name,
+			       const gchar *email)
 {
 	im_account_mgr_set_string (self, 
-				       account_name,
-				       IM_ACCOUNT_EMAIL, 
-				       email, 
-				       FALSE /* not server account */);
+				   account_name,
+				   IM_ACCOUNT_EMAIL, 
+				   email, 
+				   FALSE /* not server account */);
 }
-
