@@ -3,6 +3,30 @@ var globalStatus = {
     folders: [],
 };
 
+function refreshAccountCounts ()
+{
+    $("#page-accounts #accounts-list").listview();
+    
+    for (i in globalStatus.folders) {
+	account = globalStatus.folders[i];
+	accountId = account.accountId;
+	console.log(JSON.stringify(account));
+	inbox = account.folders["INBOX"];
+	accountItemId = "account-item-"+accountId;
+	console.log(JSON.stringify (inbox));
+	$("#page-accounts #account-item-"+accountId+" .account-count").text(inbox.unreadCount);
+	if (inbox.unreadCount > 0) {
+	    console.log("Marking as visible");
+	    $("#page-accounts #account-item-"+accountId+" .account-count").show();
+	} else {
+	    console.log("Marking as non visible");
+	    $("#page-accounts #account-item-"+accountId+" .account-count").hide();
+	}
+	console.log($("#page-accounts #account-item-"+accountId).html());
+    }
+    $("#page-accounts #accounts-list").listview('refresh');
+}
+
 function showFolders(accountId)
 {
     for (i in globalStatus.folders) {
@@ -25,11 +49,23 @@ function showFolders(accountId)
 		    $(h3).text(folder.fullDisplayName);
 		else
 		    $(h3).text(folder.displayName);
+		unreadCount = 0;
 		if ('unreadCount' in folder && folder.unreadCount > 0) {
 		    countSpan = document.createElement("span");
 		    countSpan.className += " ui-li-count";
 		    $(countSpan).text(folder.unreadCount);
 		    a.appendChild(countSpan);
+		    unreadCount = folder.unreadCount;
+		}
+		console.log("Processing "+fullName);
+		if (fullName == "INBOX") {
+		    accountItemId = "account-item-"+accountId;
+		    console.log("Going to update entry for "+accountId);
+		    $("#page-accounts #"+accountItemId+" .countSpan:first").text(unreadCount);
+		    if (unreadCount > 0)
+			$("#page-accounts #"+accountItemId+" .countSpan:first").show();
+		    else
+			$("#page-accounts #"+accountItemId+" .countSpan:first").hide();
 		}
 		a.appendChild(h3);
 		li.appendChild(a);
@@ -75,8 +111,13 @@ function refreshAccounts ()
 		    $(p).text(account.emailAddress + " (default)")
 		else
 		    $(p).text(account.emailAddress);
+		countSpan = document.createElement("span");
+		countSpan.className += " ui-li-count account-count";
+		$(countSpan).hide();
+		$(countSpan).text(0);
 		a.appendChild(h3);
 		a.appendChild(p);
+		a.appendChild(countSpan);
 		li.appendChild(a);
 		$("#page-accounts #accounts-list").append(li);
 	    }
@@ -156,8 +197,8 @@ function syncFolders ()
 	});
 	request.done(function (msg) {
 	    globalStatus.folders = msg.result;
-	    console.log(JSON.stringify (msg.result));
 	    updateDisplayNames();
+	    refreshAccountCounts ();
 	    showFolders(globalStatus.currentAccountId);
 	});
 	request.fail(function(jqXHR, textStatus) {
