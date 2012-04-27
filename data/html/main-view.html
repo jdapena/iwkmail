@@ -45,6 +45,30 @@
       </div>
     </div>
 
+    <div data-role="page" id="page-messages" data-add-back-btn="true">
+      <div data-role="header">
+	<h3 id="page-folders-title">Messages</h3>
+	<a onClick="fetchNewMessages()" data-icon="refresh" class="ui-btn-right">Refresh</a>
+      </div>
+
+      <div data-role="content">
+	<ul data-role="listview" data-inset="false" id="messages-list">
+	</ul>
+	<ul data-role="listview" data-inset="false" id="messages-list-get-more-list">
+	  <li data-role="fieldcontain">
+	    <a onclick="fetchMoreMessages()">
+	      <h3>Fetch more...</h3>
+	    </a>
+	  </li>
+	</ul>
+	<ul data-role="listview" data-inset="false" id="messages-list-getting-more-list">
+	  <li data-role="fieldcontain">
+	    <h3>Fetching...</h3>
+	  </li>
+	</ul>
+      </div>
+    </div>
+
     <div data-role="page" id="create-account" data-add-back-btn="true">
       <div data-role="header">
 	<h3>Add new account</h3>

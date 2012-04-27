@@ -1,5 +1,3 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*- */
-
 /* im-error.h : Error handling */
 
 /*
@@ -35,9 +33,15 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+var SHOW_MESSAGES_COUNT = 20;
+
 var globalStatus = {
     currentAccount: null,
+    currentFolder: null,
     folders: [],
+    newestUid: null,
+    oldestUid: null,
+    requests: { }
 };
 
 function showError (e)
@@ -81,6 +85,23 @@ function showFolders(accountId)
 		li.setAttribute('id', 'folder-item-'+accountId+'-'+fullName);
 		li.setAttribute('data-role', 'fieldcontain');
 		a = document.createElement("a");
+		a.accountId=accountId;
+		a.folderFullName=fullName;
+		a.setAttribute('href', '#page-messages');
+		$(a).click(function () {
+		    globalStatus.currentAccount = this.accountId;
+		    if (globalStatus.currentFolder != this.folderFullName) {
+			globalStatus.currentFolder = this.folderFullName;
+			globalStatus.newestUid = null;
+			globalStatus.oldestUid = null;
+			$("#page-messages #messages-list").html("");
+			showMessages(this.accountId, this.folderFullName, false);
+		    } else {
+			$("#messages-list-get-more-list").show();
+			$("#messages-list-getting-more-list").hide();
+		    }
+		    return true;
+		});
 
 		h3 = document.createElement("h3");
 		if ('fullDisplayName' in folder)
@@ -112,6 +133,95 @@ function showFolders(accountId)
 	    break;
 	}
     }
+}
+
+function abortShowMessages ()
+{
+    if ('showMessages' in globalStatus.requests) {
+	globalStatus.requests.showMessages.abort();
+	delete globalStatus.requests.showMessages;
+    }
+}
+
+function showMessages(accountId, folderId, onlyNew)
+{
+    try {
+	if ('showMessages' in globalStatus.requests) {
+	    globalStatus.requests.showMessages.abort();
+	}
+
+	$("#messages-list-get-more-list").hide();
+	$("#messages-list-getting-more-list").show();
+	retrieveCount = onlyNew?0:SHOW_MESSAGES_COUNT;
+	globalStatus.requests.showMessages = $.ajax({
+	    type: "GET",
+	    crossDomain: true,
+	    isLocal: true,
+	    dataType: "jsonp",
+	    url: "iwk:getMessages",
+	    data: {
+		account: accountId,
+		folder: folderId,
+		newestUid: globalStatus.newestUid,
+		oldestUid: globalStatus.oldestUid,
+		count: retrieveCount
+	    }
+	}).done(function (msg) {
+	    if (msg.newMessages.length > 0) {
+		globalStatus.newestUid = msg.newMessages[0].uid;
+	    }
+	    if (globalStatus.newestUid == null && msg.messages.length > 0) {
+		globalStatus.newestUid = msg.messages[0].uid;
+	    }
+	    if (msg.messages.length > 0) {
+		globalStatus.oldestUid = msg.messages[msg.messages.length - 1].uid;
+	    }
+	    msg.newMessages.reverse();
+	    for (i in msg.newMessages) {
+		var message = msg.newMessages[i];
+		li = document.createElement("li");
+		li.setAttribute('data-role', 'fieldcontain');
+		h3 = document.createElement("h3");
+		$(h3).text(message.subject);
+		p = document.createElement("p");
+		$(p).text(message.from);
+		li.appendChild(h3);
+		li.appendChild(p);
+		$("#page-messages #messages-list").prepend(li);
+	    }
+	    for (i in msg.messages) {
+		var message = msg.messages[i];
+		li = document.createElement("li");
+		li.setAttribute('data-role', 'fieldcontain');
+		h3 = document.createElement("h3");
+		$(h3).text(message.subject);
+		p = document.createElement("p");
+		$(p).text(message.from);
+		li.appendChild(h3);
+		li.appendChild(p);
+		$("#page-messages #messages-list").append(li);
+		$("#page-messages #messages-list").listview('refresh');
+
+	    }
+	    $("#page-messages #messages-list").listview('refresh');
+	}).always(function(jqXHR, textStatus, errorThrown) {
+	    delete globalStatus.requests.showMessages;
+	    $("#messages-list-get-more-list").show();
+	    $("#messages-list-getting-more-list").hide();
+	});
+    } catch (e) {
+	console.log(e.message);
+    }
+}
+
+function fetchMoreMessages ()
+{
+    showMessages (globalStatus.currentAccount, globalStatus.currentFolder, false);
+}
+
+function fetchNewMessages ()
+{
+    showMessages (globalStatus.currentAccount, globalStatus.currentFolder, true);
 }
 
 function refreshAccounts ()
@@ -200,10 +310,6 @@ function addAccount (data)
 	    } else {
 		showError (msg.error);
 	    }
-	});
-	request.fail(function(jqXHR, textStatus) {
-	});
-	request.error(function(jqXHR, textStatus, errorThrown) {
 	});
 	request.complete(function(jqXHR, textStatus) {
 	    $.mobile.hidePageLoadingMsg();
