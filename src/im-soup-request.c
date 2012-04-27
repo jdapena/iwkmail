@@ -701,6 +701,7 @@ static void
 dump_message_info (JsonBuilder *builder,
 		   CamelMessageInfo *mi)
 {
+	CamelMessageFlags flags;
 	json_builder_begin_object(builder);
 	json_builder_set_member_name (builder, "uid");
 	json_builder_add_string_value (builder,
@@ -717,6 +718,10 @@ dump_message_info (JsonBuilder *builder,
 	json_builder_set_member_name (builder, "subject");
 	json_builder_add_string_value (builder,
 				       camel_message_info_subject (mi));
+	flags = camel_message_info_flags (mi);
+	json_builder_set_member_name (builder, "unread");
+	json_builder_add_boolean_value (builder,
+					!(flags & CAMEL_MESSAGE_SEEN));
 	json_builder_end_object(builder);
 }
 

@@ -1,4 +1,5 @@
 CSS_FILES=\
+	mainView.css \
 	jquery.mobile-1.1.0.min.css
 
 cssdir = $(datadir)/iwkmail/css

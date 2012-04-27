@@ -8,6 +8,7 @@
     <title>Mail message</title>
 
     <link rel="stylesheet" href="../css/jquery.mobile-1.1.0.min.css"/>
+    <link rel="stylesheet" href="../css/mainView.css"/>
 
     <script src="../js/jquery-1.7.1.min.js"></script>
     <script src="../js/jquery.mobile-1.1.0.min.js"/></script>
@@ -47,7 +48,7 @@
 
     <div data-role="page" id="page-messages" data-add-back-btn="true">
       <div data-role="header">
-	<h3 id="page-folders-title">Messages</h3>
+	<h3 id="page-messages-title">Messages</h3>
 	<a onClick="fetchNewMessages()" id="messages-refresh" data-icon="refresh" class="ui-btn-right">Refresh</a>
 	<a onClick="abortShowMessages()" id="messages-cancel" data-icon="delete" class="ui-btn-right ui-hidden">Cancel</a>
       </div>
@@ -56,14 +57,14 @@
 	<ul data-role="listview" data-inset="false" id="messages-list">
 	</ul>
 	<ul data-role="listview" data-inset="false" id="messages-list-get-more-list">
-	  <li data-role="fieldcontain" data-icon="refresh" data-icon-pos="left">
+	  <li data-role="fieldcontain" data-icon="refresh" data-icon-pos="left" data-theme="a">
 	    <a onclick="fetchMoreMessages()">
 	      <h3>Fetch more...</h3>
 	    </a>
 	  </li>
 	</ul>
 	<ul data-role="listview" data-inset="false" id="messages-list-getting-more-list">
-	  <li data-role="fieldcontain" data-icon="refresh">
+	  <li data-role="fieldcontain" data-icon="refresh" data-theme="a">
 	    <a class="ui-disabled">
 	      <h3>Fetching...</h3>
 	    </a>

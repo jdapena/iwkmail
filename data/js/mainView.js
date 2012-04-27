@@ -87,6 +87,7 @@ function showFolders(accountId)
 		a = document.createElement("a");
 		a.accountId=accountId;
 		a.folderFullName=fullName;
+		a.displayName = folder.displayName;
 		a.setAttribute('href', '#page-messages');
 		$(a).click(function () {
 		    globalStatus.currentAccount = this.accountId;
@@ -94,6 +95,7 @@ function showFolders(accountId)
 			globalStatus.currentFolder = this.folderFullName;
 			globalStatus.newestUid = null;
 			globalStatus.oldestUid = null;
+			$("#page-messages-title").text(this.displayName);
 			$("#page-messages #messages-list").html("");
 			showMessages(this.accountId, this.folderFullName, false);
 		    } else {
@@ -183,6 +185,10 @@ function showMessages(accountId, folderId, onlyNew)
 		var message = msg.newMessages[i];
 		li = document.createElement("li");
 		li.setAttribute('data-role', 'fieldcontain');
+		if (message.unread)
+		    li.className += " iwk-unread-item";
+		else
+		    li.className += " iwk-read-item";
 		h3 = document.createElement("h3");
 		$(h3).text(message.subject);
 		p = document.createElement("p");
@@ -194,6 +200,10 @@ function showMessages(accountId, folderId, onlyNew)
 	    for (i in msg.messages) {
 		var message = msg.messages[i];
 		li = document.createElement("li");
+		if (message.unread)
+		    li.className += " iwk-unread-item";
+		else
+		    li.className += " iwk-read-item";
 		li.setAttribute('data-role', 'fieldcontain');
 		h3 = document.createElement("h3");
 		$(h3).text(message.subject);
