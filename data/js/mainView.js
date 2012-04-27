@@ -138,8 +138,7 @@ function showFolders(accountId)
 function abortShowMessages ()
 {
     if ('showMessages' in globalStatus.requests) {
-	globalStatus.requests.showMessages.abort();
-	delete globalStatus.requests.showMessages;
+	globalStatus.requests["showMessages"].abort();
     }
 }
 
@@ -147,13 +146,16 @@ function showMessages(accountId, folderId, onlyNew)
 {
     try {
 	if ('showMessages' in globalStatus.requests) {
-	    globalStatus.requests.showMessages.abort();
+	    globalStatus.requests["showMessages"].abort();
 	}
 
 	$("#messages-list-get-more-list").hide();
 	$("#messages-list-getting-more-list").show();
+	$("#messages-refresh").hide();
+	$("#messages-cancel").show();
+
 	retrieveCount = onlyNew?0:SHOW_MESSAGES_COUNT;
-	globalStatus.requests.showMessages = $.ajax({
+	globalStatus.requests["showMessages"] = $.ajax({
 	    type: "GET",
 	    crossDomain: true,
 	    isLocal: true,
@@ -205,9 +207,12 @@ function showMessages(accountId, folderId, onlyNew)
 	    }
 	    $("#page-messages #messages-list").listview('refresh');
 	}).always(function(jqXHR, textStatus, errorThrown) {
-	    delete globalStatus.requests.showMessages;
+	    if ('showMessages' in globalStatus.requests)
+		delete globalStatus.requests["showMessages"];
 	    $("#messages-list-get-more-list").show();
 	    $("#messages-list-getting-more-list").hide();
+	    $("#messages-refresh").show();
+	    $("#messages-cancel").hide();
 	});
     } catch (e) {
 	console.log(e.message);
