@@ -474,6 +474,18 @@ dump_folder_info (JsonBuilder *builder,
 			json_builder_set_member_name (builder, "messageCount");
 			json_builder_add_int_value (builder, fi->total);
 		}
+		json_builder_set_member_name (builder, "noSelect");
+		json_builder_add_boolean_value (builder, fi->flags & CAMEL_FOLDER_NOSELECT);
+		json_builder_set_member_name (builder, "favourite");
+		json_builder_add_boolean_value (builder, fi->flags & CAMEL_FOLDER_CHECK_FOR_NEW);
+		json_builder_set_member_name (builder, "isInbox");
+		json_builder_add_boolean_value (builder, fi->flags & CAMEL_FOLDER_TYPE_INBOX);
+		json_builder_set_member_name (builder, "isOutbox");
+		json_builder_add_boolean_value (builder, fi->flags & CAMEL_FOLDER_TYPE_OUTBOX);
+		json_builder_set_member_name (builder, "isSent");
+		json_builder_add_boolean_value (builder, fi->flags & CAMEL_FOLDER_TYPE_SENT);
+		json_builder_set_member_name (builder, "isTrash");
+		json_builder_add_boolean_value (builder, fi->flags & CAMEL_FOLDER_TYPE_TRASH);
 		if (fi->parent) {
 			json_builder_set_member_name (builder, "parentFullName");
 			json_builder_add_string_value (builder, fi->parent->full_name);
@@ -706,22 +718,45 @@ dump_message_info (JsonBuilder *builder,
 	json_builder_set_member_name (builder, "uid");
 	json_builder_add_string_value (builder,
 				       camel_message_info_uid (mi));
+
 	json_builder_set_member_name (builder, "from");
 	json_builder_add_string_value (builder,
 				       camel_message_info_from (mi));
 	json_builder_set_member_name (builder, "to");
 	json_builder_add_string_value (builder,
 				       camel_message_info_to (mi));
+	json_builder_set_member_name (builder, "cc");
+	json_builder_add_string_value (builder,
+				       camel_message_info_cc (mi));
+	json_builder_set_member_name (builder, "mailingList");
+	json_builder_add_string_value (builder,
+				       camel_message_info_mlist (mi));
+
 	json_builder_set_member_name (builder, "dateReceived");
 	json_builder_add_int_value (builder,
 				    camel_message_info_date_received (mi));
+	json_builder_set_member_name (builder, "dateSent");
+	json_builder_add_int_value (builder,
+				    camel_message_info_date_sent (mi));
+
 	json_builder_set_member_name (builder, "subject");
 	json_builder_add_string_value (builder,
 				       camel_message_info_subject (mi));
+	json_builder_set_member_name (builder, "size");
+	json_builder_add_int_value (builder,
+				       camel_message_info_size (mi));
+
 	flags = camel_message_info_flags (mi);
 	json_builder_set_member_name (builder, "unread");
 	json_builder_add_boolean_value (builder,
 					!(flags & CAMEL_MESSAGE_SEEN));
+	flags = camel_message_info_flags (mi);
+	json_builder_set_member_name (builder, "draft");
+	json_builder_add_boolean_value (builder,
+					flags & CAMEL_MESSAGE_DRAFT);
+	json_builder_set_member_name (builder, "hasAttachments");
+	json_builder_add_boolean_value (builder,
+					flags & CAMEL_MESSAGE_ATTACHMENTS);
 	json_builder_end_object(builder);
 }
 

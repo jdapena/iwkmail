@@ -50,6 +50,16 @@ function showError (e)
     $.mobile.changePage("#error-dialog");
 }
 
+function getCurrentFolder()
+{
+    for (i in globalStatus.folders) {
+	account = globalStatus.folders[i];
+	if (account.accountId == globalStatus.currentAccount) {
+	    return account.folders[globalStatus.currentFolder];
+	}
+    }
+}
+
 function refreshAccountCounts ()
 {
     $("#page-accounts #accounts-list").listview();
@@ -84,26 +94,29 @@ function showFolders(accountId)
 		li = document.createElement("li");
 		li.setAttribute('id', 'folder-item-'+accountId+'-'+fullName);
 		li.setAttribute('data-role', 'fieldcontain');
-		a = document.createElement("a");
-		a.accountId=accountId;
-		a.folderFullName=fullName;
-		a.displayName = folder.displayName;
-		a.setAttribute('href', '#page-messages');
-		$(a).click(function () {
-		    globalStatus.currentAccount = this.accountId;
-		    if (globalStatus.currentFolder != this.folderFullName) {
-			globalStatus.currentFolder = this.folderFullName;
-			globalStatus.newestUid = null;
-			globalStatus.oldestUid = null;
-			$("#page-messages-title").text(this.displayName);
-			$("#page-messages #messages-list").html("");
-			showMessages(this.accountId, this.folderFullName, false);
-		    } else {
-			$("#messages-list-get-more-list").show();
-			$("#messages-list-getting-more-list").hide();
-		    }
-		    return true;
-		});
+		if (!folder.noSelect) {
+		    a = document.createElement("a");
+		    a.accountId=accountId;
+		    a.folderFullName=fullName;
+		    a.displayName = folder.displayName;
+		    a.setAttribute('href', '#page-messages');
+		    $(a).click(function () {
+			globalStatus.currentAccount = this.accountId;
+			if (globalStatus.currentFolder != this.folderFullName) {
+			    globalStatus.currentFolder = this.folderFullName;
+			    globalStatus.newestUid = null;
+			    globalStatus.oldestUid = null;
+			    $("#page-messages-title").text(this.displayName);
+			    $("#page-message-title").text(this.displayName);
+			    $("#page-messages #messages-list").html("");
+			    showMessages(this.accountId, this.folderFullName, false);
+			} else {
+			    $("#messages-list-get-more-list").show();
+			    $("#messages-list-getting-more-list").hide();
+			}
+			return true;
+		    });
+		}
 
 		h3 = document.createElement("h3");
 		if ('fullDisplayName' in folder)
@@ -126,8 +139,12 @@ function showFolders(accountId)
 		    else
 			$("#page-accounts #"+accountItemId+" .countSpan:first").hide();
 		}
-		a.appendChild(h3);
-		li.appendChild(a);
+		if (folder.noSelect) {
+		    li.appendChild(h3);
+		} else {
+		    a.appendChild(h3);
+		    li.appendChild(a);
+		}
 		$("#page-folders #folders-list").append(li);
 	    }
 	    $("#page-folders #folders-list").listview('refresh');
@@ -142,6 +159,199 @@ function abortShowMessages ()
     if ('showMessages' in globalStatus.requests) {
 	globalStatus.requests["showMessages"].abort();
     }
+}
+
+function weekString (n)
+{
+    switch (time.getDay()) {
+    case 0:
+	return "Sunday";
+    case 1:
+	return "Monday";
+    case 2:
+	return "Tuesday";
+    case 3:
+	return "Wednesday";
+    case 4:
+	return "Thursday";
+    case 5:
+	return "Friday";
+    case 6:
+	return "Saturday";
+    }
+}
+
+function trim(s)
+{
+    return s.replace(/^\s*|\s*$/g,"");
+}
+
+function trimQuotes(s) {
+    return s.replace(/^[\s\"]*|[\s\"]*$/g,"");
+}
+
+function splitAddressesList (str)
+{
+    afterAt = false;
+    len = str.length;
+
+    if (len == 0)
+	return [];
+    start = 0;
+
+
+    while (start < len && 
+	   (" ,;\n".match(str[start])))
+	start++;
+
+    if (start == len)
+	return [];
+
+    end = start + 1;
+    while (end < len && str[end] != ';' && !(afterAt && str[0] == ',')) {
+	if (str[end] == '"') {
+	    Seed.print("Found quote at end "+end);
+	    while (end < len && str[end] != '"')
+		end++;
+	}
+	if (str[end] == '@') {
+	    afterAt = true;
+	}
+	if ((end<len && str[end] == '>')&&((end + 1 < len) && str[end+1] == ',')) {
+	    end++;
+	    break;
+	}
+	end++;
+    }
+
+    return [str.substring(start, end)].concat(splitAddressesList(str.substring(end+1)));
+}
+
+function addressGetDisplay(address)
+{
+    inQuotes = false;
+    if (address == null || address.length == 0)
+	return "(no recipient)";
+
+    for (i = 0; i < address.length; i++) {
+	if (inQuotes) {
+	    if (address[i] == '"')
+		inQuotes = false;
+	} else if (address[i] == '"') {
+	    inQuotes = true;
+	} else if (address[i] == '<') {
+	    return trimQuotes(address.substring (0, i-1));
+	}
+    }
+
+    return trimQuotes(address);
+}
+
+function addressesGetDisplay(str)
+{
+    if (str == null)
+	return "(no recipient)";
+    recipients = splitAddressesList (str);
+    result = "";
+    for (i in recipients) {
+	recipients[i] = addressGetDisplay(recipients[i]);
+    }
+    return recipients.join(", ");
+}
+
+function formatTime(t)
+{
+    current = new Date();
+    today = new Date();
+    today.setTime(current.getTime());
+    today.setHours(0,0,0,0);
+    yesterday = new Date();
+    yesterday.setHours(0,0,0,0);
+    yesterday.setDate(yesterday.getDate() - 1);
+    tomorrow = new Date()
+    tomorrow.setHours(0,0,0,0);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    aWeekAgo = new Date()
+    aWeekAgo.setHours(0,0,0,0);
+    aWeekAgo.setDate(aWeekAgo.getDate() - 7);
+
+    time = new Date(t*1000);
+
+    if (time >= tomorrow || time < aWeekAgo) {
+	return time.toLocaleDateString ();
+    } else if (time >= today) {
+	minutes = time.getMinutes();
+	minutes = minutes + "";
+	if (minutes.length == 1) {
+	    minutes = "0"+minutes;
+	}
+	return time.getHours()+":"+minutes;
+    } else if (time >= yesterday) {
+	return "Yesterday";
+    } else if (time >= aWeekAgo) {
+	return weekString(time.getDay());
+    }
+}
+
+function showMessage(message)
+{
+    outgoing = message.draft || getCurrentFolder().isSent;
+    if (outgoing)
+	$("#page-message #recipient").text(addressesGetDisplay (message.to));
+    else
+	$("#page-message #recipient").text(addressGetDisplay (message.from));
+    $("#page-message #subject").text(message.subject);
+    $("#page-message #date").text(formatTime (message.dateReceived));
+    $("#page-message #iframe-container").text("");
+    iframe = document.createElement("iframe");
+    iframe.setAttribute("scrolling", "no");
+    iframe.setAttribute("border", "0");
+    iframe.setAttribute("width", "100%");
+    iframe.setAttribute("height", "200px");
+    iframe.setAttribute("sandbox", "");
+    iframe.setAttribute("frameborder", "0");
+    $("#page-message #iframe-container").append(iframe);
+}
+
+function createMessageItem (message)
+{
+    li = document.createElement("li");
+    li.setAttribute('data-role', 'fieldcontain');
+    if (message.unread)
+	li.className += " iwk-unread-item";
+    else
+	li.className += " iwk-read-item";
+    a = document.createElement("a");
+    a.setAttribute("href", "#page-message");
+    a.accountId = globalStatus.currentAccount;
+    a.folderFullName = globalStatus.currentFolder
+    a.messageUid = message.uid;
+    a.message = message;
+    $(a).click(function () {
+	globalStatus.currentAccount = this.accountId;
+	globalStatus.currentFolder = this.folderFullName
+	globalStatus.currentMessage = this.messageUid;
+	showMessage(message);
+	return true;
+    });
+    h3 = document.createElement("h3");
+    $(h3).text(message.subject);
+    p = document.createElement("p");
+    outgoing = message.draft || getCurrentFolder().isSent;
+    if (outgoing) {
+	$(p).text(addressesGetDisplay(message.to));
+    } else {
+	$(p).text(addressGetDisplay(message.from));
+    }
+    date = document.createElement("p");
+    date.className += "ui-li-aside";
+    $(date).text(formatTime(message.dateReceived));
+    a.appendChild(h3);
+    a.appendChild(p);
+    a.appendChild(date);
+    li.appendChild(a);
+
+    return li;
 }
 
 function showMessages(accountId, folderId, onlyNew)
@@ -183,37 +393,13 @@ function showMessages(accountId, folderId, onlyNew)
 	    msg.newMessages.reverse();
 	    for (i in msg.newMessages) {
 		var message = msg.newMessages[i];
-		li = document.createElement("li");
-		li.setAttribute('data-role', 'fieldcontain');
-		if (message.unread)
-		    li.className += " iwk-unread-item";
-		else
-		    li.className += " iwk-read-item";
-		h3 = document.createElement("h3");
-		$(h3).text(message.subject);
-		p = document.createElement("p");
-		$(p).text(message.from);
-		li.appendChild(h3);
-		li.appendChild(p);
-		$("#page-messages #messages-list").prepend(li);
+		item = createMessageItem(message);
+		$("#page-messages #messages-list").prepend(messageItem);
 	    }
 	    for (i in msg.messages) {
 		var message = msg.messages[i];
-		li = document.createElement("li");
-		if (message.unread)
-		    li.className += " iwk-unread-item";
-		else
-		    li.className += " iwk-read-item";
-		li.setAttribute('data-role', 'fieldcontain');
-		h3 = document.createElement("h3");
-		$(h3).text(message.subject);
-		p = document.createElement("p");
-		$(p).text(message.from);
-		li.appendChild(h3);
-		li.appendChild(p);
-		$("#page-messages #messages-list").append(li);
-		$("#page-messages #messages-list").listview('refresh');
-
+		item = createMessageItem(message);
+		$("#page-messages #messages-list").append(item);
 	    }
 	    $("#page-messages #messages-list").listview('refresh');
 	}).always(function(jqXHR, textStatus, errorThrown) {
@@ -344,7 +530,7 @@ function updateDisplayNames ()
 	    parent = folder;
 	    while ('parentFullName' in parent) {
 		parent = account.folders[parent.parentFullName];
-		displayName = parent.fullName + "/" + displayName;
+		displayName = parent.displayName + "/" + displayName;
 	    }
 	    folder.fullDisplayName = displayName;
 	}
@@ -366,7 +552,7 @@ function syncFolders ()
 	    globalStatus.folders = msg.result;
 	    updateDisplayNames();
 	    refreshAccountCounts ();
-	    showFolders(globalStatus.currentAccountId);
+	    showFolders(globalStatus.currentAccount);
 	});
 	request.fail(function(jqXHR, textStatus) {
 	});
@@ -397,6 +583,37 @@ function clearForm(form)
         }
     });
 };
+
+function setIframeHeight( iframeId ) /** IMPORTANT: All framed documents *must* have a DOCTYPE applied **/
+{
+ var ifDoc, ifRef = document.getElementById( iframeId );
+
+ try
+ {   
+  ifDoc = ifRef.contentWindow.document.documentElement;  
+ }
+ catch( e )
+ { 
+  try
+  { 
+   ifDoc = ifRef.contentDocument.documentElement;  
+  }
+  catch(ee)
+  {   
+  }  
+ }
+ 
+ if( ifDoc )
+ {
+  ifRef.height = 1;  
+  ifRef.height = ifDoc.scrollHeight;
+  
+  /* For width resize, enable below.  */
+  
+  // ifRef.width = 1;
+  // ifRef.width = ifDoc.scrollWidth; 
+ }
+}
 
 $(function () {
     $("#form-add-account").submit(function () {

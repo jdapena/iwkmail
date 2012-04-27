@@ -20,9 +20,9 @@
   <body>
 
     <div data-role="page" id="page-accounts" data-add-back-btn="true">
-      <div data-role="header">
+      <div data-role="header" data-position="fixed">
 	<h3>Accounts</h3>
-	<a onClick="sync()">Sync</a>
+	<a onClick="sync()" class="ui-btn-right">Sync</a>
       </div>
 
       <div data-role="content">
@@ -35,7 +35,7 @@
     </div>
 
     <div data-role="page" id="page-folders" data-add-back-btn="true">
-      <div data-role="header">
+      <div data-role="header" data-position="fixed">
 	<h3 id="page-folders-title">Folders</h3>
 	<a onClick="sync()" class="ui-btn-right">Sync</a>
       </div>
@@ -47,7 +47,7 @@
     </div>
 
     <div data-role="page" id="page-messages" data-add-back-btn="true">
-      <div data-role="header">
+      <div data-role="header" data-position="fixed">
 	<h3 id="page-messages-title">Messages</h3>
 	<a onClick="fetchNewMessages()" id="messages-refresh" data-icon="refresh" class="ui-btn-right">Refresh</a>
 	<a onClick="abortShowMessages()" id="messages-cancel" data-icon="delete" class="ui-btn-right ui-hidden">Cancel</a>
@@ -68,6 +68,34 @@
 	    <a class="ui-disabled">
 	      <h3>Fetching...</h3>
 	    </a>
+	  </li>
+	</ul>
+      </div>
+    </div>
+
+    <div data-role="page" id="page-message" data-add-back-btn="true">
+      <div data-role="header" data-position="fixed">
+	<h3  id="page-message-title">Message</h3>
+      </div>
+      <div data-role="content">
+	<ul data-role="listview" data-inset="false">
+	  <li>
+	    <a href="#details-dialog" data-transition="slideup">
+	      <h3 id="recipient"></h3>
+	      <p><strong id="subject"></strong></p>
+	      <p id="date"></p>
+	    </a>
+	  </li>
+	  <li>
+	    <fieldset class="ui-grid-b">
+	      <div class="ui-block-a"><button type="submit">Reply</button></div>
+	      <div class="ui-block-b"><button type="submit">Forward</button></div>
+	      <div class="ui-block-c"><button type="submit">Mark as unread</button></div>
+	    </fieldset>
+	  </li>
+	  <li>
+	    <div id="iframe-container">
+	    </div>
 	  </li>
 	</ul>
       </div>
