@@ -32,6 +32,11 @@
 	  </li>
 	</ul>
       </div>
+
+      <div data-role="footer" class="ui-bar">
+	<a href="#composer" id="accounts-compose" data-icon="plus">Send email</a>
+      </div>
+
     </div>
 
     <div data-role="page" id="page-folders" data-add-back-btn="true">
@@ -98,6 +103,39 @@
 	    </div>
 	  </li>
 	</ul>
+      </div>
+    </div>
+
+    <div data-role="page" id="composer" data-add-back-btn="true">
+      <div data-role="header" data-position="fixed">
+	<h3 id="composer-title"></h3>
+	<a id="composer-send" data-icon="check" class="ui-btn-right">Send</a>
+      </div>
+      <div data-role="content">
+	<form id="form-composer">
+	  <ul data-role="listview">
+	    <li data-role="fieldcontain">
+	      <label for="composer-subject">Subject:</label>
+	      <input type="text" id="composer-subject">
+	    </li>
+	    <li data-role="fieldcontain">
+	      <label for="composer-from-choice" class="select">From:</label>
+	      <select name="composer-from-choice" id="composer-from-choice">
+	      </select>
+	    </li>
+	    <li data-role="fieldcontain">
+	      <label for="composer-to">To:</label>
+	      <input type="text" name="composer-to" id="composer-to" value=""/>
+	      <label for="composer-cc">Cc:</label>
+	      <input type="text" name="composer-cc" id="composer-cc" value=""/>
+	      <label for="composer-bcc">Bcc:</label>
+	      <input width="100%" type="text" name="composer-bcc" id="composer-bcc" value=""/>
+	    </li>
+	    <li data-role="fielcontain">
+	      <textarea width="100%" name="composer-body" id="composer-body"></textarea>
+	    </li>
+	  </ul>
+	</form>
       </div>
     </div>
 

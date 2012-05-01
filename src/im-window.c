@@ -148,6 +148,7 @@ im_window_init (ImWindow *window)
   settings = webkit_web_view_get_settings (WEBKIT_WEB_VIEW (priv->webview));
   g_object_set (G_OBJECT (settings),
 		"enable-file-access-from-file-uris", TRUE,
+		"enable-frame-flattening", TRUE,
 		NULL);
   gtk_widget_show (priv->webview);
   gtk_container_add (GTK_CONTAINER (scrolled_window), priv->webview);

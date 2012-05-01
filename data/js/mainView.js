@@ -516,6 +516,7 @@ function refreshAccounts ()
 	});
 	request.done(function (msg) {
 	    $("#page-accounts #accounts-list").html("");
+	    $("#composer-from-choice").html("");
 	    for (i in msg.result) {
 		var account = msg.result[i];
 		li = document.createElement("li");
@@ -548,6 +549,14 @@ function refreshAccounts ()
 		a.appendChild(countSpan);
 		li.appendChild(a);
 		$("#page-accounts #accounts-list").append(li);
+
+		composerFromOption=document.createElement("option");
+		composerFromOption.setAttribute("id", "composer-from-"+account.id);
+		composerFromOption.account = account.id;
+		if (account.isDefault)
+		    composerFromOption.setAttribute("selected", "true");
+		$(composerFromOption).text(account.emailAddress);
+		$("#composer-from-choice").append(composerFromOption);
 	    }
 	    li = document.createElement ("li");
 	    a = document.createElement ("a");
@@ -714,6 +723,11 @@ $(function () {
 
     $("#add-account-button").click(function () {
 	clearForm($('#form-add-account'));
+	return true;
+    });
+
+    $("#accounts-compose").click(function () {
+	clearForm($('#form-composer'));
 	return true;
     });
 
