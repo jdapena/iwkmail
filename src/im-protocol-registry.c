@@ -434,8 +434,7 @@ im_protocol_registry_set_to_default (ImProtocolRegistry *self)
 	ImProtocol *protocol;
 
 	protocol = im_account_protocol_new ("sendmail", N_("Sendmail"),
-						0, 0,
-						G_TYPE_INVALID);
+					    0, 0);
 	sendmail_protocol_type_id = im_protocol_get_type_id (protocol);
 	im_protocol_registry_add (self, protocol, 1,
 				      IM_PROTOCOL_REGISTRY_TRANSPORT_STORE_PROTOCOLS,
@@ -444,8 +443,7 @@ im_protocol_registry_set_to_default (ImProtocolRegistry *self)
 	g_object_unref (protocol);
 
 	protocol = im_account_protocol_new ("smtp", N_("SMTP Server"),
-						25, 465,
-						0);
+					    25, 465);
 	smtp_protocol_type_id = im_protocol_get_type_id (protocol);
 	im_protocol_set_translation (protocol, IM_PROTOCOL_TRANSLATION_CONNECT_ERROR, translation_is_userdata, N_("Error connecting to SMTP server"), NULL);
 	im_protocol_set_translation (protocol, IM_PROTOCOL_TRANSLATION_ACCOUNT_CONNECTION_ERROR, translation_is_userdata, N_("Error connecting to SMTP server"), NULL);
@@ -457,8 +455,7 @@ im_protocol_registry_set_to_default (ImProtocolRegistry *self)
 	g_object_unref (protocol);
 
 	protocol = im_account_protocol_new ("pop", _("POP3"),
-						110, 995,
-						0);
+					    110, 995);
 	pop_protocol_type_id = im_protocol_get_type_id (protocol);
 	im_protocol_set_translation (protocol, IM_PROTOCOL_TRANSLATION_CONNECT_ERROR, translation_is_userdata, N_("Error connecting to POP3 server"), NULL);
 	im_protocol_set_translation (protocol, IM_PROTOCOL_TRANSLATION_AUTH_ERROR, translation_is_userdata, N_("POP3 authentication error"), NULL);
@@ -476,8 +473,7 @@ im_protocol_registry_set_to_default (ImProtocolRegistry *self)
 	g_object_unref (protocol);
 
 	protocol = im_account_protocol_new ("imap", _("IMAP"),
-						143, 993,
-						0);
+					    143, 993);
 	imap_protocol_type_id = im_protocol_get_type_id (protocol);
 	im_protocol_set_translation (protocol, IM_PROTOCOL_TRANSLATION_DELETE_MAILBOX, translation_is_userdata, N_("Delete mailbox"), NULL);
 	im_protocol_set_translation (protocol, IM_PROTOCOL_TRANSLATION_CONNECT_ERROR, translation_is_userdata, N_("IMAP connection error"), NULL);
@@ -499,8 +495,7 @@ im_protocol_registry_set_to_default (ImProtocolRegistry *self)
 	g_object_unref (protocol);
 
 	protocol = im_account_protocol_new ("maildir", _("Maildir"),
-						0, 0,
-						0);
+					    0, 0);
 	maildir_protocol_type_id = im_protocol_get_type_id (protocol);
 	im_protocol_set_translation (protocol, IM_PROTOCOL_TRANSLATION_ACCOUNT_CONNECTION_ERROR, 
 				     translation_is_userdata_no_param, N_("Mailbox not available"), NULL);
@@ -513,8 +508,7 @@ im_protocol_registry_set_to_default (ImProtocolRegistry *self)
 	g_object_unref (protocol);
 
 	protocol = im_account_protocol_new ("mbox", _("MBox"),
-						0, 0,
-						0);
+					    0, 0);
 	mbox_protocol_type_id = im_protocol_get_type_id (protocol);
 	im_protocol_set_translation (protocol, IM_PROTOCOL_TRANSLATION_ACCOUNT_CONNECTION_ERROR, 
 				     translation_is_userdata_no_param, N_("Mailbox not available"), NULL);

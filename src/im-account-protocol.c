@@ -45,7 +45,6 @@ enum {
 	PROP_0,
 	PROP_PORT,
 	PROP_ALTERNATE_PORT,
-	PROP_ACCOUNT_G_TYPE,
 };
 
 typedef struct _ImAccountProtocolPrivate ImAccountProtocolPrivate;
@@ -54,7 +53,6 @@ struct _ImAccountProtocolPrivate {
 	guint alternate_port;
 	GHashTable *account_options;
 	GHashTable *custom_auth_mechs;
-	GType account_g_type;
 };
 
 /* 'private'/'protected' functions */
@@ -130,14 +128,6 @@ im_account_protocol_class_init (ImAccountProtocolClass *klass)
 							   0, G_MAXINT, 0,
 							   G_PARAM_READABLE | G_PARAM_WRITABLE | G_PARAM_CONSTRUCT));
 
-	g_object_class_install_property (object_class,
-					 PROP_ACCOUNT_G_TYPE,
-					 g_param_spec_gtype ("account-g-type",
-							     _("Account factory GType"),
-							     _("Account factory GType used for creating new instances."),
-							     G_TYPE_OBJECT,
-							     G_PARAM_READABLE | G_PARAM_WRITABLE | G_PARAM_CONSTRUCT));
-
 	g_type_class_add_private (object_class,
 				  sizeof(ImAccountProtocolPrivate));
 
@@ -153,7 +143,6 @@ im_account_protocol_instance_init (ImAccountProtocol *obj)
 
 	priv->port = 0;
 	priv->alternate_port = 0;
-	priv->account_g_type = 0;
 	priv->account_options = g_hash_table_new_full (g_str_hash, g_str_equal, NULL, g_free);
 	priv->custom_auth_mechs = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL, g_free);
 
@@ -191,9 +180,6 @@ im_account_protocol_get_property (GObject *obj,
 	case PROP_ALTERNATE_PORT:
 		g_value_set_uint (value, priv->alternate_port);
 		break;
-	case PROP_ACCOUNT_G_TYPE:
-		g_value_set_gtype (value, priv->account_g_type);
-		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (obj, property_id, pspec);
 	}
@@ -215,9 +201,6 @@ im_account_protocol_set_property (GObject *obj,
 	case PROP_ALTERNATE_PORT:
 		im_account_protocol_set_alternate_port (protocol, g_value_get_uint (value));
 		break;
-	case PROP_ACCOUNT_G_TYPE:
-		im_account_protocol_set_account_g_type (protocol, g_value_get_gtype (value));
-		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (obj, property_id, pspec);
 	}
@@ -227,13 +210,11 @@ im_account_protocol_set_property (GObject *obj,
 
 ImProtocol*
 im_account_protocol_new (const gchar *name, const gchar *display_name,
-			     guint port, guint alternate_port,
-			     GType account_g_type)
+			 guint port, guint alternate_port)
 {
 	return g_object_new (IM_TYPE_ACCOUNT_PROTOCOL, 
 			     "display-name", display_name, "name", name, 
 			     "port", port, "alternate-port", alternate_port,
-			     "account-g-type", account_g_type,
 			     NULL);
 }
 
@@ -282,17 +263,6 @@ im_account_protocol_set_alternate_port (ImAccountProtocol *self,
 
 	priv = IM_ACCOUNT_PROTOCOL_GET_PRIVATE (self);
 	priv->alternate_port = alternate_port;
-}
-
-GType
-im_account_protocol_get_account_g_type (ImAccountProtocol *self)
-{
-	ImAccountProtocolPrivate *priv;
-
-	g_return_val_if_fail (IM_IS_ACCOUNT_PROTOCOL (self), 0);
-
-	priv = IM_ACCOUNT_PROTOCOL_GET_PRIVATE (self);	
-	return priv->account_g_type;
 }
 
 GList *
@@ -375,32 +345,3 @@ im_account_protocol_unset_custom_secure_auth_mech (ImAccountProtocol *self, ImPr
 
 	g_hash_table_remove (priv->custom_auth_mechs, GINT_TO_POINTER (auth_protocol_type));
 }
-
-
-void         
-im_account_protocol_set_account_g_type (ImAccountProtocol *self,
-					    GType account_g_type)
-{
-	ImAccountProtocolPrivate *priv;
-
-	g_return_if_fail (IM_IS_ACCOUNT_PROTOCOL (self));
-
-	priv = IM_ACCOUNT_PROTOCOL_GET_PRIVATE (self);
-	priv->account_g_type = account_g_type;
-}
-
-GObject *
-im_account_protocol_create_account (ImAccountProtocol *self)
-{
-	ImAccountProtocolPrivate *priv;
-
-	g_return_val_if_fail (IM_IS_ACCOUNT_PROTOCOL (self), NULL);
-
-	priv = IM_ACCOUNT_PROTOCOL_GET_PRIVATE (self);
-	if (priv->account_g_type > 0) {
-		return g_object_new (priv->account_g_type, NULL);
-	} else {
-		return NULL;
-	}
-}
-

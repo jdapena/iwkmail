@@ -90,8 +90,7 @@ GType  im_account_protocol_get_type   (void) G_GNUC_CONST;
  * Returns: a #ImAccountProtocol
  */
 ImProtocol*    im_account_protocol_new (const gchar *name, const gchar *display_name, 
-					guint port, guint alternate_port,
-					GType account_g_type);
+					guint port, guint alternate_port);
 
 /**
  * im_account_protocol_get_port:
@@ -212,37 +211,6 @@ im_account_protocol_unset_custom_secure_auth_mech (ImAccountProtocol *self, ImPr
  */
 void
 im_account_protocol_set_custom_secure_auth_mech (ImAccountProtocol *self, ImProtocolType auth_protocol_type, const gchar *secure_auth_mech);
-
-/**
- * im_account_protocol_get_account_g_type:
- * @self: a #ImAccountProtocol
- *
- * get the protocol type used for factoring new TnyAccount
- *
- * Returns: a #GType
- */
-GType im_account_protocol_get_account_g_type (ImAccountProtocol *self);
-
-/**
- * im_account_protocol_set_account_g_type:
- * @self: a #ImAccountProtocol
- * @account_g_type: a #GType
- *
- * set @account_g_type as the type im_account_protocol_create_account will
- * instanciate
- */
-void         im_account_protocol_set_account_g_type (ImAccountProtocol *self,
-							 GType account_g_type);
-
-/**
- * im_account_protocol_create_account:
- * @self: a #ImAccountProtocol
- *
- * create a new account instance for this protocol
- *
- * Returns: a #TnyAccount
- */
-GObject * im_account_protocol_create_account (ImAccountProtocol *self);
 
 G_END_DECLS
 
