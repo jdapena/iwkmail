@@ -44,6 +44,7 @@
 #include "im-account-mgr-helpers.h"
 #include "im-account-protocol.h"
 #include "im-account-settings.h"
+#include "im-content-id-request.h"
 #include "im-error.h"
 #include "im-protocol-registry.h"
 #include "im-server-account-settings.h"
@@ -891,6 +892,328 @@ fetch_messages (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 				fetch_messages_get_folder_cb, data);
 }
 
+typedef struct _GetMessageData {
+	GAsyncResult *result;
+	GHashTable *params;
+	JsonBuilder *builder;
+	GCancellable *cancellable;
+	GError *error;
+} GetMessageData;
+
+/* forward declaration */
+static void dump_data_wrapper (JsonBuilder *builder,
+			       CamelURL *url,
+			       CamelDataWrapper *wrapper);
+
+static void
+dump_internet_address (JsonBuilder *builder,
+		       CamelInternetAddress *address)
+{
+	json_builder_begin_array (builder);
+
+	if (address) {
+		gint len, i;
+
+		len = camel_address_length (CAMEL_ADDRESS (address));
+
+		for (i = 0; i < len; i++) {
+			const gchar *name, *email;
+			if (camel_internet_address_get (address, i, &name, &email)) {
+				json_builder_begin_object (builder);
+				json_builder_set_member_name (builder, "displayName");
+				json_builder_add_string_value (builder, name);
+				json_builder_set_member_name (builder, "emailAddress");
+				json_builder_add_string_value (builder, email);
+				json_builder_end_object (builder);
+			}
+		}
+	}
+	json_builder_end_array (builder);
+}
+
+static void
+dump_message (JsonBuilder *builder,
+	      CamelMimeMessage *message)
+{
+	json_builder_set_member_name (builder, "subject");
+	json_builder_add_string_value (builder, camel_mime_message_get_subject (message));
+
+	json_builder_set_member_name (builder, "from");
+	dump_internet_address (builder, camel_mime_message_get_from (message));
+	json_builder_set_member_name (builder, "to");
+	dump_internet_address (builder, camel_mime_message_get_recipients (message, "To"));
+	json_builder_set_member_name (builder, "cc");
+	dump_internet_address (builder, camel_mime_message_get_recipients (message, "Cc"));
+	json_builder_set_member_name (builder, "bcc");
+	dump_internet_address (builder, camel_mime_message_get_recipients (message, "Bcc"));
+	json_builder_set_member_name (builder, "replyTo");
+	dump_internet_address (builder, camel_mime_message_get_reply_to (message));
+}
+
+static void
+dump_header_params (JsonBuilder *builder,
+		    struct _camel_header_param *params)
+{
+	struct _camel_header_param *param;
+	json_builder_begin_object (builder);
+	param = params;
+	while (param != NULL) {
+		json_builder_set_member_name (builder, param->name);
+		json_builder_add_string_value (builder, param->value);
+		param = param->next;
+	}
+	json_builder_end_object (builder);
+}
+
+static void
+dump_content_disposition (JsonBuilder *builder,
+			  const CamelContentDisposition *disposition)
+{
+	json_builder_begin_object (builder);
+	json_builder_set_member_name (builder, "disposition");
+	json_builder_add_string_value (builder, disposition?disposition->disposition:"");
+	json_builder_set_member_name (builder, "params");
+	dump_header_params (builder, disposition?disposition->params:NULL);
+	json_builder_end_object (builder);
+}
+
+static void
+dump_content_type (JsonBuilder *builder,
+		   CamelContentType *content_type)
+{
+	json_builder_begin_object (builder);
+	json_builder_set_member_name (builder, "type");
+	json_builder_add_string_value (builder, content_type->type);
+	json_builder_set_member_name (builder, "subType");
+	json_builder_add_string_value (builder, content_type->subtype);
+	json_builder_set_member_name (builder, "params");
+	dump_header_params (builder, content_type->params);
+	json_builder_end_object (builder);
+}
+
+static void
+dump_part (JsonBuilder *builder,
+	   CamelMimePart *part)
+{
+	json_builder_set_member_name (builder, "disposition");
+	json_builder_add_string_value (builder, camel_mime_part_get_disposition (part));
+	json_builder_set_member_name (builder, "description");
+	json_builder_add_string_value (builder, camel_mime_part_get_description (part));
+	json_builder_set_member_name (builder, "filename");
+	json_builder_add_string_value (builder, camel_mime_part_get_filename (part));
+	json_builder_set_member_name (builder, "contentId");
+	json_builder_add_string_value (builder, camel_mime_part_get_content_id (part));
+	json_builder_set_member_name (builder, "encoding");
+	json_builder_add_string_value (builder,
+				       camel_transfer_encoding_to_string (camel_mime_part_get_encoding (part)));
+	json_builder_set_member_name (builder, "contentType");
+	dump_content_type (builder, camel_mime_part_get_content_type (part));
+	json_builder_set_member_name (builder, "contentDisposition");
+	dump_content_disposition (builder, camel_mime_part_get_content_disposition (part));
+	json_builder_set_member_name (builder, "contentLocation");
+	json_builder_add_string_value (builder, camel_mime_part_get_content_location (part));
+	json_builder_set_member_name (builder, "isMessage");
+	json_builder_add_boolean_value (builder, CAMEL_IS_MIME_MESSAGE (part));
+
+	if (CAMEL_IS_MIME_MESSAGE (part)) {
+		dump_message (builder, CAMEL_MIME_MESSAGE (part));
+	}
+}
+
+static void
+dump_multipart (JsonBuilder *builder,
+		CamelURL *url,
+		CamelMultipart *multipart)
+{
+	gint i, count;
+	json_builder_set_member_name (builder, "parts");
+	count = camel_multipart_get_number (multipart);
+	json_builder_begin_array (builder);
+	for (i = 0; i < count; i++) {
+		CamelMimePart *part;
+		CamelURL *sub_url;
+		gchar *sub_path;
+
+		part = camel_multipart_get_part (multipart, i);
+		if (!url->path || url->path[0] == '\0' ||g_strcmp0 (url->path, "/") == 0)
+			sub_path = g_strdup_printf ("/%d", i);
+		else
+			sub_path = g_strdup_printf ("%s/%d", url->path, i);
+		sub_url = camel_url_copy (url);
+		camel_url_set_path (sub_url, sub_path);
+		g_free (sub_path);
+		dump_data_wrapper (builder, sub_url, CAMEL_DATA_WRAPPER (part));
+		camel_url_free (sub_url);
+	}
+	json_builder_end_array (builder);
+}
+
+static void
+dump_medium (JsonBuilder *builder,
+	     CamelURL *url,
+	     CamelMedium *medium)
+{
+	GArray *headers;
+	gint i;
+
+	json_builder_set_member_name (builder, "mediumHeaders");
+	json_builder_begin_array (builder);
+	headers = camel_medium_get_headers (medium);
+	for (i = 0; i < headers->len; i++) {
+		CamelMediumHeader header;
+		header = g_array_index (headers, CamelMediumHeader, i);
+
+		json_builder_begin_object (builder);
+		json_builder_set_member_name (builder, "name");
+		json_builder_add_string_value (builder, header.name);
+		json_builder_set_member_name (builder, "value");
+		json_builder_add_string_value (builder, header.value);
+		json_builder_end_object (builder);
+	}
+	camel_medium_free_headers (medium, headers);
+	json_builder_end_array (builder);
+
+	json_builder_set_member_name (builder, "isMimePart");
+	json_builder_add_boolean_value (builder, CAMEL_IS_MIME_PART (medium));
+
+	if (CAMEL_IS_MIME_PART (medium)) {
+		dump_part (builder, CAMEL_MIME_PART (medium));
+	}
+
+	json_builder_set_member_name (builder, "content");
+	dump_data_wrapper (builder, url, camel_medium_get_content (medium));
+}
+
+static void
+dump_data_wrapper (JsonBuilder *builder,
+		   CamelURL *url,
+		   CamelDataWrapper *wrapper)
+{
+	char *uri;
+
+	json_builder_begin_object (builder);
+	json_builder_set_member_name (builder, "uri");
+	uri = camel_url_to_string (url, 0);
+	json_builder_add_string_value (builder, uri);
+	g_free (uri);
+	json_builder_set_member_name (builder, "mimeType");
+	dump_content_type (builder, camel_data_wrapper_get_mime_type_field (wrapper));
+
+	json_builder_set_member_name (builder, "isMultipart");
+	json_builder_add_boolean_value (builder, CAMEL_IS_MULTIPART (wrapper));
+
+	json_builder_set_member_name (builder, "isMedium");
+	json_builder_add_boolean_value (builder, CAMEL_IS_MEDIUM (wrapper));
+
+	if (CAMEL_IS_MULTIPART (wrapper)) {
+		dump_multipart (builder, url, CAMEL_MULTIPART (wrapper));
+	} else if (CAMEL_IS_MEDIUM (wrapper)) {
+		dump_medium (builder, url, CAMEL_MEDIUM (wrapper));
+	}
+	
+	json_builder_end_object (builder);
+}
+
+static CamelURL *
+build_message_url (const char *account_name,
+		   const char *folder_full_name,
+		   const char *uid)
+{
+	CamelURL *url;
+	gchar *hostname;
+
+	url = camel_url_new ("cid:", NULL);
+	hostname = im_content_id_request_build_hostname (account_name, folder_full_name, uid);
+	camel_url_set_host (url, hostname);
+	g_free (hostname);
+
+	return url;
+}
+
+static void
+get_message_get_message_cb (GObject *source_object,
+			    GAsyncResult *result,
+			    gpointer userdata)
+{
+	GetMessageData *data = (GetMessageData *) userdata;
+	GError *error = NULL;
+	CamelFolder *folder = (CamelFolder *) source_object;
+	CamelMimeMessage *message;
+
+	message = camel_folder_get_message_finish (folder, result, &error);
+
+	if (error && data->error == NULL) {
+		g_cancellable_cancel (data->cancellable);
+		g_propagate_error (&data->error, error);
+	}
+
+	response_start (data->builder);
+	if (message) {
+		CamelURL *url;
+		json_builder_set_member_name (data->builder, "result");
+		url = build_message_url (g_hash_table_lookup (data->params, "account"),
+					 g_hash_table_lookup (data->params, "folder"),
+					 g_hash_table_lookup (data->params, "message"));
+		dump_data_wrapper (data->builder, url, CAMEL_DATA_WRAPPER (message));
+		camel_url_free (url);
+	}
+
+	response_finish (data->result, data->params, data->builder, data->error);
+}
+
+static void
+get_message_get_folder_cb (GObject *source_object,
+			   GAsyncResult *result,
+			   gpointer userdata)
+{
+	GetMessageData *data = (GetMessageData *) userdata;
+	GError *error = NULL;
+	CamelStore *store = (CamelStore *) source_object;
+	CamelFolder *folder;
+
+	folder = camel_store_get_folder_finish (store, result, &error);
+
+	if (error && data->error == NULL) {
+		g_cancellable_cancel (data->cancellable);
+		g_propagate_error (&data->error, error);
+	}
+
+	if (data->error == NULL) {
+		const char *message_uid;
+
+		message_uid = g_hash_table_lookup (data->params, "message");
+		camel_folder_get_message (folder, message_uid,
+					   G_PRIORITY_DEFAULT_IDLE, data->cancellable,
+					   get_message_get_message_cb, data);
+	} else {
+		response_finish (data->result, data->params, data->builder, data->error);
+	}
+}
+
+static void
+get_message (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
+{
+	CamelStore *store;
+	const char *account_name;
+	const char *folder_name;
+	GetMessageData *data = g_new0 (GetMessageData, 1);
+
+	data->result = g_object_ref (result);
+	data->params = g_hash_table_ref (params);
+	data->builder = g_object_ref (builder);
+	data->cancellable = g_cancellable_new ();
+
+	account_name = g_hash_table_lookup (params, "account");
+	folder_name = g_hash_table_lookup (params, "folder");
+	store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
+							   (const char *) account_name,
+							   IM_ACCOUNT_TYPE_STORE);
+	camel_store_get_folder (store, folder_name,
+				CAMEL_STORE_FOLDER_CREATE | CAMEL_STORE_FOLDER_BODY_INDEX, 
+				G_PRIORITY_DEFAULT_IDLE, data->cancellable,
+				get_message_get_folder_cb, data);
+}
+
 static void
 im_soup_request_send_async (SoupRequest          *soup_request,
 			    GCancellable         *cancellable,
@@ -899,12 +1222,16 @@ im_soup_request_send_async (SoupRequest          *soup_request,
 {
   ImSoupRequest *request = IM_SOUP_REQUEST (soup_request);
   SoupURI *uri = soup_request_get_uri (SOUP_REQUEST (request));
-  GHashTable *params;
+  GHashTable *params = NULL;
   GError *_error = NULL;
   JsonBuilder *builder = json_builder_new ();
   GAsyncResult *result;
 
-  params = soup_form_decode (soup_uri_get_query (uri));
+  if (soup_uri_get_query (uri)) {
+	  params = soup_form_decode (soup_uri_get_query (uri));
+  } else {
+	  params = g_hash_table_new (g_str_hash, g_str_equal);
+  }
   result = (GAsyncResult *) g_simple_async_result_new ((GObject *) request,
 						       callback, userdata,
 						       im_soup_request_send_async);
@@ -921,7 +1248,18 @@ im_soup_request_send_async (SoupRequest          *soup_request,
 	  fetch_messages (result, params, builder);
   } else if (!g_strcmp0 (uri->path, "syncFolders")) {
 	  sync_folders (result, params, builder);
+  } else if (!g_strcmp0 (uri->path, "getMessage")) {
+	  get_message (result, params, builder);
+  } else {
+	  response_start (builder);
+	  if (_error == NULL)
+		  g_set_error (&_error, IM_ERROR_DOMAIN, IM_ERROR_SOUP_INVALID_URI,
+			       _("Non supported method"));
+	  response_finish (result, params, builder, _error);
   }
+
+  if (_error)
+	  g_error_free (_error);
 
   g_object_unref (builder);
 }

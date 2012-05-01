@@ -40,6 +40,7 @@
 #include "im-window.h"
 
 #include <gtk/gtk.h>
+#include <JavaScriptCore/JavaScript.h>
 #include <webkit/webkit.h>
 
 G_DEFINE_TYPE (ImWindow, im_window, GTK_TYPE_WINDOW);
@@ -57,6 +58,51 @@ on_delete_event (GtkWidget *widget,
 {
   g_application_quit (g_application_get_default ());
   return TRUE;
+}
+
+static void
+update_frame_height (WebKitWebView *webview,
+		     WebKitWebFrame *frame)
+{
+	/* It's an iframe for a content id, get height */
+	JSGlobalContextRef frame_context;
+	JSStringRef script_str;
+	JSValueRef result;
+
+	frame_context = webkit_web_frame_get_global_context (frame);
+	script_str = JSStringCreateWithUTF8CString ("document.documentElement.scrollHeight;");
+	result = JSEvaluateScript (frame_context, script_str, NULL, NULL, 0, NULL);
+	JSStringRelease (script_str);
+
+	if (JSValueIsNumber (frame_context, result)) {
+		JSGlobalContextRef main_context;
+		double height = JSValueToNumber (frame_context, result, NULL);
+		char *update_script;
+		JSStringRef update_script_str;
+
+		main_context = webkit_web_frame_get_global_context (webkit_web_view_get_main_frame (webview));
+		update_script = g_strdup_printf ("updateContentIdFrame ('%s', %f);",
+						 webkit_web_frame_get_name (frame),
+						 height);
+		update_script_str = JSStringCreateWithUTF8CString (update_script);
+		JSEvaluateScript (main_context, update_script_str, NULL, NULL, 0, NULL);
+		JSStringRelease (update_script_str);
+		g_free (update_script);
+	}
+}
+
+static void
+on_document_load_finished (WebKitWebView *webview,
+			   WebKitWebFrame *frame,
+			   ImWindow *window)
+{
+	SoupURI *uri;
+
+	uri = soup_uri_new (webkit_web_frame_get_uri (frame));
+	if (g_strcmp0 (uri->scheme, "cid") == 0) {
+		update_frame_height (webview, frame);
+	}
+	soup_uri_free (uri);
 }
 
 static void
@@ -109,6 +155,8 @@ im_window_init (ImWindow *window)
   main_view_uri = g_filename_to_uri (HTMLDIR "main-view.html", NULL, NULL);
   webkit_web_view_load_uri (WEBKIT_WEB_VIEW (priv->webview),
 			    main_view_uri);
+  g_signal_connect (G_OBJECT (priv->webview), "document-load-finished",
+		    G_CALLBACK (on_document_load_finished), window);
   g_free (main_view_uri);
 
   g_signal_connect (G_OBJECT (window), "delete-event",

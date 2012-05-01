@@ -9,6 +9,7 @@ iwkmail_headers = \
 	im-account-protocol.h \
 	im-account-settings.h \
 	im-conf.h \
+	im-content-id-request.h \
 	im-error.h \
 	im-pair.h \
 	im-protocol-registry.h \
@@ -26,6 +27,7 @@ iwkmail_SOURCES = \
 	im-account-protocol.c \
 	im-account-settings.c \
 	im-conf.c \
+	im-content-id-request.c \
 	im-error.c \
 	im-main.c \
 	im-pair.c \

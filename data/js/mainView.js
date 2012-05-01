@@ -293,6 +293,84 @@ function formatTime(t)
     }
 }
 
+function dumpBestAlternative (multipart, parent)
+{
+    best = -1;
+    for (i in multipart.parts) {
+	if (multipart.parts[i].contentType.type == 'text') {
+	    if (multipart.parts[i].contentType.subType == 'html') {
+		best = i;
+		break;
+	    } else if (multipart.parts[i].contentType.subType == 'plain') {
+		best = i;
+	    }
+	}
+    }
+
+    if (best != -1)
+	dumpDataWrapper (multipart.parts[i], parent);
+}
+
+function dumpMultipart (multipart, parent)
+{
+    console.log("Is multipart");
+    if (multipart.mimeType.subType == 'alternative') {
+	console.log("Is alternative");
+	dumpBestAlternative (multipart, parent);
+    } else if (multipart.mimeType.subType == 'related') {
+	console.log("Is related");
+	if (multipart.parts.length > 0)
+	    dumpDataWrapper (multipart.parts[0], parent);
+    } else {
+	console.log("Is mixed/other");
+	for (i in multipart.parts)
+	    dumpDataWrapper (multipart.parts[i], parent);
+    }
+}
+
+function dumpDataWrapper (dataWrapper, parent)
+{
+    console.log("Processing dataWrapper with uri "+dataWrapper.uri);
+    console.log(JSON.stringify(dataWrapper, undefined, 4));
+    if (dataWrapper.isMultipart) {
+	console.log("Is multipart");
+	dumpMultipart (dataWrapper, parent);
+    } else if (dataWrapper.isMedium) {
+	console.log("Is medium");
+	if (dataWrapper.isMessage) {
+	    console.log("Is message, see content (should also add headers)");
+	}
+	if (dataWrapper.content.isMultipart) {
+	    console.log("Is medium containing multipart");
+	    dumpDataWrapper (dataWrapper.content, parent);
+	} else {
+	    console.log("Other type of medium");
+	    if (dataWrapper.content.mimeType.type == 'text' &&
+		(dataWrapper.content.mimeType.subType == 'html' ||
+		 dataWrapper.content.mimeType.subType == 'plain') &&
+		dataWrapper.disposition != 'attachment') {
+		console.log("Is a body");
+		iframe = document.createElement ("iframe");
+		iframe.setAttribute ("id", dataWrapper.content.uri);
+		iframe.className += "iwk-part-iframe";
+		iframe.setAttribute ("border", "0");
+		iframe.setAttribute ("frameborder", "0");
+		iframe.setAttribute ("src", dataWrapper.content.uri);
+		iframe.setAttribute ("width", "100%");
+		$(parent).append(iframe);
+	    } else {
+		console.log("Is an attachment");
+		p = document.createElement ("p");
+		$(p).text("Attachment "+dataWrapper.filename);
+		$(parent).append(p);
+	    }
+	}
+    } else {
+    }
+    console.log("Finished processing uri "+dataWrapper.uri);
+    console.log("Parent ("+parent+") status is "+$(parent).html());
+}
+
 function showMessage(message)
 {
     outgoing = message.draft || getCurrentFolder().isSent;
@@ -303,14 +381,30 @@ function showMessage(message)
     $("#page-message #subject").text(message.subject);
     $("#page-message #date").text(formatTime (message.dateReceived));
     $("#page-message #iframe-container").text("");
-    iframe = document.createElement("iframe");
-    iframe.setAttribute("scrolling", "no");
-    iframe.setAttribute("border", "0");
-    iframe.setAttribute("width", "100%");
-    iframe.setAttribute("height", "200px");
-    iframe.setAttribute("sandbox", "");
-    iframe.setAttribute("frameborder", "0");
-    $("#page-message #iframe-container").append(iframe);
+    if ('getMessage' in globalStatus.requests) {
+	globalStatus.requests['getMessage'].abort();
+    }
+
+    globalStatus.requests["getMessage"] = $.ajax({
+	    type: "GET",
+	    crossDomain: true,
+	    isLocal: true,
+	    dataType: "jsonp",
+	    url: "iwk:getMessage",
+	    data: {
+		account: globalStatus.currentAccount,
+		folder: globalStatus.currentFolder,
+		message: message.uid
+	    }
+	}).done(function (msg) {
+	    console.log (JSON.stringify (msg.result, undefined, 4));
+	    parent = "#page-message #iframe-container";
+	    dumpDataWrapper (msg.result, parent);
+	    console.log($(parent).html());
+	}).always(function(jqXHR, textStatus, errorThrown) {
+	    if ('getMessage' in globalStatus.requests)
+		delete globalStatus.requests["getMessage"];
+	});
 }
 
 function createMessageItem (message)
@@ -331,7 +425,7 @@ function createMessageItem (message)
 	globalStatus.currentAccount = this.accountId;
 	globalStatus.currentFolder = this.folderFullName
 	globalStatus.currentMessage = this.messageUid;
-	showMessage(message);
+	showMessage(this.message);
 	return true;
     });
     h3 = document.createElement("h3");
@@ -583,6 +677,12 @@ function clearForm(form)
         }
     });
 };
+
+function updateContentIdFrame (iframeId, height)
+{
+    $("#iframe-container > [src='"+iframeId+"']").attr("height", 1);
+    $("#iframe-container > [src='"+iframeId+"']").attr("height", height + 32);
+}
 
 function setIframeHeight( iframeId ) /** IMPORTANT: All framed documents *must* have a DOCTYPE applied **/
 {
