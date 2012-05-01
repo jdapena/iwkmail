@@ -316,9 +316,11 @@ fetch_part_get_message_cb (GObject *source_object,
 				     _("Part not available"));
 		} else {
 			CamelStream *stream;
+			CamelContentType *content_type;
 			data->byte_array = g_byte_array_new ();
 			stream = camel_stream_mem_new ();
-			data->request->priv->content_type = camel_data_wrapper_get_mime_type (CAMEL_DATA_WRAPPER (wrapper));
+			content_type = camel_data_wrapper_get_mime_type_field (CAMEL_DATA_WRAPPER (wrapper));
+			data->request->priv->content_type = camel_content_type_format (content_type);
 			camel_stream_mem_set_byte_array (CAMEL_STREAM_MEM (stream), data->byte_array);
 			camel_data_wrapper_decode_to_stream (CAMEL_DATA_WRAPPER (wrapper),
 							     stream,
