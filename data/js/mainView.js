@@ -101,9 +101,10 @@ function showFolders(accountId)
 		    a.displayName = folder.displayName;
 		    a.setAttribute('href', '#page-messages');
 		    $(a).click(function () {
-			globalStatus.currentAccount = this.accountId;
-			if (globalStatus.currentFolder != this.folderFullName) {
+			if (globalStatus.currentAccount != this.accountId || globalStatus.currentFolder != this.folderFullName) {
+			    globalStatus.currentAccount = this.accountId;
 			    globalStatus.currentFolder = this.folderFullName;
+			    globalStatus.currentmessage = null;
 			    globalStatus.newestUid = null;
 			    globalStatus.oldestUid = null;
 			    $("#page-messages-title").text(this.displayName);
@@ -313,16 +314,12 @@ function dumpBestAlternative (multipart, parent)
 
 function dumpMultipart (multipart, parent)
 {
-    console.log("Is multipart");
     if (multipart.mimeType.subType == 'alternative') {
-	console.log("Is alternative");
 	dumpBestAlternative (multipart, parent);
     } else if (multipart.mimeType.subType == 'related') {
-	console.log("Is related");
 	if (multipart.parts.length > 0)
 	    dumpDataWrapper (multipart.parts[0], parent);
     } else {
-	console.log("Is mixed/other");
 	for (i in multipart.parts)
 	    dumpDataWrapper (multipart.parts[i], parent);
     }
@@ -330,26 +327,19 @@ function dumpMultipart (multipart, parent)
 
 function dumpDataWrapper (dataWrapper, parent)
 {
-    console.log("Processing dataWrapper with uri "+dataWrapper.uri);
-    console.log(JSON.stringify(dataWrapper, undefined, 4));
     if (dataWrapper.isMultipart) {
-	console.log("Is multipart");
 	dumpMultipart (dataWrapper, parent);
     } else if (dataWrapper.isMedium) {
-	console.log("Is medium");
 	if (dataWrapper.isMessage) {
 	    console.log("Is message, see content (should also add headers)");
 	}
 	if (dataWrapper.content.isMultipart) {
-	    console.log("Is medium containing multipart");
 	    dumpDataWrapper (dataWrapper.content, parent);
 	} else {
-	    console.log("Other type of medium");
 	    if (dataWrapper.content.mimeType.type == 'text' &&
 		(dataWrapper.content.mimeType.subType == 'html' ||
 		 dataWrapper.content.mimeType.subType == 'plain') &&
 		dataWrapper.disposition != 'attachment') {
-		console.log("Is a body");
 		iframe = document.createElement ("iframe");
 		iframe.setAttribute ("id", dataWrapper.content.uri);
 		iframe.className += "iwk-part-iframe";
@@ -359,7 +349,6 @@ function dumpDataWrapper (dataWrapper, parent)
 		iframe.setAttribute ("width", "100%");
 		$(parent).append(iframe);
 	    } else {
-		console.log("Is an attachment");
 		p = document.createElement ("p");
 		$(p).text("Attachment "+dataWrapper.filename);
 		$(parent).append(p);
@@ -367,8 +356,6 @@ function dumpDataWrapper (dataWrapper, parent)
 	}
     } else {
     }
-    console.log("Finished processing uri "+dataWrapper.uri);
-    console.log("Parent ("+parent+") status is "+$(parent).html());
 }
 
 function showMessage(message)
@@ -397,10 +384,8 @@ function showMessage(message)
 		message: message.uid
 	    }
 	}).done(function (msg) {
-	    console.log (JSON.stringify (msg.result, undefined, 4));
 	    parent = "#page-message #iframe-container";
 	    dumpDataWrapper (msg.result, parent);
-	    console.log($(parent).html());
 	}).always(function(jqXHR, textStatus, errorThrown) {
 	    if ('getMessage' in globalStatus.requests)
 		delete globalStatus.requests["getMessage"];
@@ -541,6 +526,8 @@ function refreshAccounts ()
 		a.accountId = account.id;
 		$(a).click(function () {
 		    globalStatus.currentAccount = this.accountId;
+		    globalStatus.currentFolder = null;
+		    globalStatus.currentMessage = null;
 		    showFolders(this.accountId);
 		    return true;
 		});
