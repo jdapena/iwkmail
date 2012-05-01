@@ -1,0 +1,14 @@
+li.iwk-unread-item {
+    border-left: solid #5e87b0 5px;
+    -webkit-border-top-left-radius: 2px;
+    -webkit-border-bottom-left-radius: 2px;
+}
+
+li.iwk-read-item {
+    color: #434343;
+}
+
+iframe.iwk-part-iframe {
+    overflow-y:hidden;
+    overflow-x:auto;
+}
