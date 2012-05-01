@@ -166,7 +166,9 @@ im_content_id_request_check_uri (SoupRequest  *request,
 			     _("Invalid CID URI message uid"));
 	}
 
-	g_propagate_error (error, _error);
+	if (_error) {
+		g_propagate_error (error, _error);
+	}
 	return (_error == NULL);
 }
 
