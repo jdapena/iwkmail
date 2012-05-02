@@ -552,6 +552,7 @@ function refreshAccounts ()
 
 		composerFromOption=document.createElement("option");
 		composerFromOption.setAttribute("id", "composer-from-"+account.id);
+		composerFromOption.setAttribute('value', account.id);
 		composerFromOption.account = account.id;
 		if (account.isDefault)
 		    composerFromOption.setAttribute("selected", "true");
@@ -661,6 +662,34 @@ function sync ()
     syncFolders ();
 }
 
+function composerSend (data)
+{
+    try {
+	var request = $.ajax({
+	    type: "GET",
+	    crossDomain: true,
+	    isLocal: true,
+	    dataType: "jsonp",
+	    url: "iwk:composerSend",
+	    data: { formData: data}
+	});
+	request.done(function (msg) {
+	    if (!msg.is_ok)
+		showError (msg.error);
+	    else
+		sync();
+	});
+	request.fail(function(jqXHR, textStatus) {
+	});
+	request.error(function(jqXHR, textStatus, errorThrown) {
+	});
+	request.complete(function(jqXHR, textStatus) {
+	});
+    } catch (e) {
+	console.log(e.message);
+    }
+}
+
 function clearForm(form)
 {
     $(":input", form).each(function()
@@ -724,6 +753,15 @@ $(function () {
     $("#add-account-button").click(function () {
 	clearForm($('#form-add-account'));
 	return true;
+    });
+
+    $("#composer-send").click(function () {
+	$("#form-composer").submit();
+    });
+
+    $("#form-composer").submit(function () {
+	composerSend($(this).serialize());
+	return false;
     });
 
     $("#accounts-compose").click(function () {

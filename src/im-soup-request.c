@@ -57,6 +57,16 @@
 #include <libsoup/soup.h>
 #include <libsoup/soup-uri.h>
 
+#define IM_OUTBOX_SEND_STATUS "iwk-send-status"
+#define IM_OUTBOX_SEND_STATUS_COPYING_TO_SENTBOX "copying-to-sentbox"
+#define IM_OUTBOX_SEND_STATUS_FAILED "failed"
+#define IM_OUTBOX_SEND_STATUS_RETRY "retry"
+#define IM_OUTBOX_SEND_STATUS_SEND "send"
+#define IM_OUTBOX_SEND_STATUS_SENDING "sending"
+#define IM_OUTBOX_SEND_STATUS_SENT "sent"
+#define IM_OUTBOX_SEND_ATTEMPTS "iwk-send-attempts"
+#define IM_X_MAILER ("Igalia WebKit Mail " VERSION)
+
 G_DEFINE_TYPE (ImSoupRequest, im_soup_request, SOUP_TYPE_REQUEST)
 
 struct _ImSoupRequestPrivate {
@@ -556,6 +566,197 @@ finish_sync_folders (SyncFoldersData *data)
 	g_free (data);
 }
 
+typedef struct _OutboxGetMessageData {
+	SyncFoldersData *data;
+	CamelFolder *outbox;
+	char *uid;
+} OutboxGetMessageData;
+
+static void
+sync_folders_outbox_send_to_cb (GObject *source_object,
+				GAsyncResult *result,
+				gpointer userdata)
+{
+	OutboxGetMessageData *get_message_data = (OutboxGetMessageData *) userdata;
+	SyncFoldersData *data = get_message_data->data;
+	CamelFolder *outbox = get_message_data->outbox;
+	GError *_error = NULL;
+	char *uid = get_message_data->uid;
+
+	data->count--;
+	if (!camel_transport_send_to_finish (CAMEL_TRANSPORT (source_object), result, &_error)) {
+		const char *attempt_str;
+		int attempt;
+
+		attempt_str = camel_folder_get_message_user_tag (outbox, uid,
+								 IM_OUTBOX_SEND_ATTEMPTS);
+		attempt = attempt_str?atoi (attempt_str):0;
+		if (attempt > 3 || attempt < 0) {
+			camel_folder_set_message_user_tag (outbox, uid,
+							   IM_OUTBOX_SEND_STATUS,
+							   IM_OUTBOX_SEND_STATUS_FAILED);
+		} else {
+			char *new_attempt;
+			camel_folder_set_message_user_tag (outbox, uid,
+							   IM_OUTBOX_SEND_STATUS,
+							   IM_OUTBOX_SEND_STATUS_RETRY);
+			new_attempt = g_strdup_printf ("%d", attempt + 1);
+			camel_folder_set_message_user_tag (outbox, uid,
+							   IM_OUTBOX_SEND_ATTEMPTS,
+							   new_attempt);
+			g_free (new_attempt);
+		}
+	} else {
+		camel_folder_set_message_user_tag (outbox, uid,
+						   IM_OUTBOX_SEND_ATTEMPTS,
+						   "0");
+		camel_folder_set_message_user_tag (outbox, uid,
+						   IM_OUTBOX_SEND_STATUS,
+						   IM_OUTBOX_SEND_STATUS_SENT);
+	}
+	camel_folder_synchronize_sync (outbox, FALSE, NULL, NULL);
+
+	g_free (get_message_data->uid);
+	g_object_unref (get_message_data->outbox);
+	g_free (get_message_data);
+
+	if (_error) {
+		g_propagate_error (&data->error, _error);
+	}
+
+	if (data->count == 0) {
+		finish_sync_folders (data);
+	}
+}
+
+static void
+sync_folders_outbox_get_message_cb (GObject *source_object,
+				    GAsyncResult *result,
+				    gpointer userdata)
+{
+	OutboxGetMessageData *get_message_data = (OutboxGetMessageData *) userdata;
+	SyncFoldersData *data = get_message_data->data;
+	CamelFolder *outbox = (CamelFolder *) source_object;
+	GError *_error = NULL;
+	char *uid = get_message_data->uid;
+
+	CamelMimeMessage *message;
+
+	data->count--;
+
+	message = camel_folder_get_message_finish (outbox, result, &_error);
+
+	if (_error || message == NULL) {
+		camel_folder_set_message_user_tag (outbox, uid,
+						   IM_OUTBOX_SEND_STATUS,
+						   IM_OUTBOX_SEND_STATUS_RETRY);
+
+		camel_folder_synchronize_sync (outbox, FALSE, NULL, NULL);
+		g_free (get_message_data->uid);
+		g_object_unref (get_message_data->outbox);
+		g_free (get_message_data);
+
+	} else {
+		CamelTransport *transport;
+		CamelInternetAddress *recipients;
+			
+		transport = (CamelTransport *)
+			im_service_mgr_get_service (im_service_mgr_get_instance (),
+						    camel_folder_get_full_name (outbox),
+						    IM_ACCOUNT_TYPE_TRANSPORT);
+
+		recipients = camel_internet_address_new ();
+		camel_address_cat (CAMEL_ADDRESS (recipients),
+				   CAMEL_ADDRESS (camel_mime_message_get_recipients (message, CAMEL_RECIPIENT_TYPE_TO)));
+		camel_address_cat (CAMEL_ADDRESS (recipients),
+				   CAMEL_ADDRESS (camel_mime_message_get_recipients (message, CAMEL_RECIPIENT_TYPE_CC)));
+		camel_address_cat (CAMEL_ADDRESS (recipients),
+				   CAMEL_ADDRESS (camel_mime_message_get_recipients (message, CAMEL_RECIPIENT_TYPE_BCC)));
+		
+		if (camel_service_connect_sync (CAMEL_SERVICE (transport),
+						&_error)) {
+			camel_transport_send_to (transport,
+						 message, CAMEL_ADDRESS (camel_mime_message_get_from (message)),
+						     CAMEL_ADDRESS (recipients),
+						 G_PRIORITY_DEFAULT_IDLE, data->cancellable,
+						 sync_folders_outbox_send_to_cb, get_message_data);
+			data->count++;
+		}
+		
+		g_object_unref (recipients);
+	}
+
+	if (_error) {
+		g_propagate_error (&data->error, _error);
+	}
+
+	if (data->count == 0) {
+		finish_sync_folders (data);
+	}
+}
+
+static void
+sync_folders_outbox_synchronize_cb (GObject *source_object,
+				    GAsyncResult *result,
+				    gpointer userdata)
+{
+	SyncFoldersData *data = (SyncFoldersData *) userdata;
+	CamelFolder *outbox = (CamelFolder *) source_object;
+	data->count--;
+	if (camel_folder_synchronize_finish (CAMEL_FOLDER (source_object),
+					     result,
+					     NULL)) {
+
+		if (camel_folder_get_message_count (outbox) > 0) {
+			CamelTransport *transport;
+
+			/* Get transport */
+			transport = (CamelTransport *)
+				im_service_mgr_get_service (im_service_mgr_get_instance (),
+							    camel_folder_get_full_name (outbox),
+							    IM_ACCOUNT_TYPE_TRANSPORT);
+
+			if (transport) {
+				GPtrArray *uids;
+				gint i;
+
+				uids = camel_folder_get_uids (outbox);
+
+				for (i = 0; i < uids->len; i++) {
+					const char *uid = (const char *) uids->pdata[i];
+					const char *send_status;
+					send_status = camel_folder_get_message_user_tag (outbox, uid, IM_OUTBOX_SEND_STATUS);
+					if (g_strcmp0 (send_status, IM_OUTBOX_SEND_STATUS_SENDING) == 0 ||
+					    g_strcmp0 (send_status, IM_OUTBOX_SEND_STATUS_COPYING_TO_SENTBOX) == 0) {
+						/* we ignore it, it's being operated now */
+					} else if (g_strcmp0 (send_status, IM_OUTBOX_SEND_STATUS_SENT) == 0) {
+						/* TODO: it's sent, but transfer to sent folder failed, we reschedule it */
+					} else if (send_status == NULL || g_strcmp0 (send_status, IM_OUTBOX_SEND_STATUS_RETRY) == 0){
+						OutboxGetMessageData *get_message_data = g_new0 (OutboxGetMessageData, 1);
+						camel_folder_set_message_user_tag (outbox, uid,
+										   IM_OUTBOX_SEND_STATUS,
+										   IM_OUTBOX_SEND_STATUS_SENDING);
+						camel_folder_synchronize_sync (outbox, FALSE, NULL, NULL);
+						get_message_data->data = data;
+						get_message_data->uid = g_strdup (uid);
+						get_message_data->outbox = g_object_ref (outbox);
+						camel_folder_get_message (outbox, uid,
+									  G_PRIORITY_DEFAULT_IDLE,
+									  data->cancellable,
+									  sync_folders_outbox_get_message_cb,
+									  get_message_data);
+						data->count++;
+					}
+				}
+			}
+		}
+	}
+
+	if (data->count == 0) {
+		finish_sync_folders (data);
+	}
+}
+
 static void
 sync_folders_refresh_info_cb (GObject *source_object,
 			      GAsyncResult *result,
@@ -573,9 +774,10 @@ sync_folders_refresh_info_cb (GObject *source_object,
 		account_id = im_account_mgr_get_server_parent_account_name (im_account_mgr_get_instance (),
 									    camel_service_get_uid (CAMEL_SERVICE (store)),
 									    IM_ACCOUNT_TYPE_STORE);
-		g_hash_table_insert (g_hash_table_lookup (data->updated_folders, account_id), 
-				     g_strdup (camel_folder_get_full_name (CAMEL_FOLDER (source_object))),
-				     g_object_ref (source_object));
+		if (account_id)
+			g_hash_table_insert (g_hash_table_lookup (data->updated_folders, account_id), 
+					     g_strdup (camel_folder_get_full_name (CAMEL_FOLDER (source_object))),
+					     g_object_ref (source_object));
 	}
 
 	if (data->count == 0) {
@@ -627,10 +829,12 @@ sync_folders_get_folder_info_cb (GObject *source_object,
 	fi = camel_store_get_folder_info_finish (CAMEL_STORE (source_object),
 						 res, &error);
 	if (fi) {
-		g_hash_table_insert (data->folder_infos, g_strdup (account_id), fi);
-		g_hash_table_insert (data->updated_folders, g_strdup (account_id),
-				     g_hash_table_new_full (g_str_hash, g_str_equal,
-							    g_free, (GDestroyNotify) g_object_unref));
+		if (account_id) {
+			g_hash_table_insert (data->folder_infos, g_strdup (account_id), fi);
+			g_hash_table_insert (data->updated_folders, g_strdup (account_id),
+					     g_hash_table_new_full (g_str_hash, g_str_equal,
+								    g_free, (GDestroyNotify) g_object_unref));
+		}
 		if (camel_store_can_refresh_folder (CAMEL_STORE (source_object), fi, NULL)) {
 			camel_store_get_folder (CAMEL_STORE (source_object),
 						fi->full_name,
@@ -660,7 +864,7 @@ sync_folders (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 	  GSList *account_names, *node;
 	  ImAccountMgr *mgr = im_account_mgr_get_instance ();
 	  SyncFoldersData *data = g_new0(SyncFoldersData, 1);
-
+	  CamelStore *outbox_store;
 
 	  response_start (builder);
 
@@ -679,6 +883,7 @@ sync_folders (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 
 	  for (node = account_names; node != NULL; node = g_slist_next (node)) {
 		  CamelStore *store;
+		  CamelFolder *outbox;
 
 		  store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
 								     (const char *) node->data,
@@ -697,6 +902,32 @@ sync_folders (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 						       data);
 			  data->count++;
 		  }
+		  outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
+						      (const char *)node->data,
+						      data->cancellable,
+						      NULL);
+		  if (outbox) {
+			  camel_folder_synchronize (outbox, TRUE,
+						    G_PRIORITY_DEFAULT_IDLE,
+						    data->cancellable,
+						    sync_folders_outbox_synchronize_cb,
+						    data);
+			  data->count++;
+		  }
+		  
+	  }
+
+	  outbox_store = im_service_mgr_get_outbox_store (im_service_mgr_get_instance ());
+	  if (outbox_store) {
+		  camel_store_get_folder_info (outbox_store, NULL,
+					       CAMEL_STORE_FOLDER_INFO_RECURSIVE |
+					       CAMEL_STORE_FOLDER_INFO_NO_VIRTUAL |
+					       CAMEL_STORE_FOLDER_INFO_SUBSCRIBED,
+					       G_PRIORITY_DEFAULT_IDLE,
+					       data->cancellable,
+					       sync_folders_get_folder_info_cb,
+					       data);
+		  data->count++;
 	  }
 	  if (data->count == 0)
 		  finish_sync_folders (data);
@@ -1214,6 +1445,192 @@ get_message (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 				get_message_get_folder_cb, data);
 }
 
+typedef struct _ComposerSendData {
+	GAsyncResult *result;
+	GHashTable *params;
+	JsonBuilder *builder;
+	GCancellable *cancellable;
+	GError *error;
+	char *uid;
+} ComposerSendData;
+
+static void
+finish_composer_send_data (ComposerSendData *data)
+{
+	response_start (data->builder);
+	if (data->uid) {
+		json_builder_set_member_name (data->builder, "outboxUid");
+		json_builder_add_string_value (data->builder, data->uid);
+	}
+	response_finish (data->result, data->params, data->builder, data->error);
+
+	g_object_unref (data->result);
+	g_hash_table_unref (data->params);
+	g_object_unref (data->builder);
+	if (data->error) g_error_free (data->error);
+	g_object_unref (data->cancellable);
+	g_free (data);
+}
+
+static void
+composer_send_append_message_cb (GObject *source_object,
+				 GAsyncResult *result,
+				 gpointer userdata)
+{
+	ComposerSendData *data = (ComposerSendData *) userdata;
+	GError *_error = NULL;
+	CamelFolder *outbox = (CamelFolder *) source_object;
+
+	if (!camel_folder_append_message_finish (outbox, result, &data->uid, &_error) && _error == NULL) {
+		g_set_error (&_error, IM_ERROR_DOMAIN,
+			     IM_ERROR_SEND_FAILED_TO_ADD_TO_OUTBOX,
+			     _("Couldn't add to outbox"));
+	}
+
+	if (_error)
+		g_propagate_error (&data->error, _error);
+
+	finish_composer_send_data (data);
+}
+
+static void
+composer_send (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
+{
+	ComposerSendData *data = g_new0 (ComposerSendData, 1);
+	CamelMimeMessage *message;
+	CamelMessageInfo *mi;
+	CamelFolder *outbox;
+	const char *account_id;
+	const char *to, *cc, *bcc;
+	const char *subject;
+	const char *body;
+	GError *_error = NULL;
+	const char *form_data;
+	GHashTable *form_params;
+
+	data->result = g_object_ref (result);
+	data->builder = g_object_ref (builder);
+	data->cancellable = g_cancellable_new ();
+	data->params = g_hash_table_ref (params);
+
+	form_data = g_hash_table_lookup (params, "formData");
+	form_params = soup_form_decode (form_data);
+
+	account_id = g_hash_table_lookup (form_params, "composer-from-choice");
+	to = g_hash_table_lookup (form_params, "composer-to");
+	cc = g_hash_table_lookup (form_params, "composer-cc");
+	bcc = g_hash_table_lookup (form_params, "composer-bcc");
+	subject = g_hash_table_lookup (form_params, "composer-subject");
+	body = g_hash_table_lookup (form_params, "composer-body");
+
+	message = camel_mime_message_new ();
+	camel_medium_set_header (CAMEL_MEDIUM (message), "X-Mailer", IM_X_MAILER);
+	camel_mime_message_set_subject (message, subject);
+	camel_mime_message_set_date (message, CAMEL_MESSAGE_DATE_CURRENT, 0);
+
+	if (body && *body)
+		camel_mime_part_set_content (CAMEL_MIME_PART (message), body, strlen (body), "text/plain; charset=utf8");
+
+	mi = camel_message_info_new (NULL);
+	
+	if (_error == NULL && account_id == NULL) {
+		g_set_error (&_error, IM_ERROR_DOMAIN,
+			     IM_ERROR_SEND_INVALID_PARAMETERS,
+			     _("No transport account specified trying to send the message"));
+	}
+
+	if (_error == NULL) {
+		if (!im_account_mgr_account_exists (im_account_mgr_get_instance (),
+						    account_id, FALSE)) {
+			g_set_error (&_error, IM_ERROR_DOMAIN,
+				     IM_ERROR_SEND_INVALID_PARAMETERS,
+				     _("Invalid transport account specified trying to send the message"));
+		}
+	}
+
+	if (_error == NULL) {
+		gchar *from_string;
+		gint from_count;
+		CamelInternetAddress *from_cia;
+		from_string = im_account_mgr_get_from_string (im_account_mgr_get_instance (),
+							      account_id, NULL);
+
+		from_cia = camel_internet_address_new ();
+		from_count = camel_address_unformat (CAMEL_ADDRESS (from_cia), from_string);
+		if (from_count != 1) {
+			g_set_error (&_error, IM_ERROR_DOMAIN,
+				     IM_ERROR_SEND_INVALID_ACCOUNT_FROM,
+				     _("Account has an invalid from field"));
+		} else {
+			camel_mime_message_set_from (message,
+						     from_cia);
+		}
+		g_object_unref (from_cia);
+		g_free (from_string);
+	}						
+
+
+	if (_error == NULL) {
+		CamelInternetAddress *to_cia, *cc_cia, *bcc_cia;
+		gint to_count, cc_count, bcc_count;
+
+		to_cia = camel_internet_address_new ();
+		to_count = camel_address_unformat (CAMEL_ADDRESS (to_cia), to);
+		cc_cia = camel_internet_address_new ();
+		cc_count = camel_address_unformat (CAMEL_ADDRESS (cc_cia), cc);
+		bcc_cia = camel_internet_address_new ();
+		bcc_count = camel_address_unformat (CAMEL_ADDRESS (bcc_cia), bcc);
+
+		if (to_count == -1 || cc_count == -1 || bcc_count == -1) {
+			g_set_error (&_error, IM_ERROR_DOMAIN,
+				     IM_ERROR_SEND_PARSING_RECIPIENTS,
+				     _("Failed to parse recipients"));
+		} else if (to_count + cc_count + bcc_count == 0) {
+			g_set_error (&_error, IM_ERROR_DOMAIN,
+				     IM_ERROR_SEND_NO_RECIPIENTS,
+				     _("User didn't set recipients trying to send"));
+		} else {
+			camel_mime_message_set_recipients (message,
+							   CAMEL_RECIPIENT_TYPE_TO,
+							   to_cia);
+			camel_mime_message_set_recipients (message,
+							   CAMEL_RECIPIENT_TYPE_CC,
+							   cc_cia);
+			camel_mime_message_set_recipients (message,
+							   CAMEL_RECIPIENT_TYPE_BCC,
+							   bcc_cia);
+		}
+		g_object_unref (to_cia);
+		g_object_unref (cc_cia);
+		g_object_unref (bcc_cia);
+	}
+
+	if (_error == NULL) {
+		outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
+						    account_id,
+						    data->cancellable,
+						    &_error);
+	}
+
+	if (_error) {
+		g_propagate_error (&data->error, _error);
+	}
+
+	g_hash_table_destroy (form_params);
+
+	if (_error == NULL && outbox) {
+		camel_folder_append_message (outbox, message, mi,
+					     G_PRIORITY_DEFAULT_IDLE,
+					     data->cancellable,
+					     composer_send_append_message_cb, data);
+	} else {
+		finish_composer_send_data (data);
+	}
+
+	camel_message_info_free (mi);
+	g_object_unref (message);
+}
+
 static void
 im_soup_request_send_async (SoupRequest          *soup_request,
 			    GCancellable         *cancellable,
@@ -1250,6 +1667,8 @@ im_soup_request_send_async (SoupRequest          *soup_request,
 	  sync_folders (result, params, builder);
   } else if (!g_strcmp0 (uri->path, "getMessage")) {
 	  get_message (result, params, builder);
+  } else if (!g_strcmp0 (uri->path, "composerSend")) {
+	  composer_send (result, params, builder);
   } else {
 	  response_start (builder);
 	  if (_error == NULL)

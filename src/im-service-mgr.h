@@ -157,6 +157,35 @@ CamelService* im_service_mgr_get_service (ImServiceMgr *self,
 					  const gchar *account_id,
 					  ImAccountType type);
 
+/**
+ * im_service_mgr_get_outbox:
+ * @self: an #ImServiceMgr instance
+ * @account_name: the account name
+ * @cancellable: a #GCancellable
+ * @error: a #GError pointer
+ *
+ * Obtains the outbox folder for this account. The outbox folder
+ * is special, and is stored as a maildir in the user data directory.
+ *
+ * Returns: a #CamelFolder
+ */
+CamelFolder *im_service_mgr_get_outbox (ImServiceMgr *self,
+					const char *account_name,
+					GCancellable *cancellable,
+					GError **error);
+
+/**
+ * im_service_mgr_get_outbox_store:
+ * @self: an #ImServiceMgr instance
+ *
+ * Obtains the local store for outboxes folders. It's useful
+ * to schedule synchronization (and track local changes not
+ * driven by app.
+ *
+ * Returns: (transfer none): a #CamelStore
+ */
+CamelStore *im_service_mgr_get_outbox_store (ImServiceMgr *self);
+
 const char *im_service_mgr_get_user_data_dir (void);
 
 G_END_DECLS

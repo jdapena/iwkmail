@@ -109,14 +109,14 @@
     <div data-role="page" id="composer" data-add-back-btn="true">
       <div data-role="header" data-position="fixed">
 	<h3 id="composer-title"></h3>
-	<a id="composer-send" data-icon="check" class="ui-btn-right">Send</a>
+	<a data-rel="back" id="composer-send" data-icon="check" class="ui-btn-right">Send</a>
       </div>
       <div data-role="content">
 	<form id="form-composer">
 	  <ul data-role="listview">
 	    <li data-role="fieldcontain">
 	      <label for="composer-subject">Subject:</label>
-	      <input type="text" id="composer-subject">
+	      <input type="text" name="composer-subject" id="composer-subject" value="">
 	    </li>
 	    <li data-role="fieldcontain">
 	      <label for="composer-from-choice" class="select">From:</label>

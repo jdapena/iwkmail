@@ -58,6 +58,8 @@
 #include <string.h>
 #include <glib/gi18n.h>
 
+#define IM_OUTBOX_STORE_NAME "outboxes"
+
 /* 'private'/'protected' functions */
 static void    im_service_mgr_class_init   (ImServiceMgrClass *klass);
 static void    im_service_mgr_finalize     (GObject *obj);
@@ -68,7 +70,12 @@ static void    on_account_inserted         (ImAccountMgr *acc_mgr,
 					    const gchar *account,
 					    gpointer user_data);
 
-static void    add_existing_accounts       (ImServiceMgr *self);
+static void     add_existing_accounts       (ImServiceMgr *self);
+static gboolean init_outbox                 (ImServiceMgr *self,
+					     GError **error);
+static gboolean init_store_outbox           (ImServiceMgr *self,
+					     const char *name,
+					     GError **error);
 
 static void    insert_account              (ImServiceMgr *self,
 					    const gchar *account,
@@ -77,7 +84,6 @@ static void    insert_account              (ImServiceMgr *self,
 static void    on_account_removed          (ImAccountMgr *acc_mgr, 
 					    const gchar *account,
 					    gpointer user_data);
-
 static gchar * get_password                (CamelSession *session,
 					    CamelService *service,
 					    const gchar *prompt,
@@ -119,7 +125,9 @@ struct _ImServiceMgrPrivate {
 	/* We cache the lists of accounts here */
 	GHashTable          *store_services;
 	GHashTable          *transport_services;
-	
+
+	/* Outboxes */
+	CamelStore          *outbox_store;
 };
 
 #define IM_SERVICE_MGR_GET_PRIVATE(o)      (G_TYPE_INSTANCE_GET_PRIVATE((o), \
@@ -543,6 +551,109 @@ fill_network_settings (ImServerAccountSettings *server,
 					 im_server_account_settings_get_username (server));
 }
 
+static gboolean
+init_outbox (ImServiceMgr *self, GError **error)
+{
+	ImServiceMgrPrivate *priv = IM_SERVICE_MGR_GET_PRIVATE (self);
+	GError *_error = NULL;
+
+	if (priv->outbox_store != NULL)
+		return TRUE;
+
+	priv->outbox_store = (CamelStore *)camel_session_add_service (CAMEL_SESSION (self),
+								      IM_OUTBOX_STORE_NAME,
+								      "maildir",
+								      CAMEL_PROVIDER_STORE,
+								      &_error);
+
+	if (priv->outbox_store) {
+		CamelSettings *settings;
+
+		g_object_set (priv->outbox_store,
+			      "need-summary-check", TRUE,
+			      NULL);
+
+		settings = camel_service_get_settings (CAMEL_SERVICE (priv->outbox_store));
+		if (CAMEL_IS_LOCAL_SETTINGS (settings)) {
+			gchar *path = g_build_filename (im_service_mgr_get_user_data_dir (),
+							IM_OUTBOX_STORE_NAME, NULL);
+			camel_local_settings_set_path (CAMEL_LOCAL_SETTINGS (settings),
+						       path);
+			g_free (path);
+		}
+	}
+
+	if (_error)
+		g_propagate_error (error, _error);
+
+	return priv->outbox_store != NULL;
+}
+
+static gboolean
+init_store_outbox (ImServiceMgr *self, const gchar *name, GError **error)
+{
+	ImServiceMgrPrivate *priv = IM_SERVICE_MGR_GET_PRIVATE (self);
+	CamelFolderInfo *fi;
+	GError *_error = NULL;
+
+	if (!init_outbox (self, &_error)) {
+		if (_error) g_propagate_error (error, _error);
+		return FALSE;
+	}
+
+	fi = camel_store_get_folder_info_sync (priv->outbox_store,
+					       name,
+					       0,
+					       NULL, NULL);
+	if (fi) {
+		camel_store_free_folder_info (priv->outbox_store, fi);
+		return TRUE;
+	}
+
+	fi = camel_store_create_folder_sync (priv->outbox_store,
+					     NULL, name,
+					     NULL, &_error);
+
+	if (fi) {
+		camel_store_free_folder_info (priv->outbox_store, fi);
+		return TRUE;
+	}
+
+	if (_error)
+		g_propagate_error (error, _error);
+
+	return FALSE;
+}
+
+CamelFolder *
+im_service_mgr_get_outbox (ImServiceMgr *self,
+			   const char *account_id,
+			   GCancellable *cancellable,
+			   GError **error)
+{
+	ImServiceMgrPrivate *priv = IM_SERVICE_MGR_GET_PRIVATE (self);
+
+	if (!init_store_outbox (self, account_id, error))
+		return NULL;
+
+	return camel_store_get_folder_sync (priv->outbox_store,
+					    account_id,
+					    0,
+					    cancellable, error);
+}
+
+CamelStore *
+im_service_mgr_get_outbox_store (ImServiceMgr *self)
+{
+	ImServiceMgrPrivate *priv = IM_SERVICE_MGR_GET_PRIVATE (self);
+
+	if (!init_outbox (self, NULL))
+		return NULL;
+
+	return priv->outbox_store;
+}
+						
+
 static CamelService*
 create_service (ImServiceMgr *self,
 		const gchar *name,
@@ -580,6 +691,8 @@ create_service (ImServiceMgr *self,
 			fill_network_settings (server_settings, type, CAMEL_NETWORK_SETTINGS (settings));
 		
 	}
+
+	init_store_outbox (self, name, NULL);
 
 	g_hash_table_replace ((type == IM_ACCOUNT_TYPE_STORE)?
 			      priv->store_passwords:
