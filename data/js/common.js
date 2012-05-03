@@ -60,3 +60,14 @@ function globalSetFolders (foldersData)
     updateFoldersDisplayNames();
 }
 
+function iwkRequest (method, inData)
+{
+    return $.ajax({
+	type: "GET",
+	crossDomain: true,
+	isLocal: true,
+	dataType: "jsonp",
+	url: "iwk:"+method,
+	data: inData
+    });
+}

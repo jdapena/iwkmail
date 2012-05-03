@@ -91,23 +91,16 @@ function showMessage(message)
 	globalStatus.requests['getMessage'].abort();
     }
 
-    globalStatus.requests["getMessage"] = $.ajax({
-	    type: "GET",
-	    crossDomain: true,
-	    isLocal: true,
-	    dataType: "jsonp",
-	    url: "iwk:getMessage",
-	    data: {
-		account: globalStatus.currentAccount,
-		folder: globalStatus.currentFolder,
-		message: message.uid
-	    }
-	}).done(function (msg) {
-	    fillMessageViewBody (msg.result);
-	}).always(function(jqXHR, textStatus, errorThrown) {
-	    if ('getMessage' in globalStatus.requests)
-		delete globalStatus.requests["getMessage"];
-	});
+    globalStatus.requests["getMessage"] = iwkRequest ("getMessage", {
+	account: globalStatus.currentAccount,
+	folder: globalStatus.currentFolder,
+	message: message.uid
+    }).done(function (msg) {
+	fillMessageViewBody (msg.result);
+    }).always(function(jqXHR, textStatus, errorThrown) {
+	if ('getMessage' in globalStatus.requests)
+	    delete globalStatus.requests["getMessage"];
+    });
 }
 
 function showMessages(accountId, folderId, onlyNew)
@@ -123,19 +116,12 @@ function showMessages(accountId, folderId, onlyNew)
 	$("#messages-cancel").show();
 
 	retrieveCount = onlyNew?0:SHOW_MESSAGES_COUNT;
-	globalStatus.requests["showMessages"] = $.ajax({
-	    type: "GET",
-	    crossDomain: true,
-	    isLocal: true,
-	    dataType: "jsonp",
-	    url: "iwk:getMessages",
-	    data: {
-		account: accountId,
-		folder: folderId,
-		newestUid: globalStatus.newestUid,
-		oldestUid: globalStatus.oldestUid,
-		count: retrieveCount
-	    }
+	globalStatus.requests["showMessages"] = iwkRequest ("getMessages", {
+	    account: accountId,
+	    folder: folderId,
+	    newestUid: globalStatus.newestUid,
+	    oldestUid: globalStatus.oldestUid,
+	    count: retrieveCount
 	}).done(function (msg) {
 	    if (msg.newMessages.length > 0) {
 		globalStatus.newestUid = msg.newMessages[0].uid;
@@ -179,159 +165,108 @@ function fetchNewMessages ()
 
 function refreshAccounts ()
 {
-   try {
-	var request = $.ajax({
-	    type: "GET",
-	    crossDomain: true,
-	    isLocal: true,
-	    dataType: "jsonp",
-	    url: "iwk:getAccounts",
-	});
-	request.done(function (msg) {
-	    $("#page-accounts #accounts-list").html("");
-	    $("#composer-from-choice").html("");
-	    for (i in msg.result) {
-		var account = msg.result[i];
-		li = document.createElement("li");
-		li.setAttribute('id', 'account-item-'+account.id);
-		li.setAttribute('data-role', 'fieldcontain');
-		a = document.createElement("a");
-		a.setAttribute('href', '#page-folders?account='+account.id);
-		a.accountId = account.id;
-		$(a).click(function () {
-		    globalStatus.currentAccount = this.accountId;
-		    globalStatus.currentFolder = null;
-		    globalStatus.currentMessage = null;
-		    fillFoldersList(this.accountId);
-		    return true;
-		});
-
-		h3 = document.createElement("h3");
-		$(h3).text(account.displayName);
-		p = document.createElement("p");
-		if (account.isDefault)
-		    $(p).text(account.emailAddress + " (default)")
-		else
-		    $(p).text(account.emailAddress);
-		countSpan = document.createElement("span");
-		countSpan.className += " ui-li-count account-count";
-		$(countSpan).hide();
-		$(countSpan).text(0);
-		a.appendChild(h3);
-		a.appendChild(p);
-		a.appendChild(countSpan);
-		li.appendChild(a);
-		$("#page-accounts #accounts-list").append(li);
-
-		composerFromOption=document.createElement("option");
-		composerFromOption.setAttribute("id", "composer-from-"+account.id);
-		composerFromOption.setAttribute('value', account.id);
-		composerFromOption.account = account.id;
-		if (account.isDefault)
-		    composerFromOption.setAttribute("selected", "true");
-		$(composerFromOption).text(account.emailAddress);
-		$("#composer-from-choice").append(composerFromOption);
-	    }
-	    li = document.createElement ("li");
-	    a = document.createElement ("a");
-	    a.setAttribute("href", "#create-account");
-	    a.setAttribute("id", "add-account-button");
-	    a.setAttribute("data-role", "button");
-	    a.setAttribute("data-icon", "plus");
-	    a.className += "account-item";
-	    a.innerText = "Add account";
-
+    iwkRequest ("getAccounts", {
+    }).done(function (msg) {
+	$("#page-accounts #accounts-list").html("");
+	$("#composer-from-choice").html("");
+	for (i in msg.result) {
+	    var account = msg.result[i];
+	    li = document.createElement("li");
+	    li.setAttribute('id', 'account-item-'+account.id);
+	    li.setAttribute('data-role', 'fieldcontain');
+	    a = document.createElement("a");
+	    a.setAttribute('href', '#page-folders?account='+account.id);
+	    a.accountId = account.id;
+	    $(a).click(function () {
+		globalStatus.currentAccount = this.accountId;
+		globalStatus.currentFolder = null;
+		globalStatus.currentMessage = null;
+		fillFoldersList(this.accountId);
+		return true;
+	    });
+	    
+	    h3 = document.createElement("h3");
+	    $(h3).text(account.displayName);
+	    p = document.createElement("p");
+	    if (account.isDefault)
+		$(p).text(account.emailAddress + " (default)")
+	    else
+		$(p).text(account.emailAddress);
+	    countSpan = document.createElement("span");
+	    countSpan.className += " ui-li-count account-count";
+	    $(countSpan).hide();
+	    $(countSpan).text(0);
+	    a.appendChild(h3);
+	    a.appendChild(p);
+	    a.appendChild(countSpan);
 	    li.appendChild(a);
 	    $("#page-accounts #accounts-list").append(li);
-	    $("#page-accounts #accounts-list").listview('refresh');
-
-	    syncFolders();
-	});
-	request.fail(function(jqXHR, textStatus) {
-	});
-	request.error(function(jqXHR, textStatus, errorThrown) {
-	});
-   } catch (e) {
-       console.log(e.message);
-   }
+	    
+	    composerFromOption=document.createElement("option");
+	    composerFromOption.setAttribute("id", "composer-from-"+account.id);
+	    composerFromOption.setAttribute('value', account.id);
+	    composerFromOption.account = account.id;
+	    if (account.isDefault)
+		composerFromOption.setAttribute("selected", "true");
+	    $(composerFromOption).text(account.emailAddress);
+	    $("#composer-from-choice").append(composerFromOption);
+	}
+	li = document.createElement ("li");
+	a = document.createElement ("a");
+	a.setAttribute("href", "#create-account");
+	a.setAttribute("id", "add-account-button");
+	a.setAttribute("data-role", "button");
+	a.setAttribute("data-icon", "plus");
+	a.className += "account-item";
+	a.innerText = "Add account";
+	
+	li.appendChild(a);
+	$("#page-accounts #accounts-list").append(li);
+	$("#page-accounts #accounts-list").listview('refresh');
+	
+	syncFolders();
+    });
 }
 
 function addAccount (data)
 {
-    try {
-	$.mobile.showPageLoadingMsg();
-	var request = $.ajax({
-	    type: "GET",
-	    crossDomain: true,
-	    isLocal: true,
-	    dataType: "jsonp",
-	    url: "iwk:addAccount",
-	    data: { formData: data}
-	});
-	request.done(function (msg) {
-	    if (msg.is_ok) {
-		$.mobile.changePage("#page-accounts");
-		refreshAccounts();
-	    } else {
-		showError (msg.error);
-	    }
-	});
-	request.complete(function(jqXHR, textStatus) {
-	    $.mobile.hidePageLoadingMsg();
-	});
-    } catch (e) {
-	console.log(e.message);
-    }
+    $.mobile.showPageLoadingMsg();
+    iwkRequest ("addAccount", {
+    }).done(function (msg) {
+	if (msg.is_ok) {
+	    $.mobile.changePage("#page-accounts");
+	    refreshAccounts();
+	} else {
+	    showError (msg.error);
+	}
+    }).complete(function(jqXHR, textStatus) {
+	$.mobile.hidePageLoadingMsg();
+    });
 }
 
 function syncFolders ()
 {
-    try {
-	$.mobile.showPageLoadingMsg();
-	var request = $.ajax({
-	    type: "GET",
-	    crossDomain: true,
-	    isLocal: true,
-	    dataType: "jsonp",
-	    url: "iwk:syncFolders",
-	});
-	request.done(function (msg) {
-	    globalSetFolders (msg.result);
-	    fillAccountsListCounts ();
-	    fillFoldersList(globalStatus.currentAccount);
-	});
-	request.fail(function(jqXHR, textStatus) {
-	});
-	request.error(function(jqXHR, textStatus, errorThrown) {
-	});
-	request.complete(function(jqXHR, textStatus) {
-	    $.mobile.hidePageLoadingMsg();
-	});
-    } catch (e) {
-	console.log(e.message);
-    }
+    $.mobile.showPageLoadingMsg();
+    iwkRequest("syncFolders", {
+    }).done(function (msg) {
+	globalSetFolders (msg.result);
+	fillAccountsListCounts ();
+	fillFoldersList(globalStatus.currentAccount);
+    }).complete(function(jqXHR, textStatus) {
+	$.mobile.hidePageLoadingMsg();
+    });
 }
 
 function composerSend (data)
 {
-    try {
-	var request = $.ajax({
-	    type: "GET",
-	    crossDomain: true,
-	    isLocal: true,
-	    dataType: "jsonp",
-	    url: "iwk:composerSend",
-	    data: { formData: data}
-	});
-	request.done(function (msg) {
-	    if (!msg.is_ok)
-		showError (msg.error);
-	    else
-		syncFolders();
-	});
-    } catch (e) {
-	console.log(e.message);
-    }
+    iwkRequest ("composerSend", {
+	formData: data
+    }).done(function (msg) {
+	if (!msg.is_ok)
+	    showError (msg.error);
+	else
+	    syncFolders();
+    });
 }
 
 $(function () {
