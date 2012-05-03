@@ -23,6 +23,7 @@
       <div data-role="header" data-position="fixed">
 	<h3>Accounts</h3>
 	<a onClick="syncFolders()" class="ui-btn-right">Sync</a>
+
       </div>
 
       <div data-role="content">
@@ -33,7 +34,7 @@
 	</ul>
       </div>
 
-      <div data-role="footer" class="ui-bar">
+      <div data-role="footer" data-position="fixed" class="ui-bar">
 	<a href="#composer" id="accounts-compose" data-icon="plus">Send email</a>
       </div>
 
@@ -82,6 +83,7 @@
       <div data-role="header" data-position="fixed">
 	<h3  id="page-message-title">Message</h3>
       </div>
+
       <div data-role="content">
 	<ul data-role="listview" data-inset="false">
 	  <li>
@@ -111,6 +113,7 @@
 	<h3 id="composer-title"></h3>
 	<a data-rel="back" id="composer-send" data-icon="check" class="ui-btn-right">Send</a>
       </div>
+
       <div data-role="content">
 	<form id="form-composer">
 	  <ul data-role="listview">
@@ -143,6 +146,7 @@
       <div data-role="header">
 	<h3>Add new account</h3>
       </div>
+
       <div data-role="content">
 	<form action="#page-accounts" id="form-add-account">
 	  <ul data-role="listview">
