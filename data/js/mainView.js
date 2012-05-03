@@ -116,7 +116,7 @@ function showMessage(message)
 	globalStatus.requests['getMessage'].abort();
     }
 
-    globalStatus.requests["getMessage"] = iwkRequest ("getMessage", {
+    globalStatus.requests["getMessage"] = iwkRequest ("getMessage", "Getting message", {
 	account: globalStatus.currentAccount,
 	folder: globalStatus.currentFolder,
 	message: message.uid
@@ -141,7 +141,7 @@ function showMessages(accountId, folderId, onlyNew)
 	$("#messages-cancel").show();
 
 	retrieveCount = onlyNew?0:SHOW_MESSAGES_COUNT;
-	globalStatus.requests["showMessages"] = iwkRequest ("getMessages", {
+	globalStatus.requests["showMessages"] = iwkRequest ("getMessages", "Fetching messages", {
 	    account: accountId,
 	    folder: folderId,
 	    newestUid: globalStatus.newestUid,
@@ -190,7 +190,7 @@ function fetchNewMessages ()
 
 function refreshAccounts ()
 {
-    iwkRequest ("getAccounts", {
+    iwkRequest ("getAccounts", "Updating accounts", {
     }).done(function (msg) {
 	fillComposerFrom (msg.result);
 	fillAccountsList (msg.result);
@@ -200,8 +200,7 @@ function refreshAccounts ()
 
 function addAccount (data)
 {
-    $.mobile.showPageLoadingMsg();
-    iwkRequest ("addAccount", {
+    iwkRequest ("addAccount", "Adding new account", {
     }).done(function (msg) {
 	if (msg.is_ok) {
 	    $.mobile.changePage("#page-accounts");
@@ -209,27 +208,22 @@ function addAccount (data)
 	} else {
 	    showError (msg.error);
 	}
-    }).complete(function(jqXHR, textStatus) {
-	$.mobile.hidePageLoadingMsg();
     });
 }
 
 function syncFolders ()
 {
-    $.mobile.showPageLoadingMsg();
-    iwkRequest("syncFolders", {
+    iwkRequest("syncFolders", "Updating accounts and folders", {
     }).done(function (msg) {
 	globalSetFolders (msg.result);
 	fillAccountsListCounts ();
 	fillFoldersList(globalStatus.currentAccount);
-    }).complete(function(jqXHR, textStatus) {
-	$.mobile.hidePageLoadingMsg();
     });
 }
 
 function composerSend (data)
 {
-    iwkRequest ("composerSend", {
+    iwkRequest ("composerSend", "Adding to outbox", {
 	formData: data
     }).done(function (msg) {
 	if (!msg.is_ok)
