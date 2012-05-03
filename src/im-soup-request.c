@@ -490,13 +490,13 @@ dump_folder_info (JsonBuilder *builder,
 		json_builder_set_member_name (builder, "favourite");
 		json_builder_add_boolean_value (builder, fi->flags & CAMEL_FOLDER_CHECK_FOR_NEW);
 		json_builder_set_member_name (builder, "isInbox");
-		json_builder_add_boolean_value (builder, fi->flags & CAMEL_FOLDER_TYPE_INBOX);
+		json_builder_add_boolean_value (builder, (fi->flags & CAMEL_FOLDER_TYPE_MASK) == CAMEL_FOLDER_TYPE_INBOX);
 		json_builder_set_member_name (builder, "isOutbox");
-		json_builder_add_boolean_value (builder, fi->flags & CAMEL_FOLDER_TYPE_OUTBOX);
+		json_builder_add_boolean_value (builder, (fi->flags & CAMEL_FOLDER_TYPE_MASK) == CAMEL_FOLDER_TYPE_OUTBOX);
 		json_builder_set_member_name (builder, "isSent");
-		json_builder_add_boolean_value (builder, fi->flags & CAMEL_FOLDER_TYPE_SENT);
+		json_builder_add_boolean_value (builder, (fi->flags & CAMEL_FOLDER_TYPE_MASK) == CAMEL_FOLDER_TYPE_SENT);
 		json_builder_set_member_name (builder, "isTrash");
-		json_builder_add_boolean_value (builder, fi->flags & CAMEL_FOLDER_TYPE_TRASH);
+		json_builder_add_boolean_value (builder, (fi->flags & CAMEL_FOLDER_TYPE_MASK) == CAMEL_FOLDER_TYPE_TRASH);
 		if (fi->parent) {
 			json_builder_set_member_name (builder, "parentFullName");
 			json_builder_add_string_value (builder, fi->parent->full_name);
