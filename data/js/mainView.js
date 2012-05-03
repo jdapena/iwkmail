@@ -1,4 +1,4 @@
-/* im-error.h : Error handling */
+/* mainView.js : UI control implementation */
 
 /*
  * Authors:
