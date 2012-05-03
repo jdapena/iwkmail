@@ -1,3 +1,65 @@
+function dumpAccountInAccountsList (account, parent)
+{
+    li = document.createElement("li");
+    li.setAttribute('id', 'account-item-'+account.id);
+    li.setAttribute('data-role', 'fieldcontain');
+    a = document.createElement("a");
+    a.setAttribute('href', '#page-folders?account='+account.id);
+    a.accountId = account.id;
+    $(a).click(function () {
+	globalStatus.currentAccount = this.accountId;
+	globalStatus.currentFolder = null;
+	globalStatus.currentMessage = null;
+	fillFoldersList(this.accountId);
+	return true;
+    });
+	    
+    h3 = document.createElement("h3");
+    $(h3).text(account.displayName);
+    p = document.createElement("p");
+    if (account.isDefault)
+	$(p).text(account.emailAddress + " (default)")
+    else
+	$(p).text(account.emailAddress);
+    countSpan = document.createElement("span");
+    countSpan.className += " ui-li-count account-count";
+    $(countSpan).hide();
+    $(countSpan).text(0);
+    a.appendChild(h3);
+    a.appendChild(p);
+    a.appendChild(countSpan);
+    li.appendChild(a);
+    $(parent).append(li);	    
+}
+
+function dumpAddAccountInAccountsList (parent)
+{
+    li = document.createElement ("li");
+    a = document.createElement ("a");
+    a.setAttribute("href", "#create-account");
+    a.setAttribute("id", "add-account-button");
+    a.setAttribute("data-role", "button");
+    a.setAttribute("data-icon", "plus");
+    a.className += "account-item";
+    a.innerText = "Add account";
+    
+    li.appendChild(a);
+    $(parent).append(li);
+}
+
+function dumpAccountOptionInComposerFrom (account, parent)
+{
+    li = document.createElement("li");
+    composerFromOption=document.createElement("option");
+    composerFromOption.setAttribute("id", "composer-from-"+account.id);
+    composerFromOption.setAttribute('value', account.id);
+    composerFromOption.account = account.id;
+    if (account.isDefault)
+	composerFromOption.setAttribute("selected", "true");
+    $(composerFromOption).text(account.emailAddress);
+    $(parent).append(composerFromOption);
+}
+
 
 function dumpMessageAsViewHeader (message, parent)
 {
