@@ -290,6 +290,22 @@ fetch_part_decode_to_stream_cb (GObject *source_object,
 }
 
 static void
+normalize_content_type (CamelContentType *content_type)
+{
+	gchar *new_type;
+	gchar *new_subtype;
+
+	new_type = g_ascii_strdown (content_type->type, -1);
+	new_subtype = g_ascii_strdown (content_type->subtype, -1);
+
+	g_free (content_type->type);
+	g_free (content_type->subtype);
+
+	content_type->type = new_type;
+	content_type->subtype = new_subtype;
+}
+
+static void
 fetch_part_get_message_cb (GObject *source_object,
 			   GAsyncResult *result,
 			   gpointer userdata)
@@ -317,10 +333,13 @@ fetch_part_get_message_cb (GObject *source_object,
 		} else {
 			CamelStream *stream;
 			CamelContentType *content_type;
+
 			data->byte_array = g_byte_array_new ();
 			stream = camel_stream_mem_new ();
 			content_type = camel_data_wrapper_get_mime_type_field (CAMEL_DATA_WRAPPER (wrapper));
+			normalize_content_type (content_type);
 			data->request->priv->content_type = camel_content_type_format (content_type);
+
 			camel_stream_mem_set_byte_array (CAMEL_STREAM_MEM (stream), data->byte_array);
 			camel_data_wrapper_decode_to_stream (CAMEL_DATA_WRAPPER (wrapper),
 							     stream,
