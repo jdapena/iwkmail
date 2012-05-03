@@ -31,6 +31,8 @@ missing
 mkinstalldirs
 gnome-doc-utils.make
 
+data/js/iwk.js
+
 src/iwkmail
 
 po/POTFILES
