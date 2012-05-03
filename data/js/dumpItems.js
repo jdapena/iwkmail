@@ -63,3 +63,47 @@ function dumpFolderInFolderList (accountId, folderFullName, folder, parent)
     }
     $(parent).append(li);
 }
+
+function dumpMessageInMessagesList (message, isNew, parent)
+{
+    li = document.createElement("li");
+    li.setAttribute('data-role', 'fieldcontain');
+    if (message.unread)
+	li.className += " iwk-unread-item";
+    else
+	li.className += " iwk-read-item";
+    a = document.createElement("a");
+    a.setAttribute("href", "#page-message");
+    a.accountId = globalStatus.currentAccount;
+    a.folderFullName = globalStatus.currentFolder
+    a.messageUid = message.uid;
+    a.message = message;
+    $(a).click(function () {
+	globalStatus.currentAccount = this.accountId;
+	globalStatus.currentFolder = this.folderFullName
+	globalStatus.currentMessage = this.messageUid;
+	showMessage(this.message);
+	return true;
+    });
+    h3 = document.createElement("h3");
+    $(h3).text(message.subject);
+    p = document.createElement("p");
+    outgoing = message.draft || getCurrentFolder().isSent;
+    if (outgoing) {
+	$(p).text(addressesGetDisplay(message.to));
+    } else {
+	$(p).text(addressGetDisplay(message.from));
+    }
+    date = document.createElement("p");
+    date.className += "ui-li-aside";
+    $(date).text(formatTime(message.dateReceived));
+    a.appendChild(h3);
+    a.appendChild(p);
+    a.appendChild(date);
+    li.appendChild(a);
+
+    if (isNew)
+	$(parent).prepend(li);
+    else
+	$(parent).append(li);
+}

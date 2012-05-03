@@ -110,47 +110,6 @@ function showMessage(message)
 	});
 }
 
-function createMessageItem (message)
-{
-    li = document.createElement("li");
-    li.setAttribute('data-role', 'fieldcontain');
-    if (message.unread)
-	li.className += " iwk-unread-item";
-    else
-	li.className += " iwk-read-item";
-    a = document.createElement("a");
-    a.setAttribute("href", "#page-message");
-    a.accountId = globalStatus.currentAccount;
-    a.folderFullName = globalStatus.currentFolder
-    a.messageUid = message.uid;
-    a.message = message;
-    $(a).click(function () {
-	globalStatus.currentAccount = this.accountId;
-	globalStatus.currentFolder = this.folderFullName
-	globalStatus.currentMessage = this.messageUid;
-	showMessage(this.message);
-	return true;
-    });
-    h3 = document.createElement("h3");
-    $(h3).text(message.subject);
-    p = document.createElement("p");
-    outgoing = message.draft || getCurrentFolder().isSent;
-    if (outgoing) {
-	$(p).text(addressesGetDisplay(message.to));
-    } else {
-	$(p).text(addressGetDisplay(message.from));
-    }
-    date = document.createElement("p");
-    date.className += "ui-li-aside";
-    $(date).text(formatTime(message.dateReceived));
-    a.appendChild(h3);
-    a.appendChild(p);
-    a.appendChild(date);
-    li.appendChild(a);
-
-    return li;
-}
-
 function showMessages(accountId, folderId, onlyNew)
 {
     try {
@@ -189,14 +148,10 @@ function showMessages(accountId, folderId, onlyNew)
 	    }
 	    msg.newMessages.reverse();
 	    for (i in msg.newMessages) {
-		var message = msg.newMessages[i];
-		item = createMessageItem(message);
-		$("#page-messages #messages-list").prepend(messageItem);
+		dumpMessageInMessagesList (msg.newMessages[i], true, "#page-messages #messages-list");
 	    }
 	    for (i in msg.messages) {
-		var message = msg.messages[i];
-		item = createMessageItem(message);
-		$("#page-messages #messages-list").append(item);
+		dumpMessageInMessagesList (msg.messages[i], false, "#page-messages #messages-list");
 	    }
 	    $("#page-messages #messages-list").listview('refresh');
 	}).always(function(jqXHR, textStatus, errorThrown) {
