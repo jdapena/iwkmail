@@ -1,3 +1,17 @@
+/***************************************************************************
+ * dumpItems.js : Methods for dumping query results to lists and selectors
+ ***************************************************************************/
+
+/*
+ * Authors:
+ *  Jose Dapena Paz <jdapena@igalia.com>
+ *
+ * Copyright (c) 2012, Igalia, S.L.
+ * All rights reserved.
+ *
+ * See license.js
+ */
+
 function dumpAccountInAccountsList (account, parent)
 {
     li = document.createElement("li");
