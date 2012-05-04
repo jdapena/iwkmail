@@ -40,9 +40,11 @@ function fillAccountsListCounts ()
 	account = globalStatus.folders[i];
 	accountId = account.accountId;
 	inbox = account.folders["INBOX"];
+	if (!inbox)
+	    inbox = account.folders["inbox"];
 	accountItemId = "account-item-"+accountId;
 	$("#page-accounts #account-item-"+accountId+" .account-count").text(inbox.unreadCount);
-	if (inbox.unreadCount > 0) {
+	if (inbox && inbox.unreadCount > 0) {
 	    $("#page-accounts #account-item-"+accountId+" .account-count").show();
 	} else {
 	    $("#page-accounts #account-item-"+accountId+" .account-count").hide();
@@ -231,19 +233,6 @@ function refreshAccounts ()
     });
 }
 
-function addAccount (data)
-{
-    iwkRequest ("addAccount", "Adding new account", {
-    }).done(function (msg) {
-	if (msg.is_ok) {
-	    $.mobile.changePage("#page-accounts");
-	    refreshAccounts();
-	} else {
-	    showError (msg.error);
-	}
-    });
-}
-
 function syncFolders ()
 {
     iwkRequest("syncFolders", "Updating accounts and folders", {
@@ -279,10 +268,6 @@ $(function () {
     $("#accounts-compose").click(function () {
 	clearForm($('#form-composer'));
 	return true;
-    });
-
-    $("#cancel-add-account").click(function () {
-	$.mobile.changePage("#page-accounts");
     });
 
     refreshAccounts();

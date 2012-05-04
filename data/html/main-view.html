@@ -161,6 +161,10 @@
 	<form action="#page-accounts" id="form-add-account">
 	  <ul data-role="listview">
 	    <li data-role="fieldcontain">
+	      <label for="emailaddress">Email address:</label>
+	      <input type="text" name="emailaddress" id="emailaddress" value="" />
+	    </li>
+	    <li data-role="fieldcontain">
 	      <label for="accountname">Account name:</label>
 	      <input type="text" name="accountname" id="accountname" value="" />
 	    </li>
@@ -168,11 +172,11 @@
 	      <label for="fullname">Your name:</label>
 	      <input type="text" name="fullname" id="fullname" value="" />
 	    </li>
-	    <li data-role="fieldcontain">
-	      <label for="emailaddress">Email address:</label>
-	      <input type="text" name="emailaddress" id="emailaddress" value="" />
-	    </li>
 	    <li data-role="list-divider">Incoming settings</li>
+	    <li data-role="fieldcontain">
+	      <label for="incoming-server-host">Host:</label>
+	      <input type="text" name="incoming-server-host" id="incoming-server-host" required="required" value="" placeholder="mail.example.com"/>
+	    </li>
 	    <li data-role="fieldcontain">
 	      <fieldset data-role="controlgroup" data-type="horizontal">
 		<legend>Protocol</legend>
@@ -181,10 +185,6 @@
 		<input type="radio" name="incoming-protocol-choice" id="incoming-protocol-pop" value="pop" />
 		<label for="incoming-protocol-pop">POP3</label>
 	      </fieldset>
-	    </li>
-	    <li data-role="fieldcontain">
-	      <label for="incoming-server-host">Host:</label>
-	      <input type="text" name="incoming-server-host" id="incoming-server-host" required="required" value="" placeholder="mail.example.com"/>
 	    </li>
 	    <li data-role="fieldcontain">
 	      <fieldset data-role="controlgroup" data-type="horizontal">

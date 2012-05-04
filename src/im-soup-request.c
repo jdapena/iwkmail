@@ -510,13 +510,44 @@ dump_folder_info (JsonBuilder *builder,
 }
 
 static void
+dump_inbox_folder (JsonBuilder *builder,
+		   CamelFolder *folder)
+{
+	json_builder_set_member_name (builder, camel_folder_get_full_name (folder));
+	json_builder_begin_object (builder);
+	json_builder_set_member_name (builder, "fullName");
+	json_builder_add_string_value (builder, camel_folder_get_full_name (folder));
+	json_builder_set_member_name (builder, "displayName");
+	json_builder_add_string_value (builder, camel_folder_get_display_name (folder));
+	json_builder_set_member_name (builder, "unreadCount");
+	json_builder_add_int_value (builder,
+				    camel_folder_get_unread_message_count (folder));
+	json_builder_set_member_name (builder, "messageCount");
+	json_builder_add_int_value (builder,
+				    camel_folder_get_message_count (folder));
+	json_builder_set_member_name (builder, "noSelect");
+	json_builder_add_boolean_value (builder, FALSE);
+	json_builder_set_member_name (builder, "favourite");
+	json_builder_add_boolean_value (builder, TRUE);
+	json_builder_set_member_name (builder, "isInbox");
+	json_builder_add_boolean_value (builder, TRUE);
+	json_builder_set_member_name (builder, "isOutbox");
+	json_builder_add_boolean_value (builder, FALSE);
+	json_builder_set_member_name (builder, "isSent");
+	json_builder_add_boolean_value (builder, FALSE);
+	json_builder_set_member_name (builder, "isTrash");
+	json_builder_add_boolean_value (builder, FALSE);
+	json_builder_end_object (builder);
+}
+
+static void
 finish_sync_folders (SyncFoldersData *data)
 {
 	GList *account_keys, *node;
 	json_builder_set_member_name (data->builder, "result");
 	json_builder_begin_array (data->builder);
 
-	account_keys = g_hash_table_get_keys (data->folder_infos);
+	account_keys = g_hash_table_get_keys (data->updated_folders);
 	for (node = account_keys; node != NULL; node = g_list_next (node)) {
 		char *account_id = (char *) node->data;
 		char *display_name;
@@ -541,6 +572,17 @@ finish_sync_folders (SyncFoldersData *data)
 			CamelStore *store = g_hash_table_lookup (data->stores, account_id);
 			dump_folder_info (data->builder, fi, updated_folders);
 			camel_store_free_folder_info (store, fi);
+		} else {
+			/* No hierarchy, we just dump the existing folder */
+			GList *folders;
+			folders = g_hash_table_get_keys (updated_folders);
+			if (folders) {
+				CamelFolder *inbox = g_hash_table_lookup (updated_folders,
+									  folders->data);
+				if (inbox)
+					dump_inbox_folder (data->builder, inbox);
+				g_list_free (folders);
+			}
 		}
 		json_builder_end_object (data->builder);
 		json_builder_end_object (data->builder);
@@ -763,10 +805,12 @@ sync_folders_refresh_info_cb (GObject *source_object,
 			      gpointer userdata)
 {
 	SyncFoldersData *data = (SyncFoldersData *) userdata;
+	GError *_error = NULL;
+
 	data->count--;
 	if (camel_folder_refresh_info_finish (CAMEL_FOLDER (source_object),
 					      result,
-					      NULL)) {
+					      &_error)) {
 		CamelStore *store;
 		char *account_id;
 
@@ -780,6 +824,9 @@ sync_folders_refresh_info_cb (GObject *source_object,
 					     g_object_ref (source_object));
 	}
 
+	if (_error)
+		g_error_free (_error);
+
 	if (data->count == 0) {
 		finish_sync_folders (data);
 	}
@@ -792,19 +839,56 @@ sync_folders_get_folder_cb (GObject *source_object,
 {
 	SyncFoldersData *data = (SyncFoldersData *) userdata;
 	CamelFolder *folder;
-	GError *error = NULL;
+	GError *_error = NULL;
 
 	data->count--;
 
 	folder = camel_store_get_folder_finish (CAMEL_STORE (source_object),
-						result, &error);
+						result, &_error);
 	if (folder) {
-		data->count++;
-		camel_folder_refresh_info (folder,
-					   G_PRIORITY_DEFAULT_IDLE,
-					   data->cancellable,
-					   sync_folders_refresh_info_cb,
-					   data);
+		if (camel_service_get_connection_status (CAMEL_SERVICE (source_object)) ==
+		    CAMEL_SERVICE_CONNECTED ||
+		    camel_service_connect_sync (CAMEL_SERVICE (source_object), &_error)) {
+			data->count++;
+			camel_folder_refresh_info (folder,
+						   G_PRIORITY_DEFAULT_IDLE,
+						   data->cancellable,
+						   sync_folders_refresh_info_cb,
+						   data);
+		}
+	}
+	if (_error)
+		g_error_free (_error);
+
+	if (data->count == 0) {
+		finish_sync_folders (data);
+	}
+}
+
+static void
+sync_folders_get_pop_inbox_cb (GObject *source_object,
+			       GAsyncResult *result,
+			       gpointer userdata)
+{
+	SyncFoldersData *data = (SyncFoldersData *) userdata;
+	CamelFolder *folder;
+	GError *_error = NULL;
+
+	data->count--;
+
+	folder = camel_store_get_inbox_folder_finish (CAMEL_STORE (source_object),
+						      result, &_error);
+	if (folder) {
+		if (camel_service_get_connection_status (CAMEL_SERVICE (source_object)) ==
+		    CAMEL_SERVICE_CONNECTED ||
+		    camel_service_connect_sync (CAMEL_SERVICE (source_object), &_error)) {
+			data->count++;
+			camel_folder_refresh_info (folder,
+						   G_PRIORITY_DEFAULT_IDLE,
+						   data->cancellable,
+						   sync_folders_refresh_info_cb,
+						   data);
+		}
 	}
 
 	if (data->count == 0) {
@@ -890,16 +974,27 @@ sync_folders (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 								     IM_ACCOUNT_TYPE_STORE);
 
 		  if (CAMEL_IS_STORE (store)) {
+			  CamelProvider *provider = camel_service_get_provider (CAMEL_SERVICE (store));
 			  g_hash_table_insert (data->stores, g_strdup ((char*) node->data), g_object_ref (store));
-							       
-			  camel_store_get_folder_info (store, NULL,
-						       CAMEL_STORE_FOLDER_INFO_RECURSIVE |
-						       CAMEL_STORE_FOLDER_INFO_NO_VIRTUAL |
-						       CAMEL_STORE_FOLDER_INFO_SUBSCRIBED,
-						       G_PRIORITY_DEFAULT_IDLE,
-						       data->cancellable,
-						       sync_folders_get_folder_info_cb,
-						       data);
+			  if (g_strcmp0 (provider->protocol, "pop") == 0) {
+				  g_hash_table_insert (data->updated_folders, g_strdup ((char *) node->data),
+						       g_hash_table_new_full (g_str_hash, g_str_equal,
+									      g_free, (GDestroyNotify) g_object_unref));
+				  camel_store_get_inbox_folder (store,
+								G_PRIORITY_DEFAULT_IDLE,
+								data->cancellable,
+								sync_folders_get_pop_inbox_cb,
+								data);
+			  } else {
+				  camel_store_get_folder_info (store, NULL,
+							       CAMEL_STORE_FOLDER_INFO_RECURSIVE |
+							       CAMEL_STORE_FOLDER_INFO_NO_VIRTUAL |
+							       CAMEL_STORE_FOLDER_INFO_SUBSCRIBED,
+							       G_PRIORITY_DEFAULT_IDLE,
+							       data->cancellable,
+							       sync_folders_get_folder_info_cb,
+							       data);
+			  }
 			  data->count++;
 		  }
 		  outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
@@ -939,6 +1034,10 @@ typedef struct _FetchMessagesData {
 	JsonBuilder *builder;
 	GCancellable *cancellable;
 	GError *error;
+	GList *new_uids;
+	GList *old_uids;
+	GHashTable *messages;
+	int count;
 } FetchMessagesData;
 
 static void
@@ -993,6 +1092,116 @@ dump_message_info (JsonBuilder *builder,
 }
 
 static void
+dump_internet_address_as_string (JsonBuilder *builder, CamelInternetAddress *cia)
+{
+	char *format;
+
+	format = camel_address_format (CAMEL_ADDRESS (cia));
+	json_builder_add_string_value (builder, format);
+	g_free (format);
+}
+
+static void
+dump_message_as_info (JsonBuilder *builder,
+		      CamelFolder *folder,
+		      const char *uid,
+		      CamelMimeMessage *message)
+{
+	CamelMessageFlags flags;
+	json_builder_begin_object(builder);
+	json_builder_set_member_name (builder, "uid");
+	json_builder_add_string_value (builder, uid);
+
+	json_builder_set_member_name (builder, "from");
+	dump_internet_address_as_string (builder, camel_mime_message_get_from (message));
+	json_builder_set_member_name (builder, "to");
+	dump_internet_address_as_string (builder, camel_mime_message_get_recipients (message, CAMEL_RECIPIENT_TYPE_TO));
+	json_builder_set_member_name (builder, "cc");
+	dump_internet_address_as_string (builder, camel_mime_message_get_recipients (message, CAMEL_RECIPIENT_TYPE_CC));
+
+	json_builder_set_member_name (builder, "dateReceived");
+	json_builder_add_int_value (builder,
+				    camel_mime_message_get_date_received (message, NULL));
+	json_builder_set_member_name (builder, "dateSent");
+	json_builder_add_int_value (builder,
+				    camel_mime_message_get_date (message, NULL));
+
+	json_builder_set_member_name (builder, "subject");
+	json_builder_add_string_value (builder,
+				       camel_mime_message_get_subject (message));
+
+	flags = camel_folder_get_message_flags (folder, uid);
+	json_builder_set_member_name (builder, "unread");
+	json_builder_add_boolean_value (builder,
+					!(flags & CAMEL_MESSAGE_SEEN));
+	json_builder_set_member_name (builder, "draft");
+	json_builder_add_boolean_value (builder,
+					flags & CAMEL_MESSAGE_DRAFT);
+	json_builder_set_member_name (builder, "hasAttachments");
+	json_builder_add_boolean_value (builder,
+					flags & CAMEL_MESSAGE_ATTACHMENTS);
+	json_builder_end_object(builder);
+}
+
+typedef struct _FetchMessagesGetMessageData {
+	FetchMessagesData *data;
+	gchar *uid;
+} FetchMessagesGetMessageData;
+
+static void
+fetch_messages_pop3_get_message_cb (GObject *source_object,
+				    GAsyncResult *result,
+				    gpointer userdata)
+{
+	FetchMessagesGetMessageData *get_message_data = (FetchMessagesGetMessageData *) userdata;
+	FetchMessagesData *data = get_message_data->data;
+	GError *_error = NULL;
+	CamelFolder *folder = (CamelFolder *) source_object;
+	CamelMimeMessage *message;
+
+	data->count--;
+
+	message = camel_folder_get_message_finish (folder,
+						   result,
+						   &_error);
+
+	g_hash_table_insert (data->messages,
+			     g_strdup (get_message_data->uid),
+			     message);
+
+	g_free (get_message_data->uid);
+	g_free (get_message_data);
+
+	if (_error)
+		g_error_free (_error);
+
+	if (data->count == 0) {
+		GList *node;
+		json_builder_set_member_name (data->builder, "newMessages");
+		json_builder_begin_array (data->builder);
+		for (node = data->new_uids; node != NULL; node = g_list_next (node)) {
+			message = g_hash_table_lookup (data->messages, (char *) node->data);
+			if (message) {
+				dump_message_as_info (data->builder, folder,
+						      (char *) node->data, message);
+			}
+		}
+		json_builder_end_array (data->builder);
+		json_builder_set_member_name (data->builder, "messages");
+		json_builder_begin_array (data->builder);
+		for (node = data->old_uids; node != NULL; node = g_list_next (node)) {
+			message = g_hash_table_lookup (data->messages, (char *) node->data);
+			if (message) {
+				dump_message_as_info (data->builder, folder,
+						      (char *) node->data, message);
+			}
+		}
+		json_builder_end_array (data->builder);
+		response_finish (data->result, data->params, data->builder, data->error);
+	}
+}
+
+static void
 fetch_messages_refresh_info_cb (GObject *source_object,
 				GAsyncResult *result,
 				gpointer userdata)
@@ -1018,59 +1227,125 @@ fetch_messages_refresh_info_cb (GObject *source_object,
 	if (count < 0)
 		count = 20;
 
-	response_start (data->builder);
 	camel_folder_refresh_info_finish (folder, result, &error);
 
-	uids = camel_folder_get_uids (folder);
-	camel_folder_sort_uids (folder, uids);
+	data->count = 0;
 
-	/* Fetch first new messages */
-	json_builder_set_member_name (data->builder, "newMessages");
-	json_builder_begin_array(data->builder);
-	i = uids->len - 1;
-	if (newest_uid != NULL) {
-		while (i >= 0) {
-			const char *uid = uids->pdata[i];
-			CamelMessageInfo *mi;
-			if (g_strcmp0 (uid, newest_uid) == 0)
+	uids = camel_folder_get_uids (folder);
+	response_start (data->builder);
+	if (!camel_folder_has_summary_capability (folder)) {
+
+		data->messages = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_object_unref);
+
+		i = uids->len - 1;
+		if (newest_uid != NULL) {
+			while (i >= 0) {
+				FetchMessagesGetMessageData *get_message_data;
+				const char *uid = uids->pdata[i];
+				if (g_strcmp0 (uid, newest_uid) == 0)
+					break;
+				data->new_uids = g_list_append (data->new_uids, g_strdup (uid));
+				get_message_data = g_new0 (FetchMessagesGetMessageData, 1);
+				get_message_data->data = data;
+				get_message_data->uid = g_strdup (uid);
+				camel_folder_get_message (folder, uid,
+							  G_PRIORITY_DEFAULT_IDLE,
+							  data->cancellable,
+							  fetch_messages_pop3_get_message_cb,
+							  get_message_data);
+				data->count++;
+				i--;
+			}
+		}
+		if (oldest_uid != NULL) {
+			while (i >= 0) {
+				const char *uid = uids->pdata[i];
+				if (g_strcmp0 (uid, oldest_uid) == 0)
+					break;
+				i--;
+			}
+			i--;
+		}
+		for (j = 0; j < count; j++) {
+			FetchMessagesGetMessageData *get_message_data;
+			const char *uid;
+			if (i < 0)
 				break;
+			uid = (const char *) uids->pdata[i];
+			data->old_uids = g_list_append (data->old_uids, g_strdup (uid));
+			get_message_data = g_new0 (FetchMessagesGetMessageData, 1);
+			get_message_data->data = data;
+			get_message_data->uid = g_strdup (uid);
+			camel_folder_get_message (folder, uid,
+						  G_PRIORITY_DEFAULT_IDLE,
+						  data->cancellable,
+						  fetch_messages_pop3_get_message_cb,
+						  get_message_data);
+			data->count++;
+			i--;
+		}
+
+		if (data->count == 0) {
+			json_builder_set_member_name (data->builder, "newMessages");
+			json_builder_begin_array(data->builder);
+			json_builder_end_array (data->builder);
+			json_builder_set_member_name (data->builder, "messages");
+			json_builder_begin_array (data->builder);
+			json_builder_end_array (data->builder);
+		}
+	} else {
+		camel_folder_sort_uids (folder, uids);
+		
+		/* Fetch first new messages */
+		json_builder_set_member_name (data->builder, "newMessages");
+		json_builder_begin_array(data->builder);
+		i = uids->len - 1;
+		if (newest_uid != NULL) {
+			while (i >= 0) {
+				const char *uid = uids->pdata[i];
+				CamelMessageInfo *mi;
+				if (g_strcmp0 (uid, newest_uid) == 0)
+					break;
+				mi = camel_folder_get_message_info (folder, uid);
+				dump_message_info (data->builder, mi);
+				camel_folder_free_message_info (folder, mi);
+				i--;
+			}
+		}
+		json_builder_end_array (data->builder);
+		if (oldest_uid != NULL) {
+			while (i >= 0) {
+				const char *uid = uids->pdata[i];
+				if (g_strcmp0 (uid, oldest_uid) == 0)
+					break;
+				i--;
+			}
+			i--;
+		}
+		json_builder_set_member_name (data->builder, "messages");
+		json_builder_begin_array (data->builder);
+		for (j = 0; j < count; j++) {
+			const char *uid;
+			CamelMessageInfo *mi;
+			if (i < 0)
+				break;
+			uid = (const char *) uids->pdata[i];
 			mi = camel_folder_get_message_info (folder, uid);
 			dump_message_info (data->builder, mi);
 			camel_folder_free_message_info (folder, mi);
 			i--;
 		}
+		json_builder_end_array(data->builder);
 	}
-	json_builder_end_array (data->builder);
-	if (oldest_uid != NULL) {
-		while (i >= 0) {
-			const char *uid = uids->pdata[i];
-			if (g_strcmp0 (uid, oldest_uid) == 0)
-				break;
-			i--;
-		}
-		i--;
-	}
-	json_builder_set_member_name (data->builder, "messages");
-	json_builder_begin_array (data->builder);
-	for (j = 0; j < count; j++) {
-		const char *uid;
-		CamelMessageInfo *mi;
-		if (i < 0)
-			break;
-		uid = (const char *) uids->pdata[i];
-		mi = camel_folder_get_message_info (folder, uid);
-		dump_message_info (data->builder, mi);
-		camel_folder_free_message_info (folder, mi);
-		i--;
-	}
-	json_builder_end_array(data->builder);
 	camel_folder_free_uids (folder, uids);
 
 	if (error && data->error == NULL) {
 		g_cancellable_cancel (data->cancellable);
 		g_propagate_error (&data->error, error);
 	}
-	response_finish (data->result, data->params, data->builder, data->error);
+
+	if (data->count == 0)
+		response_finish (data->result, data->params, data->builder, data->error);
 }
 
 static void
