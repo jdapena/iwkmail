@@ -52,6 +52,7 @@
 #include <camel/camel.h>
 #include <gio/gio.h>
 #include <glib/gi18n.h>
+#include <json-glib/json-glib.h>
 #include <libsoup/soup.h>
 #include <libsoup/soup-uri.h>
 
@@ -179,11 +180,13 @@ typedef struct _FetchPartData {
 	GCancellable *cancellable;
 	GError *error;
 	GByteArray *byte_array;
+	gchar *jsonp_callback;
 } FetchPartData;
 
 static void
 fetch_part_finish (FetchPartData *data)
 {
+	g_free (data->jsonp_callback);
 	if (data->error != NULL) {
 		g_simple_async_result_take_error (G_SIMPLE_ASYNC_RESULT (data->result), data->error);
 	}
@@ -272,6 +275,34 @@ fetch_part_decode_to_stream_cb (GObject *source_object,
 
 	if (!error) {
 		GInputStream *input_stream;
+
+		if (data->jsonp_callback) {
+			JsonBuilder *builder;
+			JsonGenerator *generator;
+			gchar *array_data;
+			gchar *json_data;
+			gchar *result;
+
+			builder = json_builder_new ();
+			json_builder_begin_object (builder);
+			json_builder_set_member_name (builder, "data");
+			array_data = g_strndup ((char *) data->byte_array->data, data->byte_array->len);
+			json_builder_add_string_value (builder, array_data);
+			g_free (array_data);
+			json_builder_end_object (builder);
+
+			generator = json_generator_new ();
+			json_generator_set_root (generator, json_builder_get_root (builder));
+			json_data = json_generator_to_data (generator, NULL);
+			g_object_unref (generator);
+			g_object_unref (builder);
+
+			result = g_strdup_printf ("%s (%s)", data->jsonp_callback, json_data);
+			g_free (json_data);
+			g_byte_array_free (data->byte_array, TRUE);
+			data->byte_array = g_byte_array_new_take ((guint8 *) result, strlen (result));
+		}
+
 		data->request->priv->content_length = data->byte_array->len;
 
 		input_stream = g_memory_input_stream_new_from_data (g_byte_array_free (data->byte_array, FALSE), data->request->priv->content_length, g_free);
@@ -401,6 +432,12 @@ im_content_id_request_send_async (SoupRequest          *soup_request,
 	get_content_id_hostname_parts (uri->host, &account, &folder, NULL);
 
 	data = g_new0 (FetchPartData, 1);
+
+	if (soup_uri_get_query (uri)) {
+		GHashTable *params = soup_form_decode (soup_uri_get_query (uri));
+		data->jsonp_callback = g_strdup (g_hash_table_lookup (params, "callback"));
+	}
+
 	data->request = g_object_ref (soup_request);
 	data->result = (GAsyncResult *) g_simple_async_result_new ((GObject *) soup_request,
 								   callback, userdata,

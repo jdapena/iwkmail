@@ -90,6 +90,7 @@ function fillMessageViewHeader (message)
 
 function fillMessageViewBody (message)
 {
+    globalStatus.messageStructure = message;
     dumpDataWrapper (message, "#page-message #iframe-container");
 }
 
@@ -150,8 +151,35 @@ function markAsUnread ()
     markMessageAsUnread (globalStatus.currentMessage);
 }
 
+
+
+function reply ()
+{
+    console.log(globalStatus.messageStructure);
+    console.log (JSON.stringify(globalStatus.messageStructure, undefined, 4));
+    bodies = dataWrapperGetBodies (globalStatus.messageStructure)
+    console.log (JSON.stringify(bodies));
+    $.mobile.changePage("#composer");
+    
+    // We should somehow concatenate the bodies. Now we simply use the first body we find.
+    if (bodies.length > 0) {
+	$.ajax({
+	    url: bodies[0].uri,
+	    dataType: 'jsonp',
+	}).done(function(result) {
+	    body = "\n-- Original message --\n"+result.data;
+	    $("#composer-body").text(body);
+	}).error(function (jqXHR, textStatus, errorThrown) {
+	    console.log(JSON.stringify (errorThrown));
+	}).complete(function (jqXHR, textStatus) {
+	    console.log(textStatus);
+	});
+    }
+}
+
 function showMessage(message)
 {
+    globalStatus.messageStructure = null;
     clearMessageViewBody ();
     fillMessageViewHeader (message);
     if ('getMessage' in globalStatus.requests) {

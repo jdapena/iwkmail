@@ -101,3 +101,61 @@ function dumpDataWrapper (dataWrapper, parent)
     }
 }
 
+function bestAlternativeGetBodies (multipart)
+{
+    result = [];
+    best = -1;
+    for (i in multipart.parts) {
+	if (mimeTypeIs (multipart.parts[i], "text", "plain")) {
+	    best = i;
+	    break;
+	} else if (mimeTypeIs (multipart.parts[i], "text", "html")) {
+		best = i;
+	}
+    }
+
+    if (best != -1)
+	result = dataWrapperGetBodies (multipart.parts[i]);
+
+    return result;
+
+    return [];
+}
+
+function multipartGetBodies (multipart)
+{
+    result = []
+    if (mimeTypeIs (multipart, "multipart", "alternative")) {
+	result =  bestAlternativeGetBodies (multipart);
+    } else if (mimeTypeIs (multipart, "multipart", "related")) {
+	if (multipart.parts.length > 0)
+	    result = dataWrapperGetBodies (multipart.parts[0]);
+    } else {
+	for (i in multipart.parts)
+	    if (!multipart.parts[i].isMessage)
+		result = result.concat (dataWrapperGetBodies (multipart.parts[i]));
+    }
+
+    return result;
+}
+
+function dataWrapperGetBodies (dataWrapper)
+{
+    result = []
+    if (dataWrapper.isMultipart) {
+	result = multipartGetBodies (dataWrapper);
+    } else if (dataWrapper.isMedium) {
+	if (dataWrapper.content.isMultipart) {
+	    result = dataWrapperGetBodies (dataWrapper.content);
+	} else {
+	    if ((mimeTypeIs (dataWrapper.content, "text", "html") ||
+		 mimeTypeIs (dataWrapper.content, "text", "plain")) &&
+		!isAttachment (dataWrapper)) {
+		result = [dataWrapper.content];
+	    }
+	}
+    }
+
+    return result;
+}
+
