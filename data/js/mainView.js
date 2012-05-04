@@ -267,20 +267,6 @@ function composerSend (data)
 }
 
 $(function () {
-    $("#form-add-account").submit(function () {
-	try {
-	    addAccount($(this).serialize());
-	} catch (e) {
-	    console.log(e.message);
-	}
-	return false;
-    });
-
-    $("#add-account-button").click(function () {
-	clearForm($('#form-add-account'));
-	return true;
-    });
-
     $("#composer-send").click(function () {
 	$("#form-composer").submit();
     });

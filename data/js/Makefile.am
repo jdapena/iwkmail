@@ -9,7 +9,8 @@ IWK_JS_FILES=\
 	dumpItems.js \
 	textUtils.js \
 	common.js \
-	mainView.js
+	mainView.js \
+	addAccount.js
 
 $(IWK_JS): $(IWK_JS_FILES)
 	cat $(IWK_JS_FILES) > $(IWK_JS)
