@@ -155,9 +155,52 @@ function markAsUnread ()
 
 function reply ()
 {
-    bodies = dataWrapperGetBodies (globalStatus.messageStructure)
+    message = globalStatus.messageStructure;
     $.mobile.changePage("#composer");
-    
+    if (message.subject.indexOf("Re:") != 0 &&
+	message.subject.indexOf("RE:") != 0) {
+	newSubject = "Re: "+message.subject;
+    } else {
+	newSubject = message.subject;
+    }
+    $("#composer-subject").val(newSubject);
+    to = "";
+    for (i in message.from) {
+	if (to.length > 0)
+	    to += ", ";
+	if (message.from[i].displayName.length > 0) {
+	    to += ('"'+message.from[i].displayName + '" ');
+	    to += "<"+message.from[i].emailAddress +">";
+	} else {
+	    to += message.from[i].emailAddress;
+	}
+    }
+    cc = "";
+    for (i in message.cc) {
+	if (cc.length > 0)
+	    cc += ", ";
+	if (message.cc[i].displayName.length > 0) {
+	    cc += ('"'+message.cc[i].displayName + '" ');
+	    cc += "<"+message.cc[i].emailAddress +">";
+	} else {
+	    cc += message.cc[i].emailAddress;
+	}
+    }
+    for (i in message.to) {
+	if (cc.length > 0)
+	    cc += ", ";
+	if (message.to[i].displayName.length > 0) {
+	    cc += ('"'+message.to[i].displayName + '" ');
+	    cc += "<"+message.to[i].emailAddress +">";
+	} else {
+	    cc += message.to[i].emailAddress;
+	}
+    }
+    $("#composer-to").val(to);
+    $("#composer-cc").val(cc);
+
+    bodies = dataWrapperGetBodies (message);
+
     // We should somehow concatenate the bodies. Now we simply use the first body we find.
     if (bodies.length > 0) {
 	$.ajax({
