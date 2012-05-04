@@ -128,6 +128,39 @@ function showMessage(message)
     });
 }
 
+function showNextMessage()
+{
+    current = null;
+    $("#messages-list .iwk-message-item-link").each (function (index) {
+	if (current != null) {
+	    globalStatus.currentMessage = this.messageUid;
+	    showMessage (this.message);
+	    return false;
+	}
+	if (this.messageUid == globalStatus.currentMessage)
+	    current = this;
+    });
+    $("#message-view-next-button").removeClass("ui-btn-active");
+    return true;
+}
+
+function showPreviousMessage ()
+{
+    previous = null;
+    $("#messages-list .iwk-message-item-link").each (function (index) {
+	if (this.messageUid == globalStatus.currentMessage) {
+	    if (previous) {
+		globalStatus.currentMessage = previous.messageUid;
+		showMessage (previous.message);
+	    }
+	    return false;
+	}
+	previous = this;
+    });
+    $("#message-view-previous-button").removeClass("ui-btn-active");
+    return true;
+}
+
 function showMessages(accountId, folderId, onlyNew)
 {
     try {

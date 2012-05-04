@@ -149,6 +149,7 @@ function dumpMessageInMessagesList (message, isNew, parent)
     else
 	li.className += " iwk-read-item";
     a = document.createElement("a");
+    a.className += "iwk-message-item-link";
     a.setAttribute("href", "#page-message");
     a.accountId = globalStatus.currentAccount;
     a.folderFullName = globalStatus.currentFolder
