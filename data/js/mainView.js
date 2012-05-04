@@ -35,7 +35,7 @@ function fillAccountsList (accounts)
 function fillAccountsListCounts ()
 {
     $("#page-accounts #accounts-list").listview();
-    
+
     for (i in globalStatus.folders) {
 	account = globalStatus.folders[i];
 	accountId = account.accountId;
@@ -43,8 +43,8 @@ function fillAccountsListCounts ()
 	if (!inbox)
 	    inbox = account.folders["inbox"];
 	accountItemId = "account-item-"+accountId;
-	$("#page-accounts #account-item-"+accountId+" .account-count").text(inbox.unreadCount);
-	if (inbox && inbox.unreadCount > 0) {
+	if (inbox && inbox.unreadCount && inbox.unreadCount > 0) {
+	    $("#page-accounts #account-item-"+accountId+" .account-count").text(inbox.unreadCount);
 	    $("#page-accounts #account-item-"+accountId+" .account-count").show();
 	} else {
 	    $("#page-accounts #account-item-"+accountId+" .account-count").hide();
@@ -155,10 +155,7 @@ function markAsUnread ()
 
 function reply ()
 {
-    console.log(globalStatus.messageStructure);
-    console.log (JSON.stringify(globalStatus.messageStructure, undefined, 4));
     bodies = dataWrapperGetBodies (globalStatus.messageStructure)
-    console.log (JSON.stringify(bodies));
     $.mobile.changePage("#composer");
     
     // We should somehow concatenate the bodies. Now we simply use the first body we find.
@@ -169,10 +166,6 @@ function reply ()
 	}).done(function(result) {
 	    body = "\n-- Original message --\n"+result.data;
 	    $("#composer-body").text(body);
-	}).error(function (jqXHR, textStatus, errorThrown) {
-	    console.log(JSON.stringify (errorThrown));
-	}).complete(function (jqXHR, textStatus) {
-	    console.log(textStatus);
 	});
     }
 }
