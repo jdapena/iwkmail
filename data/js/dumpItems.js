@@ -143,6 +143,7 @@ function dumpFolderInFolderList (accountId, folderFullName, folder, parent)
 function dumpMessageInMessagesList (message, isNew, parent)
 {
     li = document.createElement("li");
+    $(li).attr("id", "message-item-"+message.uid);
     li.setAttribute('data-role', 'fieldcontain');
     if (message.unread)
 	li.className += " iwk-unread-item";

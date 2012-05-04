@@ -1720,6 +1720,109 @@ get_message (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 				get_message_get_folder_cb, data);
 }
 
+typedef struct _FlagMessageData {
+	GAsyncResult *result;
+	GHashTable *params;
+	JsonBuilder *builder;
+	GCancellable *cancellable;
+	GError *error;
+} FlagMessageData;
+
+static CamelMessageFlags
+parse_flags (const char *flags_list)
+{
+	gchar **flags, **node;
+	CamelMessageFlags result = 0;
+
+	if (flags_list == NULL)
+		return 0;
+
+	flags = g_strsplit (flags_list, ",", 0);
+	for (node = flags; *node != NULL; node++) {
+		if (g_strstr_len (*node, -1, "seen"))
+			result |= CAMEL_MESSAGE_SEEN;
+	}
+
+	g_strfreev (flags);
+
+	return result;
+}
+
+static void
+flag_message_get_folder_cb (GObject *source_object,
+			   GAsyncResult *result,
+			   gpointer userdata)
+{
+	FlagMessageData *data = (FlagMessageData *) userdata;
+	GError *error = NULL;
+	CamelStore *store = (CamelStore *) source_object;
+	CamelFolder *folder;
+
+	folder = camel_store_get_folder_finish (store, result, &error);
+
+	if (error && data->error == NULL) {
+		g_cancellable_cancel (data->cancellable);
+		g_propagate_error (&data->error, error);
+	}
+
+	if (data->error == NULL) {
+		const char *message_uid;
+		const char *set_flags_str, *unset_flags_str;
+		CamelMessageFlags set_flags, unset_flags;
+
+		message_uid = g_hash_table_lookup (data->params, "message");
+		set_flags_str = g_hash_table_lookup (data->params, "setFlags");
+		unset_flags_str = g_hash_table_lookup (data->params, "unsetFlags");
+
+		set_flags = parse_flags (set_flags_str);
+		unset_flags = parse_flags (unset_flags_str);
+
+		if (unset_flags)
+			camel_folder_set_message_flags (folder, message_uid, 0, unset_flags);
+		if (set_flags)
+			camel_folder_set_message_flags (folder, message_uid, set_flags, set_flags);
+
+		/* We don't wait for result */
+		camel_folder_synchronize_message (folder, message_uid,
+						  G_PRIORITY_DEFAULT_IDLE, data->cancellable,
+						  NULL, NULL);
+	}
+	if (folder)
+		g_object_unref (folder);
+	response_start (data->builder);
+	response_finish (data->result, data->params, data->builder, data->error);
+	g_object_unref (data->result);
+	g_hash_table_unref (data->params);
+	g_object_unref (data->builder);
+	if (data->error) g_error_free (data->error);
+	g_object_unref (data->cancellable);
+	g_free (data);
+}
+
+static void
+flag_message (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
+{
+	CamelStore *store;
+	const char *account_name;
+	const char *folder_name;
+	FlagMessageData *data = g_new0 (FlagMessageData, 1);
+
+	data->result = g_object_ref (result);
+	data->params = g_hash_table_ref (params);
+	data->builder = g_object_ref (builder);
+	data->cancellable = g_cancellable_new ();
+
+	account_name = g_hash_table_lookup (params, "account");
+	folder_name = g_hash_table_lookup (params, "folder");
+	store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
+							   (const char *) account_name,
+							   IM_ACCOUNT_TYPE_STORE);
+	camel_store_get_folder (store, folder_name,
+				CAMEL_STORE_FOLDER_CREATE | CAMEL_STORE_FOLDER_BODY_INDEX, 
+				G_PRIORITY_DEFAULT_IDLE, data->cancellable,
+				flag_message_get_folder_cb, data);
+}
+
 typedef struct _ComposerSendData {
 	GAsyncResult *result;
 	GHashTable *params;
@@ -1944,6 +2047,8 @@ im_soup_request_send_async (SoupRequest          *soup_request,
 	  get_message (result, params, builder);
   } else if (!g_strcmp0 (uri->path, "composerSend")) {
 	  composer_send (result, params, builder);
+  } else if (!g_strcmp0 (uri->path, "flagMessage")) {
+	  flag_message (result, params, builder);
   } else {
 	  response_start (builder);
 	  if (_error == NULL)

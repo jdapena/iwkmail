@@ -110,6 +110,46 @@ function abortShowMessages ()
     }
 }
 
+function markMessageAsRead(uid)
+{
+    iwkRequest ("flagMessage", "Marking message as read", {
+	account: globalStatus.currentAccount,
+	folder: globalStatus.currentFolder,
+	message: uid,
+	setFlags: "seen"
+    }).done(function (msg) {
+	$("#message-item-"+uid).removeClass("iwk-unread-item");
+	$("#message-item-"+uid).addClass("iwk-read-item");
+	$("#message-view-mark-as-read").hide();
+	$("#message-view-mark-as-unread").show()
+    });
+}
+
+function markMessageAsUnread(uid)
+{
+    iwkRequest ("flagMessage", "Marking message as unread", {
+	account: globalStatus.currentAccount,
+	folder: globalStatus.currentFolder,
+	message: uid,
+	unsetFlags: "seen"
+    }).done(function (msg) {
+	$("#message-item-"+uid).removeClass("iwk-read-item");
+	$("#message-item-"+uid).addClass("iwk-unread-item");
+	$("#message-view-mark-as-unread").hide();
+	$("#message-view-mark-as-read").show();
+    });
+}
+
+function markAsRead ()
+{
+    markMessageAsRead (globalStatus.currentMessage);
+}
+
+function markAsUnread ()
+{
+    markMessageAsUnread (globalStatus.currentMessage);
+}
+
 function showMessage(message)
 {
     clearMessageViewBody ();
@@ -124,6 +164,7 @@ function showMessage(message)
 	message: message.uid
     }).done(function (msg) {
 	fillMessageViewBody (msg.result);
+	markMessageAsRead (message.uid);
     }).always(function(jqXHR, textStatus, errorThrown) {
 	if ('getMessage' in globalStatus.requests)
 	    delete globalStatus.requests["getMessage"];
