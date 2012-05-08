@@ -151,9 +151,7 @@ function markAsUnread ()
     markMessageAsUnread (globalStatus.currentMessage);
 }
 
-
-
-function reply ()
+function reply (who)
 {
     message = globalStatus.messageStructure;
     $.mobile.changePage("#composer");
@@ -165,35 +163,41 @@ function reply ()
     }
     $("#composer-subject").val(newSubject);
     to = "";
-    for (i in message.from) {
-	if (to.length > 0)
-	    to += ", ";
-	if (message.from[i].displayName.length > 0) {
-	    to += ('"'+message.from[i].displayName + '" ');
-	    to += "<"+message.from[i].emailAddress +">";
-	} else {
-	    to += message.from[i].emailAddress;
+    if (who == 'mailingList') {
+	to = message.mlist;
+    } else {
+	for (i in message.from) {
+	    if (to.length > 0)
+		to += ", ";
+	    if (message.from[i].displayName.length > 0) {
+		to += ('"'+message.from[i].displayName + '" ');
+		to += "<"+message.from[i].emailAddress +">";
+	    } else {
+		to += message.from[i].emailAddress;
+	    }
 	}
     }
     cc = "";
-    for (i in message.cc) {
-	if (cc.length > 0)
-	    cc += ", ";
-	if (message.cc[i].displayName.length > 0) {
-	    cc += ('"'+message.cc[i].displayName + '" ');
-	    cc += "<"+message.cc[i].emailAddress +">";
-	} else {
-	    cc += message.cc[i].emailAddress;
+    if (who == 'all') {
+	for (i in message.cc) {
+	    if (cc.length > 0)
+		cc += ", ";
+	    if (message.cc[i].displayName.length > 0) {
+		cc += ('"'+message.cc[i].displayName + '" ');
+		cc += "<"+message.cc[i].emailAddress +">";
+	    } else {
+		cc += message.cc[i].emailAddress;
+	    }
 	}
-    }
-    for (i in message.to) {
-	if (cc.length > 0)
-	    cc += ", ";
-	if (message.to[i].displayName.length > 0) {
-	    cc += ('"'+message.to[i].displayName + '" ');
-	    cc += "<"+message.to[i].emailAddress +">";
-	} else {
-	    cc += message.to[i].emailAddress;
+	for (i in message.to) {
+	    if (cc.length > 0)
+		cc += ", ";
+	    if (message.to[i].displayName.length > 0) {
+		cc += ('"'+message.to[i].displayName + '" ');
+		cc += "<"+message.to[i].emailAddress +">";
+	    } else {
+		cc += message.to[i].emailAddress;
+	    }
 	}
     }
     $("#composer-to").val(to);
@@ -211,6 +215,32 @@ function reply ()
 	    $("#composer-body").text(body);
 	});
     }
+}
+
+function replySender ()
+{
+    reply('sender');
+}
+
+function replyAll ()
+{
+    reply('all');
+}
+
+function replyMailingList ()
+{
+    reply('mailingList');
+}
+
+function askReply ()
+{
+    message = globalStatus.messageStructure;
+    if (message.mlist && message.mlist.length > 0) {
+	$("#reply-mailing-list-button").show();
+    } else {
+	$("#reply-mailing-list-button").hide();
+    }
+    $.mobile.changePage("#reply-to-dialog");
 }
 
 function showMessage(message)

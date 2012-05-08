@@ -1059,7 +1059,7 @@ dump_message_info (JsonBuilder *builder,
 	json_builder_set_member_name (builder, "cc");
 	json_builder_add_string_value (builder,
 				       camel_message_info_cc (mi));
-	json_builder_set_member_name (builder, "mailingList");
+	json_builder_set_member_name (builder, "mlist");
 	json_builder_add_string_value (builder,
 				       camel_message_info_mlist (mi));
 
@@ -1102,6 +1102,16 @@ dump_internet_address_as_string (JsonBuilder *builder, CamelInternetAddress *cia
 }
 
 static void
+dump_mailing_list_as_string (JsonBuilder *builder,
+			     CamelMimeMessage *message)
+{
+	gchar *mlist;
+	mlist = camel_header_raw_check_mailing_list (&(((CamelMimePart *) message)->headers));
+	json_builder_add_string_value (builder, mlist);
+	g_free (mlist);
+}
+
+static void
 dump_message_as_info (JsonBuilder *builder,
 		      CamelFolder *folder,
 		      const char *uid,
@@ -1118,6 +1128,8 @@ dump_message_as_info (JsonBuilder *builder,
 	dump_internet_address_as_string (builder, camel_mime_message_get_recipients (message, CAMEL_RECIPIENT_TYPE_TO));
 	json_builder_set_member_name (builder, "cc");
 	dump_internet_address_as_string (builder, camel_mime_message_get_recipients (message, CAMEL_RECIPIENT_TYPE_CC));
+	json_builder_set_member_name (builder, "mlist");
+	dump_mailing_list_as_string (builder, message);
 
 	json_builder_set_member_name (builder, "dateReceived");
 	json_builder_add_int_value (builder,
@@ -1454,6 +1466,8 @@ dump_message (JsonBuilder *builder,
 	dump_internet_address (builder, camel_mime_message_get_recipients (message, "Bcc"));
 	json_builder_set_member_name (builder, "replyTo");
 	dump_internet_address (builder, camel_mime_message_get_reply_to (message));
+	json_builder_set_member_name (builder, "mlist");
+	dump_mailing_list_as_string (builder, message);
 }
 
 static void

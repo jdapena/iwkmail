@@ -85,7 +85,7 @@ static void   translation_free (ImProtocolTranslation *translation);
 /* globals */
 static GObjectClass *parent_class = NULL;
 static ImProtocolType next_type_id = 0;
-static GMutex *next_type_id_mutex = NULL;
+static GMutex next_type_id_mutex;
 
 GType
 im_protocol_get_type (void)
@@ -120,7 +120,7 @@ im_protocol_class_init (ImProtocolClass *klass)
 	object_class = (GObjectClass *) klass;
 
 	parent_class = g_type_class_peek_parent (klass);
-	next_type_id_mutex = g_mutex_new ();
+	g_mutex_init (&next_type_id_mutex);
 	object_class->finalize = im_protocol_finalize;
 	object_class->set_property = im_protocol_set_property;
 	object_class->get_property = im_protocol_get_property;
@@ -173,10 +173,10 @@ im_protocol_instance_init (ImProtocol *obj)
 
 	priv->name = NULL;
 	priv->display_name = NULL;
-	g_mutex_lock (next_type_id_mutex);
+	g_mutex_lock (&next_type_id_mutex);
 	priv->type_id = next_type_id;
 	next_type_id++;
-	g_mutex_unlock (next_type_id_mutex);
+	g_mutex_unlock (&next_type_id_mutex);
 
 	priv->properties = g_hash_table_new_full (g_str_hash, g_str_equal,
 						  g_free, g_free);
