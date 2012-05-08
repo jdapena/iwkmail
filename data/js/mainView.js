@@ -151,6 +151,36 @@ function markAsUnread ()
     markMessageAsUnread (globalStatus.currentMessage);
 }
 
+function forward ()
+{
+    message = globalStatus.messageStructure;
+    $.mobile.changePage("#composer");
+    if (message.subject.indexOf("Fw:") != 0 &&
+	message.subject.indexOf("FW:") != 0 &&
+	message.subject.indexOf("Fwd:") != 0 &&
+	message.subject.indexOf("FWD:") != 0) {
+	newSubject = "Fwd: "+message.subject;
+    } else {
+	newSubject = message.subject;
+    }
+    $("#composer-subject").val(newSubject);
+    $("#composer-to").val("");
+    $("#composer-cc").val("");
+
+    bodies = dataWrapperGetBodies (message);
+
+    // We should somehow concatenate the bodies. Now we simply use the first body we find.
+    if (bodies.length > 0) {
+	$.ajax({
+	    url: bodies[0].uri,
+	    dataType: 'jsonp',
+	}).done(function(result) {
+	    body = "\n-- Original message --\n"+result.data;
+	    $("#composer-body").text(body);
+	});
+    }
+}
+
 function reply (who)
 {
     message = globalStatus.messageStructure;
