@@ -152,6 +152,10 @@ function dumpMessageAsDetails (message, parent)
     if (message.mlist)
 	dumpDetail ('Mailing list:', message.mlist, parent);
     console.log($("#page-message-details").html());
+
+    if ($(parent).hasClass("ui-listview")) {
+	$(parent).listview("refresh");
+    }
 }
 
 function dumpFolderInFolderList (accountId, folderFullName, folder, parent)
