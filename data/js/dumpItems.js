@@ -86,6 +86,74 @@ function dumpMessageAsViewHeader (message, parent)
     $(parent+" #date").text(formatTime (message.dateReceived));
 }
 
+function dumpAddressDetail(display, email, parent)
+{
+    console.log("Dumping address [display:"+display+"] [email:"+email+"]");
+    newLi = document.createElement('li');
+    newLi.setAttribute('data-role', 'fieldcontain');
+    newHeader = document.createElement('h3');
+    if (display && display.length > 0) {
+	$(newHeader).text(display);
+	newP = document.createElement('p');
+	$(newP).text(email);
+	$(newLi).append(newHeader);
+	$(newLi).append(newP);
+    } else {
+    	$(newHeader).text(email);
+	$(newLi).append(newHeader);
+    }
+    $(parent).append(newLi);
+}
+
+function dumpDetail(fieldName, fieldValue, parent)
+{
+    newLi = document.createElement('li');
+    newLi.setAttribute('data-role', 'fieldcontain');
+    newP = document.createElement('p');
+    $(newP).text(fieldName);
+    newHeader = document.createElement('h3');
+    $(newHeader).text(fieldValue);
+    newLi.appendChild(newP);
+    newLi.appendChild(newHeader);
+    $(parent).append(newLi);
+}
+
+function dumpMessageAsDetails (message, parent)
+{
+    $(parent).empty();
+
+    if (message.from && message.from.length > 0) {
+    	$(parent).append("<li data-role='list-divider'>From:</li>");
+    	for (i in message.from) {
+	    dumpAddressDetail (message.from[i].displayName, message.from[i].emailAddress, parent);
+    	}
+    }
+    if (message.to && message.to.length > 0) {
+    	$(parent).append("<li data-role='list-divider'>To:</li>");
+    	for (i in message.to) {
+	    dumpAddressDetail (message.to[i].displayName, message.to[i].emailAddress, parent);
+    	}
+    }
+    if (message.cc && message.cc.length > 0) {
+    	$(parent).append("<li data-role='list-divider'>Cc:</li>");
+    	for (i in message.cc) {
+	    dumpAddressDetail (message.cc[i].displayName, message.cc[i].emailAddress, parent);
+    	}
+    }
+    if (message.bcc && message.bcc.length > 0) {
+    	$(parent).append("<li data-role='list-divider'>Bcc:</li>");
+    	for (i in message.bcc) {
+	    dumpAddressDetail (message.bcc[i].displayName, message.bcc[i].emailAddress, parent);
+    	}
+    }
+
+    $(parent).append("<li data-role='list-divider'>Details</li>");
+    dumpDetail ('Subject:', message.subject, parent);
+    if (message.mlist)
+	dumpDetail ('Mailing list:', message.mlist, parent);
+    console.log($("#page-message-details").html());
+}
+
 function dumpFolderInFolderList (accountId, folderFullName, folder, parent)
 {
     li = document.createElement("li");

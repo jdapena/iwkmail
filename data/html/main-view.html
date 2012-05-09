@@ -28,9 +28,6 @@
 
       <div data-role="content">
 	<ul data-role="listview" data-inset="false" id="accounts-list">
-	  <li>
-	    <a href="#create-account" id="add-account-button" data-role="button" data-icon="plus">Add account</a>
-	  </li>
 	</ul>
       </div>
 
@@ -87,7 +84,7 @@
       <div data-role="content">
 	<ul data-role="listview" data-inset="false" id="page-message-contents">
 	  <li>
-	    <a href="#details-dialog" data-transition="slideup">
+	    <a href="#page-message-details" data-transition="slideup">
 	      <h3 id="recipient"></h3>
 	      <p><strong id="subject"></strong></p>
 	      <p id="date"></p>
@@ -111,12 +108,25 @@
       <div data-role="footer" data-position="fixed" data-tap-toggle="false">
 	<div data-role="navbar">
 	  <div data-role="controlgroup" data-type="horizontal">
-	    <button id="message-view-previous-button" onclick="showPreviousMessage()" data-icon="arrow-l">Previous</a>
-	    <button id="message-view-next-button" onclick="showNextMessage()" data-icon="arrow-r">Next</a>
-
+	    <button id="message-view-previous-button" onclick="showPreviousMessage()" data-icon="arrow-l">Previous</button>
+	    <button id="message-view-next-button" onclick="showNextMessage()" data-icon="arrow-r">Next</button>
+	    
 	  </div>
 	</div>
       </div>
+    </div>
+
+    <div data-role="page" id="page-message-details" data-add-back-btn="true">
+  
+      <div data-role="header" data-position="fixed">
+	<h3>Details</h3>
+      </div>
+      
+      <div data-role="content">
+	<ul data-role="listview" id="message-details-list">
+	</ul>
+      </div>
+      
     </div>
 
     <div data-role="page" id="composer" data-add-back-btn="true">

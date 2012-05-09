@@ -88,6 +88,11 @@ function fillMessageViewHeader (message)
     dumpMessageAsViewHeader (message, "#page-message");
 }
 
+function fillMessageDetails (message)
+{
+    dumpMessageAsDetails (message, "#message-details-list");
+}
+
 function fillMessageViewBody (message)
 {
     globalStatus.messageStructure = message;
@@ -288,6 +293,7 @@ function showMessage(message)
 	message: message.uid
     }).done(function (msg) {
 	fillMessageViewBody (msg.result);
+	fillMessageDetails (msg.result);
 	markMessageAsRead (message.uid);
     }).always(function(jqXHR, textStatus, errorThrown) {
 	if ('getMessage' in globalStatus.requests)
