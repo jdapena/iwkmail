@@ -90,3 +90,10 @@ function addressesGetDisplay(str)
     return recipients.join(", ");
 }
 
+function uriGetFilename (uri)
+{
+    var a = document.createElement("a");
+    a.href = uri;
+
+    return a.pathname.split('/').pop();
+}

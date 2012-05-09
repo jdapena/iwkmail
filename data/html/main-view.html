@@ -151,6 +151,7 @@
 
       <div data-role="content">
 	<form id="form-composer">
+	  <input type="hidden" id="composer-attachments" name="composer-attachments" value="">
 	  <ul data-role="listview">
 	    <li data-role="fieldcontain">
 	      <label for="composer-subject">Subject:</label>
@@ -169,7 +170,11 @@
 	      <label for="composer-bcc">Bcc:</label>
 	      <input width="100%" type="text" name="composer-bcc" id="composer-bcc" value=""/>
 	    </li>
-	    <li data-role="fielcontain">
+	    <li data-role="fieldcontain">
+	      <fieldset data-role="controlgroup" id="composer-attachments-list">
+	      </fieldset>
+	    </li>
+	    <li data-role="fieldcontain">
 	      <textarea width="100%" name="composer-body" id="composer-body"></textarea>
 	    </li>
 	  </ul>

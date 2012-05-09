@@ -116,6 +116,29 @@ function clearAccountsList ()
     $("#accounts-list").html("");
 }
 
+function clearComposer ()
+{
+    clearForm($('#form-composer'));
+    $("#composer-attachments-list").empty();
+
+    legend = document.createElement("legend");
+    $(legend).text("Attachments:");
+
+    addAttachment = document.createElement("a");
+    addAttachment.setAttribute('href', '#');
+    addAttachment.setAttribute('data-role', 'button');
+    addAttachment.setAttribute('data-icon', 'plus');
+    addAttachment.setAttribute('id', 'add-attachment-button');
+    $(addAttachment).text("Add attachment");
+
+    $(addAttachment).click(function () {
+	attachFiles();
+    });
+
+    $("#composer-attachments-list").append(legend);
+    $("#composer-attachments-list").append(addAttachment);
+}
+
 function abortShowMessages ()
 {
     if ('showMessages' in globalStatus.requests) {
@@ -165,6 +188,7 @@ function markAsUnread ()
 
 function forward ()
 {
+    clearComposer ();
     message = globalStatus.messageStructure;
     $.mobile.changePage("#composer");
     if (message.subject.indexOf("Fw:") != 0 &&
@@ -195,6 +219,7 @@ function forward ()
 
 function reply (who)
 {
+    clearComposer();
     message = globalStatus.messageStructure;
     $.mobile.changePage("#composer");
     if (message.subject.indexOf("Re:") != 0 &&
@@ -402,6 +427,33 @@ function fetchNewMessages ()
     showMessages (globalStatus.currentAccount, globalStatus.currentFolder, true);
 }
 
+function attachFiles ()
+{
+    iwkRequest ("openFileURI", "Choosing attachment to add", {
+	title: 'Add attachments...',
+	attachAction: 'Attach'
+    }).done(function (msg) {
+	if (msg.uris) {
+	    for (i in msg.uris) {
+		item = document.createElement ("a");
+		item.className += "iwk-attachment-item";
+		item.isAttachment = true;
+		item.uri = msg.uris[i];
+		item.setAttribute('href', '#');
+		item.setAttribute('data-role', 'button');
+		item.setAttribute('data-icon', 'minus');
+		$(item).text(uriGetFilename (msg.uris[i]));
+
+		$(item).click(function () {
+		    $(this).remove();
+		});
+		$("#composer-attachments-list").append(item);
+	    }
+	}
+	$("#composer-attachments-list").trigger("create");
+    });
+}
+
 function refreshAccounts ()
 {
     iwkRequest ("getAccounts", "Updating accounts", {
@@ -436,6 +488,11 @@ function composerSend (data)
 
 $(function () {
     $("#composer-send").click(function () {
+	attachments = [];
+	$(".iwk-attachment-item").each(function () {
+	    attachments[attachments.length] = this.uri;
+	});
+	$("#composer-attachments").val(attachments.join(","));
 	$("#form-composer").submit();
     });
 
@@ -445,7 +502,7 @@ $(function () {
     });
 
     $("#accounts-compose").click(function () {
-	clearForm($('#form-composer'));
+	clearComposer();
 	return true;
     });
 
