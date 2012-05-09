@@ -29,12 +29,17 @@ function fillAccountsList (accounts)
     }
     dumpAddAccountInAccountsList ("#page-accounts #accounts-list");
 
-    $("#page-accounts #accounts-list").listview('refresh');
+    if ($(parent).hasClass("ui-listview")) {
+	$(parent).listview("refresh");
+    }
+    if ($("#accounts-list").hasClass("ui-listview"))
+	$("#accounts-list").listview('refresh');
 }
 
 function fillAccountsListCounts ()
 {
-    $("#page-accounts #accounts-list").listview();
+    if ($("accounts-list").hasClass("ui-listview"))
+	$("#accounts-list").listview('refresh');
 
     for (i in globalStatus.folders) {
 	account = globalStatus.folders[i];
@@ -50,7 +55,8 @@ function fillAccountsListCounts ()
 	    $("#page-accounts #account-item-"+accountId+" .account-count").hide();
 	}
     }
-    $("#page-accounts #accounts-list").listview('refresh');
+    if ($("#accounts-list").hasClass("ui-listview"))
+	$("#accounts-list").listview('refresh');
 }
 
 function fillFoldersList(accountId)
@@ -76,7 +82,8 @@ function fillFoldersList(accountId)
 			$("#page-accounts #"+accountItemId+" .countSpan:first").hide();
 		}
 	    }
-	    $("#page-folders #folders-list").listview('refresh');
+	    if ($("#folders-list").hasClass("ui-listview"))
+		$("#folders-list").listview('refresh');
 
 	    break;
 	}
@@ -370,7 +377,8 @@ function showMessages(accountId, folderId, onlyNew)
 	    for (i in msg.messages) {
 		dumpMessageInMessagesList (msg.messages[i], false, "#page-messages #messages-list");
 	    }
-	    $("#page-messages #messages-list").listview('refresh');
+	    if ($("#messages-list").hasClass("ui-listview"))
+		$("#messages-list").listview('refresh');
 	}).always(function(jqXHR, textStatus, errorThrown) {
 	    if ('showMessages' in globalStatus.requests)
 		delete globalStatus.requests["showMessages"];

@@ -31,8 +31,12 @@
 	</ul>
       </div>
 
-      <div data-role="footer" data-position="fixed" class="ui-bar">
-	<a href="#composer" id="accounts-compose" data-icon="plus">Send email</a>
+      <div data-role="footer" data-position="fixed">
+	<div data-role="navbar">
+	  <ul>
+	    <li><a href="#composer" id="accounts-compose" data-icon="plus">Send email</a></li>
+	  </ul>
+	</div>
       </div>
 
     </div>
@@ -74,7 +78,18 @@
 	  </li>
 	</ul>
       </div>
+
+      <div data-role="footer" data-position="fixed">
+	<div data-role="navbar">
+	  <ul>
+	    <li><a href="#composer" id="accounts-compose" data-icon="plus">Send email</a></li>
+	    <li><a href="#page-folders" id="folders-list" data-rel="dialog">Choose folder</a></li>
+	  </ul>
+	</div>
+      </div>
+
     </div>
+
 
     <div data-role="page" id="page-message" data-add-back-btn="true">
       <div data-role="header" data-position="fixed">
@@ -107,11 +122,10 @@
 
       <div data-role="footer" data-position="fixed" data-tap-toggle="false">
 	<div data-role="navbar">
-	  <div data-role="controlgroup" data-type="horizontal">
-	    <button id="message-view-previous-button" onclick="showPreviousMessage()" data-icon="arrow-l">Previous</button>
-	    <button id="message-view-next-button" onclick="showNextMessage()" data-icon="arrow-r">Next</button>
-	    
-	  </div>
+	  <ul>
+	    <li><button id="message-view-previous-button" onclick="showPreviousMessage()" data-icon="arrow-l" data-corners="false" data-inline="true" data-iconpos="left" data-shadow="false" data-icon-shadow="false">Previous</button></li>
+	    <li><button id="message-view-next-button" onclick="showNextMessage()" data-icon="arrow-r" data-corners="false" data-inline="true" data-iconpos="left" data-shadow="false" data-icon-shadow="false">Next</button></li>
+	  </ul>
 	</div>
       </div>
     </div>

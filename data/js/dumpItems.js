@@ -12,19 +12,52 @@
  * See license.js
  */
 
+function getAccountInbox (accountId)
+{
+    for (i in globalStatus.folders) {
+	account = globalStatus.folders[i];
+	if (accountId == account.accountId) {
+	    inbox = account.folders["INBOX"];
+	    if (!inbox)
+		inbox = account.folders["inbox"];
+	    return inbox;
+	}
+    }
+
+    return null;
+}
+
+
 function dumpAccountInAccountsList (account, parent)
 {
     li = document.createElement("li");
     li.setAttribute('id', 'account-item-'+account.id);
     li.setAttribute('data-role', 'fieldcontain');
     a = document.createElement("a");
-    a.setAttribute('href', '#page-folders?account='+account.id);
+    a.setAttribute('href', '#page-messages');
     a.accountId = account.id;
     $(a).click(function () {
-	globalStatus.currentAccount = this.accountId;
-	globalStatus.currentFolder = null;
 	globalStatus.currentMessage = null;
 	fillFoldersList(this.accountId);
+	newFolder = getAccountInbox (this.accountId);
+
+	if (newFolder == null)
+	    return true;
+
+	if (globalStatus.currentAccount != this.accountId || globalStatus.currentFolder != folder.fullName) {
+	    globalStatus.currentAccount = this.accountId;
+	    globalStatus.currentFolder = newFolder.fullName;
+	    globalStatus.currentmessage = null;
+	    globalStatus.newestUid = null;
+	    globalStatus.oldestUid = null;
+	    $("#page-messages-title").text();
+	    $("#page-message-title").text(folder.displayName);
+	    $("#page-messages #messages-list").html("");
+	    showMessages(this.accountId, newFolder.fullName, false);
+	} else {
+	    $("#messages-list-get-more-list").show();
+	    $("#messages-list-getting-more-list").hide();
+	}
 	return true;
     });
 	    
@@ -172,10 +205,11 @@ function dumpFolderInFolderList (accountId, folderFullName, folder, parent)
 
     if (!folder.noSelect) {
 	a = document.createElement("a");
+	a.setAttribute("href", "#");
+	a.setAttribute("data-rel", "back");
 	a.accountId=accountId;
 	a.folderFullName=folderFullName;
 	a.displayName = folder.displayName;
-	a.setAttribute('href', '#page-messages');
 	$(a).click(function () {
 	    if (globalStatus.currentAccount != this.accountId || globalStatus.currentFolder != this.folderFullName) {
 		globalStatus.currentAccount = this.accountId;
