@@ -1,12 +1,22 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*- */
 
-/* im-content-id-request.h : SoupRequest implementing cid: protocol for retrieving messages parts */
+/* im-file-utils.h : file helpers */
 
 /*
  * Authors:
  *  Jose Dapena Paz <jdapena@igalia.com>
+ *  Sergio Villar Senin <svillar@igalia.com>
+ *  Javier Fernandez Garcia-Boente <jfernandez@igalia.com>
+ *  Dirk-Jan C. Binnema <dirk-jan.binnema@nokia.com>
+ *  Arne Zellentin <arne@kernelconcepts.de>
+ *  Javier Jardón <javierjc1982@gmail.com>
+ *  Nils Faerber <nils@kernelconcepts.de>
+ *  alexander chumakov <alexander.chumakov@teleca.com>
  *
  * Copyright (c) 2012, Igalia, S.L.
+ *
+ * Work derived from Modest:
+ * Copyright (c) 2006-2011 Nokia Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,44 +44,17 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#ifndef __IM_FILE_UTILS_H__
+#define __IM_FILE_UTILS_H__
 
-#ifndef IM_CONTENT_ID_REQUEST_H
-#define IM_CONTENT_ID_REQUEST_H 1
+#include <gio/gio.h>
+#include <glib.h>
 
-#include <camel/camel.h>
-#define LIBSOUP_USE_UNSTABLE_REQUEST_API
-#include <libsoup/soup-request.h>
+gboolean        im_file_utils_folder_writable        (const gchar *filename);
+gboolean        im_file_utils_file_exists            (const gchar *filename);
+guint64         im_file_utils_get_available_space    (const gchar *folder_path);
 
-#define IM_TYPE_CONTENT_ID_REQUEST            (im_content_id_request_get_type ())
-#define IM_CONTENT_ID_REQUEST(object)         (G_TYPE_CHECK_INSTANCE_CAST ((object), IM_TYPE_CONTENT_ID_REQUEST, ImContentIdRequest))
-#define IM_CONTENT_ID_REQUEST_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass), IM_TYPE_CONTENT_ID_REQUEST, ImContentIdRequestClass))
-#define IM_IS_CONTENT_ID_REQUEST(object)      (G_TYPE_CHECK_INSTANCE_TYPE ((object), IM_TYPE_CONTENT_ID_REQUEST))
-#define IM_IS_CONTENT_ID_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), IM_TYPE_CONTENT_ID_REQUEST))
-#define IM_CONTENT_ID_REQUEST_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), IM_TYPE_CONTENT_ID_REQUEST, ImContentIdRequestClass))
+gchar *         im_file_utils_create_temp_uri        (const gchar *orig_name,
+						      const gchar *hash_base);
 
-#define IM_CONTENT_ID_SCHEME "cid"
-
-typedef struct _ImContentIdRequestPrivate ImContentIdRequestPrivate;
-
-typedef struct {
-  SoupRequest parent;
-
-  ImContentIdRequestPrivate *priv;
-} ImContentIdRequest;
-
-typedef struct {
-  SoupRequestClass parent;
-
-} ImContentIdRequestClass;
-
-GType im_content_id_request_get_type (void);
-
-gchar *im_content_id_request_build_hostname (const char *account,
-					     const char *folder,
-					     const char *messageuid);
-
-CamelDataWrapper *im_content_id_request_get_data_wrapper (const char *uri,
-							  gboolean get_container,
-							  GError **error);
-
-#endif /* IM_CONTENT_ID_REQUEST_H */
+#endif /*__IM_FILE_UTILS_H__*/

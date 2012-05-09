@@ -37,8 +37,11 @@
 
 #include "config.h"
 
+#include "im-content-id-request.h"
+#include "im-file-utils.h"
 #include "im-window.h"
 
+#include <camel/camel.h>
 #include <gtk/gtk.h>
 #include <JavaScriptCore/JavaScript.h>
 #include <webkit/webkit.h>
@@ -164,6 +167,21 @@ on_navigation_policy_decision_requested (WebKitWebView *web_view,
 	return handled;
 }
 
+static void
+on_download_to_open_notify_status (GObject    *gobject,
+				   GParamSpec *pspec,
+				   gpointer    user_data)
+{
+	WebKitDownload *download = (WebKitDownload *) gobject;
+	WebKitDownloadStatus status;
+
+	status = webkit_download_get_status (download);
+	if (status == WEBKIT_DOWNLOAD_STATUS_FINISHED) {
+		g_app_info_launch_default_for_uri (webkit_download_get_destination_uri (download),
+						   NULL, NULL);
+	}
+}
+
 static gboolean
 on_download_requested (WebKitWebView*web_view,
 		       GObject *download,
@@ -171,9 +189,26 @@ on_download_requested (WebKitWebView*web_view,
 {
 	SoupURI *uri;
 	const char *query;
+	CamelDataWrapper *wrapper;
+	char *suggested_filename = NULL;
 
 	uri = soup_uri_new (webkit_download_get_uri (WEBKIT_DOWNLOAD (download)));
 	query = soup_uri_get_query (uri);
+
+	wrapper = im_content_id_request_get_data_wrapper
+		(webkit_download_get_uri (WEBKIT_DOWNLOAD (download)),
+		 TRUE, NULL);
+
+	if (wrapper != NULL) {
+		if (CAMEL_IS_MIME_PART (wrapper)) {
+			if (camel_mime_part_get_filename (CAMEL_MIME_PART (wrapper))) {
+				suggested_filename = g_strdup (camel_mime_part_get_filename (CAMEL_MIME_PART (wrapper)));
+			}
+		}
+		g_object_unref (wrapper);
+	}
+	if (suggested_filename == NULL)
+		suggested_filename = g_strdup (webkit_download_get_suggested_filename (WEBKIT_DOWNLOAD (download)));
 
 	if (query) {
 		GHashTable *params;
@@ -190,16 +225,24 @@ on_download_requested (WebKitWebView*web_view,
 
 			gtk_file_chooser_set_do_overwrite_confirmation (GTK_FILE_CHOOSER (dialog), TRUE);
 			gtk_file_chooser_set_current_folder (GTK_FILE_CHOOSER (dialog), g_get_user_special_dir (G_USER_DIRECTORY_DOWNLOAD));
-			gtk_file_chooser_set_current_name (GTK_FILE_CHOOSER (dialog), webkit_download_get_suggested_filename (WEBKIT_DOWNLOAD (download)));
+			gtk_file_chooser_set_current_name (GTK_FILE_CHOOSER (dialog), suggested_filename);
 			if (gtk_dialog_run (GTK_DIALOG (dialog)) ==  GTK_RESPONSE_ACCEPT) {
 				webkit_download_set_destination_uri (WEBKIT_DOWNLOAD (download), gtk_file_chooser_get_uri (GTK_FILE_CHOOSER (dialog)));
 			}
 			gtk_widget_destroy (dialog);
 		} else if (g_strcmp0 (g_hash_table_lookup (params, "mode"), "open") == 0) {
-			g_warning ("Opening to tmp still not implemented");
+			gchar *tmp_file_path;
+
+			tmp_file_path = im_file_utils_create_temp_uri (suggested_filename, NULL);
+			webkit_download_set_destination_uri (WEBKIT_DOWNLOAD (download),
+							     tmp_file_path);
+			g_free (tmp_file_path);
+			g_signal_connect (download, "notify::status",
+					  G_CALLBACK (on_download_to_open_notify_status), NULL);
 		}
 		g_hash_table_destroy (params);
 	}
+	g_free  (suggested_filename);
 
 	soup_uri_free (uri);
 	return TRUE;

@@ -200,7 +200,7 @@ fetch_part_finish (FetchPartData *data)
 }
 
 static CamelDataWrapper *
-find_with_content_id (CamelDataWrapper *wrapper, const char *path)
+find_with_content_id (CamelDataWrapper *wrapper, const char *path, gboolean get_container)
 {
 	gchar *content_id;
 	content_id = g_strrstr (path, "/");
@@ -210,15 +210,15 @@ find_with_content_id (CamelDataWrapper *wrapper, const char *path)
 	if (CAMEL_IS_MIME_PART (wrapper) &&
 	    g_strcmp0 (camel_mime_part_get_content_id (CAMEL_MIME_PART (wrapper)),
 		       content_id) == 0) {
-		return camel_medium_get_content (CAMEL_MEDIUM (wrapper));
+		return get_container?wrapper:camel_medium_get_content (CAMEL_MEDIUM (wrapper));
 	} else if (CAMEL_IS_MEDIUM (wrapper)) {
-		return find_with_content_id (camel_medium_get_content (CAMEL_MEDIUM (wrapper)), path);
+		return find_with_content_id (camel_medium_get_content (CAMEL_MEDIUM (wrapper)), path, get_container);
 	} else if (CAMEL_IS_MULTIPART (wrapper)) {
 		gint count, i;
 		count = camel_multipart_get_number (CAMEL_MULTIPART (wrapper));
 		for (i = 0; i < count; i++) {
 			CamelDataWrapper *found;
-			found = find_with_content_id ((CamelDataWrapper *) camel_multipart_get_part (CAMEL_MULTIPART (wrapper), i), path);
+			found = find_with_content_id ((CamelDataWrapper *) camel_multipart_get_part (CAMEL_MULTIPART (wrapper), i), path, get_container);
 			if (found) {
 				return found;
 			}
@@ -228,10 +228,10 @@ find_with_content_id (CamelDataWrapper *wrapper, const char *path)
 }
 
 static CamelDataWrapper *
-find_part (CamelDataWrapper *wrapper, const char *path)
+find_part (CamelDataWrapper *wrapper, const char *path, gboolean get_container)
 {
 	if (path == NULL || *path == '\0') {
-		if (CAMEL_IS_MEDIUM (wrapper))
+		if (CAMEL_IS_MEDIUM (wrapper) && !get_container)
 			return camel_medium_get_content (CAMEL_MEDIUM (wrapper));
 		else
 			return wrapper;
@@ -250,7 +250,7 @@ find_part (CamelDataWrapper *wrapper, const char *path)
 			index = strtol (number_pos, &next_path, 10);
 			if (next_path != number_pos && index >= 0 &&
 			    index < camel_multipart_get_number (CAMEL_MULTIPART (content)))
-				return find_part ((CamelDataWrapper *) camel_multipart_get_part (CAMEL_MULTIPART (content), index), next_path);
+				return find_part ((CamelDataWrapper *) camel_multipart_get_part (CAMEL_MULTIPART (content), index), next_path, get_container);
 		}
 	}
 
@@ -355,9 +355,9 @@ fetch_part_get_message_cb (GObject *source_object,
 
 	if (message) {
 		CamelDataWrapper *wrapper;
-		wrapper = find_with_content_id (CAMEL_DATA_WRAPPER (message), data->uri->path);
+		wrapper = find_with_content_id (CAMEL_DATA_WRAPPER (message), data->uri->path, FALSE);
 		if (!wrapper)
-			wrapper = find_part (CAMEL_DATA_WRAPPER (message), data->uri->path);
+			wrapper = find_part (CAMEL_DATA_WRAPPER (message), data->uri->path, FALSE);
 		if (wrapper == NULL) {
 			g_set_error (&data->error, IM_ERROR_DOMAIN, IM_ERROR_SOUP_INVALID_URI,
 				     _("Part not available"));
@@ -508,3 +508,65 @@ im_content_id_request_class_init (ImContentIdRequestClass *request_class)
 
   g_type_class_add_private (request_class, sizeof (ImContentIdRequestPrivate));
 }
+
+CamelDataWrapper *
+im_content_id_request_get_data_wrapper (const char *uri, gboolean get_container, GError **error)
+{
+	CamelDataWrapper *wrapper;
+	SoupURI *soup_uri = soup_uri_new (uri);
+	char *account, *folder_name, *message_uid;
+	CamelStore *store;
+	CamelFolder *folder = NULL;
+	CamelMimeMessage *message = NULL;
+	GError *_error = NULL;
+
+	get_content_id_hostname_parts (soup_uri->host, &account, &folder_name, &message_uid);
+
+	store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
+							   (const char *) account,
+							   IM_ACCOUNT_TYPE_STORE);	
+	if (store == NULL) {
+		g_set_error (&_error, IM_ERROR_DOMAIN, IM_ERROR_SOUP_INVALID_URI,
+			     _("Account does not exist"));
+		goto finish;
+	}
+
+	folder = camel_store_get_folder_sync (store, folder_name,
+					      0, NULL, &_error);
+	if (folder == NULL) {
+		g_set_error (&_error, IM_ERROR_DOMAIN, IM_ERROR_SOUP_INVALID_URI,
+			     _("Folder does not exist"));
+		goto finish;
+	}
+
+	message = camel_folder_get_message_sync (folder, message_uid, NULL, &_error);
+
+	if (message == NULL) {
+		g_set_error (&_error, IM_ERROR_DOMAIN, IM_ERROR_SOUP_INVALID_URI,
+			     _("Message does not exist"));
+		goto finish;
+	}
+
+	wrapper = find_with_content_id (CAMEL_DATA_WRAPPER (message), soup_uri->path, get_container);
+	if (!wrapper)
+		wrapper = find_part (CAMEL_DATA_WRAPPER (message), soup_uri->path, get_container);
+
+	if (wrapper == NULL) {
+		g_set_error (&_error, IM_ERROR_DOMAIN, IM_ERROR_SOUP_INVALID_URI,
+			     _("Part does not exist"));
+		goto finish;
+	}
+
+ finish:
+	if (folder) g_object_unref (folder);
+	g_free (account);
+	g_free (folder_name);
+	g_free (message_uid);
+	soup_uri_free (soup_uri);
+
+	if (error)
+		g_propagate_error (error, _error);
+
+	return wrapper;
+}
+
