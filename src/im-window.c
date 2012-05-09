@@ -248,6 +248,27 @@ on_download_requested (WebKitWebView*web_view,
 	return TRUE;
 }
 
+static WebKitWebView *
+on_inspect_web_view (WebKitWebInspector *web_inspector,
+		     WebKitWebView *web_view,
+		     gpointer user_data)
+{
+	GtkWidget *window;
+	GtkWidget *inspector_web_view;
+
+	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+	gtk_window_set_transient_for (GTK_WINDOW (window),
+				      GTK_WINDOW (user_data));
+	gtk_widget_show (window);
+
+	inspector_web_view = webkit_web_view_new ();
+	gtk_widget_show (inspector_web_view);
+	
+	gtk_container_add (GTK_CONTAINER (window), inspector_web_view);
+	
+	return (WebKitWebView *) inspector_web_view;
+}
+
 static void
 im_window_dispose (GObject *object)
 {
@@ -276,6 +297,7 @@ im_window_init (ImWindow *window)
   GtkWidget *scrolled_window;
   char *main_view_uri;
   WebKitWebSettings *settings;
+  WebKitWebInspector *inspector;
 
   window->priv = IM_WINDOW_GET_PRIVATE (window);
   priv = window->priv;
@@ -292,6 +314,7 @@ im_window_init (ImWindow *window)
   g_object_set (G_OBJECT (settings),
 		"enable-file-access-from-file-uris", TRUE,
 		"enable-frame-flattening", TRUE,
+		"enable-developer-extras", TRUE,
 		NULL);
   gtk_widget_show (priv->webview);
   gtk_container_add (GTK_CONTAINER (scrolled_window), priv->webview);
@@ -307,6 +330,9 @@ im_window_init (ImWindow *window)
 		    G_CALLBACK (on_navigation_policy_decision_requested), window);
   g_signal_connect (G_OBJECT (priv->webview), "download-requested",
 		    G_CALLBACK (on_download_requested), window);
+  inspector = webkit_web_view_get_inspector (WEBKIT_WEB_VIEW (priv->webview));
+  g_signal_connect (G_OBJECT (inspector), "inspect-web-view",
+		    G_CALLBACK (on_inspect_web_view), window);
   g_free (main_view_uri);
 
   g_signal_connect (G_OBJECT (window), "delete-event",
