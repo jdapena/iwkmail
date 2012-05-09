@@ -42,7 +42,7 @@ function dumpAccountInAccountsList (account, parent)
 	newFolder = getAccountInbox (this.accountId);
 
 	if (newFolder == null)
-	    return true;
+	    return false;
 
 	if (globalStatus.currentAccount != this.accountId || globalStatus.currentFolder != folder.fullName) {
 	    globalStatus.currentAccount = this.accountId;
