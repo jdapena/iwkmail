@@ -105,6 +105,106 @@ on_document_load_finished (WebKitWebView *webview,
 	soup_uri_free (uri);
 }
 
+static gboolean
+on_mime_type_policy_decision_requested (WebKitWebView *web_view,
+					WebKitWebFrame *frame,
+					WebKitNetworkRequest *request,
+					const char *mimetype,
+					WebKitWebPolicyDecision *policy_decision,
+					gpointer user_data)
+{
+	gboolean handled = FALSE;
+	SoupURI *uri;
+
+	uri = soup_uri_new (webkit_network_request_get_uri (request));
+	if (g_strcmp0 (uri->scheme, "cid") != 0) {
+		if (!webkit_web_view_can_show_mime_type (web_view, mimetype)) {
+			webkit_web_policy_decision_download (policy_decision);
+			handled = TRUE;
+		}
+	}
+
+	soup_uri_free (uri);
+
+	return handled;
+}
+
+static gboolean
+on_navigation_policy_decision_requested (WebKitWebView *web_view,
+					 WebKitWebFrame *frame,
+					 WebKitNetworkRequest *request,
+					 WebKitWebNavigationAction *action,
+					 WebKitWebPolicyDecision *policy_decision,
+					 gpointer user_data)
+{
+	gboolean handled = FALSE;
+	SoupURI *uri;
+
+	uri = soup_uri_new (webkit_network_request_get_uri (request));
+	if (webkit_web_navigation_action_get_reason (action) == WEBKIT_WEB_NAVIGATION_REASON_LINK_CLICKED &&
+	    g_strcmp0 (uri->scheme, "cid") == 0) {
+		const char *query;
+
+		query = soup_uri_get_query (uri);
+		if (query) {
+			GHashTable *params;
+			params = soup_form_decode (query);
+
+			if ((!g_strcmp0 (g_hash_table_lookup (params, "mode"), "save") == 0) ||
+			    (!g_strcmp0 (g_hash_table_lookup (params, "mode"), "open") == 0)) {
+				webkit_web_policy_decision_download (policy_decision);
+				handled = TRUE;
+			}
+			g_hash_table_destroy (params);
+		}
+	}
+
+	soup_uri_free (uri);
+
+	return handled;
+}
+
+static gboolean
+on_download_requested (WebKitWebView*web_view,
+		       GObject *download,
+		       gpointer user_data)
+{
+	SoupURI *uri;
+	const char *query;
+
+	uri = soup_uri_new (webkit_download_get_uri (WEBKIT_DOWNLOAD (download)));
+	query = soup_uri_get_query (uri);
+
+	if (query) {
+		GHashTable *params;
+		params = soup_form_decode (query);
+		
+		if (g_strcmp0 (g_hash_table_lookup (params, "mode"), "save") == 0) {
+			GtkWidget *dialog;
+
+			dialog = gtk_file_chooser_dialog_new ("Save attachment...", GTK_WINDOW (user_data),
+							      GTK_FILE_CHOOSER_ACTION_SAVE,
+							      GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+							      GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT,
+							      NULL);
+
+			gtk_file_chooser_set_do_overwrite_confirmation (GTK_FILE_CHOOSER (dialog), TRUE);
+			gtk_file_chooser_set_current_folder (GTK_FILE_CHOOSER (dialog), g_get_user_special_dir (G_USER_DIRECTORY_DOWNLOAD));
+			gtk_file_chooser_set_current_name (GTK_FILE_CHOOSER (dialog), webkit_download_get_suggested_filename (WEBKIT_DOWNLOAD (download)));
+			if (gtk_dialog_run (GTK_DIALOG (dialog)) ==  GTK_RESPONSE_ACCEPT) {
+				webkit_download_set_destination_uri (WEBKIT_DOWNLOAD (download), gtk_file_chooser_get_uri (GTK_FILE_CHOOSER (dialog)));
+			}
+			gtk_widget_destroy (dialog);
+		} else if (g_strcmp0 (g_hash_table_lookup (params, "mode"), "open") == 0) {
+			g_warning ("Opening to tmp still not implemented");
+		}
+		g_hash_table_destroy (params);
+	}
+
+	soup_uri_free (uri);
+	return TRUE;
+}
+
 static void
 im_window_dispose (GObject *object)
 {
@@ -158,6 +258,12 @@ im_window_init (ImWindow *window)
 			    main_view_uri);
   g_signal_connect (G_OBJECT (priv->webview), "document-load-finished",
 		    G_CALLBACK (on_document_load_finished), window);
+  g_signal_connect (G_OBJECT (priv->webview), "mime-type-policy-decision-requested",
+		    G_CALLBACK (on_mime_type_policy_decision_requested), window);
+  g_signal_connect (G_OBJECT (priv->webview), "navigation-policy-decision-requested",
+		    G_CALLBACK (on_navigation_policy_decision_requested), window);
+  g_signal_connect (G_OBJECT (priv->webview), "download-requested",
+		    G_CALLBACK (on_download_requested), window);
   g_free (main_view_uri);
 
   g_signal_connect (G_OBJECT (window), "delete-event",

@@ -92,9 +92,35 @@ function dumpDataWrapper (dataWrapper, parent)
 		iframe.setAttribute ("width", "100%");
 		$(parent).append(iframe);
 	    } else {
-		p = document.createElement ("p");
-		$(p).text("Attachment "+dataWrapper.filename);
-		$(parent).append(p);
+		console.log(JSON.stringify(dataWrapper));
+		div = document.createElement ("div");
+		div.setAttribute("data-role", "controlgroup");
+		div.setAttribute("data-type", "horizontal");
+		div.setAttribute("data-mini", "true");
+		// p = document.createElement ("p");
+		// $(p).text("Attachment "+dataWrapper.filename);
+		if (dataWrapper.filename)
+		    $(div).text("Attachment "+dataWrapper.filename);
+		else
+		    $(div).text("Attachment "+dataWrapper.contentType.type+"/"+dataWrapper.contentType.subType);		    
+		open = document.createElement ("a");
+		open.setAttribute("data-role", "button");
+		open.setAttribute("data-inline", "true");
+		open.setAttribute("href", dataWrapper.content.uri+"?mode=open");
+		$(open).text("Open");
+		$(open).button();
+		save = document.createElement ("a");
+		save.setAttribute("data-role", "button");
+		save.setAttribute("data-inline", "true");
+		save.uri=dataWrapper.content.uri;
+		save.setAttribute("href", dataWrapper.content.uri+"?mode=save");
+		$(save).text("Save");
+		$(save).button();
+		$(div).append(open);
+		$(div).append(save);
+		// $(div).append(p);
+		$(parent).append(div);
+		$("#page-message").trigger("create");
 	    }
 	}
     } else {
