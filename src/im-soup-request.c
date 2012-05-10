@@ -1838,24 +1838,25 @@ flag_message (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 				flag_message_get_folder_cb, data);
 }
 
-typedef struct _ComposerSendData {
+typedef struct _ComposerSaveData {
 	GAsyncResult *result;
 	GHashTable *params;
 	JsonBuilder *builder;
 	GCancellable *cancellable;
 	GError *error;
+	gboolean is_sending;
 	char *uid;
 	gint pending_attachments_count;
 	CamelMimeMessage *message;
 	CamelMessageInfo *mi;
-} ComposerSendData;
+} ComposerSaveData;
 
 static void
-finish_composer_send_data (ComposerSendData *data)
+finish_composer_save_data (ComposerSaveData *data)
 {
 	response_start (data->builder);
 	if (data->uid) {
-		json_builder_set_member_name (data->builder, "outboxUid");
+		json_builder_set_member_name (data->builder, "messageUid");
 		json_builder_add_string_value (data->builder, data->uid);
 	}
 	response_finish (data->result, data->params, data->builder, data->error);
@@ -1871,30 +1872,30 @@ finish_composer_send_data (ComposerSendData *data)
 }
 
 static void
-composer_send_append_message_cb (GObject *source_object,
+composer_save_append_message_cb (GObject *source_object,
 				 GAsyncResult *result,
 				 gpointer userdata)
 {
-	ComposerSendData *data = (ComposerSendData *) userdata;
+	ComposerSaveData *data = (ComposerSaveData *) userdata;
 	GError *_error = NULL;
-	CamelFolder *outbox = (CamelFolder *) source_object;
+	CamelFolder *folder = (CamelFolder *) source_object;
 
-	if (!camel_folder_append_message_finish (outbox, result, &data->uid, &_error) && _error == NULL) {
+	if (!camel_folder_append_message_finish (folder, result, &data->uid, &_error) && _error == NULL) {
 		g_set_error (&_error, IM_ERROR_DOMAIN,
-			     IM_ERROR_SEND_FAILED_TO_ADD_TO_OUTBOX,
-			     _("Couldn't add to outbox"));
+			     data->is_sending?IM_ERROR_SEND_FAILED_TO_ADD_TO_OUTBOX:IM_ERROR_COMPOSER_FAILED_TO_ADD_TO_DRAFTS,
+			     data->is_sending?_("Couldn't add to outbox"):_("Couldn't add to drafts"));
 	}
 
 	if (_error)
 		g_propagate_error (&data->error, _error);
 
-	finish_composer_send_data (data);
+	finish_composer_save_data (data);
 }
 
 static void
-composer_send_append_message (ComposerSendData *data)
+composer_save_append_message (ComposerSaveData *data)
 {
-	CamelFolder *outbox;
+	CamelFolder *folder;
 	GError *_error = NULL;
 	const char *form_data;
 	GHashTable *form_params;
@@ -1904,10 +1905,16 @@ composer_send_append_message (ComposerSendData *data)
 	form_params = soup_form_decode (form_data);
 
 	account_id = g_hash_table_lookup (form_params, "composer-from-choice");
-	outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
-					    account_id,
-					    data->cancellable,
-					    &_error);
+	if (data->is_sending) {
+		folder = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
+						    account_id,
+						    data->cancellable,
+						    &_error);
+	} else {
+		folder = im_service_mgr_get_drafts (im_service_mgr_get_instance (),
+						    data->cancellable,
+						    &_error);
+	}
 
 	if (_error) {
 		g_propagate_error (&data->error, _error);
@@ -1915,13 +1922,13 @@ composer_send_append_message (ComposerSendData *data)
 
 	g_hash_table_destroy (form_params);
 
-	if (_error == NULL && outbox) {
-		camel_folder_append_message (outbox, data->message, data->mi,
+	if (_error == NULL && folder) {
+		camel_folder_append_message (folder, data->message, data->mi,
 					     G_PRIORITY_DEFAULT_IDLE,
 					     data->cancellable,
-					     composer_send_append_message_cb, data);
+					     composer_save_append_message_cb, data);
 	} else {
-		finish_composer_send_data (data);
+		finish_composer_save_data (data);
 	}
 }
 
@@ -1930,7 +1937,7 @@ on_content_part_constructed (GObject *source_object,
 			     GAsyncResult *result,
 			     gpointer userdata)
 {
-	ComposerSendData *data = (ComposerSendData *) userdata;
+	ComposerSaveData *data = (ComposerSaveData *) userdata;
 	GError *_error = NULL;
 
 	data->pending_attachments_count--;
@@ -1938,17 +1945,17 @@ on_content_part_constructed (GObject *source_object,
 							     result,
 							     &_error)) {
 		if (data->pending_attachments_count == 0)
-			composer_send_append_message (data);
+			composer_save_append_message (data);
 	} else {
 		g_propagate_error (&data->error, _error);
-		finish_composer_send_data (data);
+		finish_composer_save_data (data);
 	}
 }
 
 static void
-composer_send (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
+composer_save (GAsyncResult *result, GHashTable *params, JsonBuilder *builder, gboolean is_sending)
 {
-	ComposerSendData *data = g_new0 (ComposerSendData, 1);
+	ComposerSaveData *data = g_new0 (ComposerSaveData, 1);
 	const char *account_id;
 	const char *to, *cc, *bcc;
 	const char *subject;
@@ -1962,6 +1969,7 @@ composer_send (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 	data->builder = g_object_ref (builder);
 	data->cancellable = g_cancellable_new ();
 	data->params = g_hash_table_ref (params);
+	data->is_sending = is_sending;
 
 	form_data = g_hash_table_lookup (params, "formData");
 	form_params = soup_form_decode (form_data);
@@ -2090,7 +2098,7 @@ composer_send (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 			g_set_error (&_error, IM_ERROR_DOMAIN,
 				     IM_ERROR_SEND_PARSING_RECIPIENTS,
 				     _("Failed to parse recipients"));
-		} else if (to_count + cc_count + bcc_count == 0) {
+		} else if (is_sending && (to_count + cc_count + bcc_count == 0)) {
 			g_set_error (&_error, IM_ERROR_DOMAIN,
 				     IM_ERROR_SEND_NO_RECIPIENTS,
 				     _("User didn't set recipients trying to send"));
@@ -2118,9 +2126,9 @@ composer_send (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 
 	if (_error == NULL) {
 		if (data->pending_attachments_count == 0)
-			composer_send_append_message (data);
+			composer_save_append_message (data);
 	} else {
-		finish_composer_send_data (data);
+		finish_composer_save_data (data);
 	}
 
 }
@@ -2197,7 +2205,9 @@ im_soup_request_send_async (SoupRequest          *soup_request,
   } else if (!g_strcmp0 (uri->path, "getMessage")) {
 	  get_message (result, params, builder);
   } else if (!g_strcmp0 (uri->path, "composerSend")) {
-	  composer_send (result, params, builder);
+	  composer_save (result, params, builder, TRUE);
+  } else if (!g_strcmp0 (uri->path, "composerSaveDraft")) {
+	  composer_save (result, params, builder, FALSE);
   } else if (!g_strcmp0 (uri->path, "flagMessage")) {
 	  flag_message (result, params, builder);
   } else if (!g_strcmp0 (uri->path, "openFileURI")) {

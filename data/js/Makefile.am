@@ -2,6 +2,7 @@ IWK_JS=iwk.js
 
 IWK_JS_FILES=\
 	license.js \
+	composer.js \
 	config.js \
 	dateUtils.js \
 	htmlUtils.js \

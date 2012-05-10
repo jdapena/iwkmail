@@ -59,6 +59,9 @@
 #include <glib/gi18n.h>
 
 #define IM_OUTBOX_STORE_NAME "outboxes"
+#define IM_LOCAL_STORE_NAME "local"
+
+#define IM_LOCAL_DRAFTS_NAME "Drafts"
 
 /* 'private'/'protected' functions */
 static void    im_service_mgr_class_init   (ImServiceMgrClass *klass);
@@ -75,6 +78,10 @@ static gboolean init_outbox                 (ImServiceMgr *self,
 					     GError **error);
 static gboolean init_store_outbox           (ImServiceMgr *self,
 					     const char *name,
+					     GError **error);
+static gboolean init_drafts                 (ImServiceMgr *self,
+					     GError **error);
+static gboolean init_local_store            (ImServiceMgr *self,
 					     GError **error);
 
 static void    insert_account              (ImServiceMgr *self,
@@ -128,6 +135,9 @@ struct _ImServiceMgrPrivate {
 
 	/* Outboxes */
 	CamelStore          *outbox_store;
+
+	/* Local (drafts, sentbox) */
+	CamelStore          *local_store;
 };
 
 #define IM_SERVICE_MGR_GET_PRIVATE(o)      (G_TYPE_INSTANCE_GET_PRIVATE((o), \
@@ -651,6 +661,107 @@ im_service_mgr_get_outbox_store (ImServiceMgr *self)
 		return NULL;
 
 	return priv->outbox_store;
+}
+						
+static gboolean
+init_local_store (ImServiceMgr *self, GError **error)
+{
+	ImServiceMgrPrivate *priv = IM_SERVICE_MGR_GET_PRIVATE (self);
+	GError *_error = NULL;
+
+	if (priv->local_store != NULL)
+		return TRUE;
+
+	priv->local_store = (CamelStore *)camel_session_add_service (CAMEL_SESSION (self),
+								      IM_LOCAL_STORE_NAME,
+								      "maildir",
+								      CAMEL_PROVIDER_STORE,
+								      &_error);
+
+	if (priv->local_store) {
+		CamelSettings *settings;
+
+		g_object_set (priv->local_store,
+			      "need-summary-check", TRUE,
+			      NULL);
+
+		settings = camel_service_get_settings (CAMEL_SERVICE (priv->local_store));
+		if (CAMEL_IS_LOCAL_SETTINGS (settings)) {
+			gchar *path = g_build_filename (im_service_mgr_get_user_data_dir (),
+							IM_LOCAL_STORE_NAME, NULL);
+			camel_local_settings_set_path (CAMEL_LOCAL_SETTINGS (settings),
+						       path);
+			g_free (path);
+		}
+	}
+
+	if (_error)
+		g_propagate_error (error, _error);
+
+	return priv->local_store != NULL;
+}
+
+static gboolean
+init_drafts (ImServiceMgr *self, GError **error)
+{
+	ImServiceMgrPrivate *priv = IM_SERVICE_MGR_GET_PRIVATE (self);
+	CamelFolderInfo *fi;
+	GError *_error = NULL;
+
+	if (!init_local_store (self, &_error)) {
+		if (_error) g_propagate_error (error, _error);
+		return FALSE;
+	}
+
+	fi = camel_store_get_folder_info_sync (priv->local_store,
+					       IM_LOCAL_DRAFTS_NAME,
+					       0,
+					       NULL, NULL);
+	if (fi) {
+		camel_store_free_folder_info (priv->local_store, fi);
+		return TRUE;
+	}
+
+	fi = camel_store_create_folder_sync (priv->local_store,
+					     NULL, IM_LOCAL_DRAFTS_NAME,
+					     NULL, &_error);
+
+	if (fi) {
+		camel_store_free_folder_info (priv->local_store, fi);
+		return TRUE;
+	}
+
+	if (_error)
+		g_propagate_error (error, _error);
+
+	return FALSE;
+}
+
+CamelFolder *
+im_service_mgr_get_drafts (ImServiceMgr *self,
+			   GCancellable *cancellable,
+			   GError **error)
+{
+	ImServiceMgrPrivate *priv = IM_SERVICE_MGR_GET_PRIVATE (self);
+
+	if (!init_drafts (self, error))
+		return NULL;
+
+	return camel_store_get_folder_sync (priv->local_store,
+					    IM_LOCAL_DRAFTS_NAME,
+					    0,
+					    cancellable, error);
+}
+
+CamelStore *
+im_service_mgr_get_local_store (ImServiceMgr *self)
+{
+	ImServiceMgrPrivate *priv = IM_SERVICE_MGR_GET_PRIVATE (self);
+
+	if (!init_local_store (self, NULL))
+		return NULL;
+
+	return priv->local_store;
 }
 						
 

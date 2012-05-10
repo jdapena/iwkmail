@@ -175,6 +175,31 @@ CamelFolder *im_service_mgr_get_outbox (ImServiceMgr *self,
 					GError **error);
 
 /**
+ * im_service_mgr_get_drafts:
+ * @self: an #ImServiceMgr instance
+ * @cancellable: a #GCancellable
+ * @error: a #GError pointer
+ *
+ * Obtains the drafts folder. The drafts folder
+ * is special, and is stored as a maildir in the user data directory.
+ *
+ * Returns: a #CamelFolder
+ */
+CamelFolder *im_service_mgr_get_drafts (ImServiceMgr *self,
+					GCancellable *cancellable,
+					GError **error);
+
+/**
+ * im_service_mgr_get_local_store:
+ * @self: an #ImServiceMgr instance
+ *
+ * Obtains the local store for special folders.
+ *
+ * Returns: (transfer none): a #CamelStore
+ */
+CamelStore *im_service_mgr_get_local_store (ImServiceMgr *self);
+
+/**
  * im_service_mgr_get_outbox_store:
  * @self: an #ImServiceMgr instance
  *

@@ -34,7 +34,7 @@
       <div data-role="footer" data-position="fixed">
 	<div data-role="navbar">
 	  <ul>
-	    <li><a href="#composer" id="accounts-compose" data-icon="plus">Send email</a></li>
+	    <li><a href="#composer" class="iwk-compose-button" data-icon="plus">Send email</a></li>
 	  </ul>
 	</div>
       </div>
@@ -82,7 +82,7 @@
       <div data-role="footer" data-position="fixed">
 	<div data-role="navbar">
 	  <ul>
-	    <li><a href="#composer" id="accounts-compose" data-icon="plus">Send email</a></li>
+	    <li><a href="#composer" class="iwk-compose-button" data-icon="plus">Send email</a></li>
 	    <li><a href="#page-folders" id="folders-list" data-icon="grid" data-rel="dialog">Choose folder</a></li>
 	  </ul>
 	</div>
@@ -143,10 +143,11 @@
       
     </div>
 
-    <div data-role="page" id="composer" data-add-back-btn="true">
-      <div data-role="header" data-position="fixed">
+    <div data-role="page" id="composer">
+      <div data-role="header" data-position="fixed" data-theme="d">
+	<a data-rel="back" id="composer-back" data-icon="delete">Cancel</a>
 	<h3 id="composer-title"></h3>
-	<a data-rel="back" id="composer-send" data-icon="check" class="ui-btn-right">Send</a>
+	<a data-rel="back" id="composer-send" data-icon="check" data-theme="b" class="ui-btn-right">Send</a>
       </div>
 
       <div data-role="content">
@@ -295,6 +296,15 @@
 	<a data-role="button" onclick="replyAll()">All</a>
 	<a data-role="button" id="reply-mailing-list-button" onclick="replyMailingList()">Mailing list</a>
 	<a data-role="button" data-rel="back" data-theme="b">Cancel</a>
+      </div>
+    </div>
+
+    <div data-role="dialog" id="save-draft-or-discard-dialog" class="dialog-actionsheet">
+      <div data-role="content">
+	<h3>Message has changes</h3>
+	<a data-role="button" data-rel="back" onclick="saveDraft()">Save draft</a>
+	<a data-role="button" href="#" onclick="discardChanges()">Discard changes</a>
+	<a data-role="button" data-rel="back" data-theme="b">Back to composer</a>
       </div>
     </div>
 
