@@ -248,6 +248,8 @@ function dumpFolderInFolderList (accountId, folderFullName, folder, parent)
 
 function dumpMessageInMessagesList (message, isNew, parent)
 {
+    if (message.deleted && !getCurrentFolder().isTrash)
+	return;
     li = document.createElement("li");
     $(li).attr("id", "message-item-"+message.uid);
     li.setAttribute('data-role', 'fieldcontain');

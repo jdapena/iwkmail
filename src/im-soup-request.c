@@ -1107,7 +1107,6 @@ sync_folders (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 			  } else {
 				  camel_store_get_folder_info (store, NULL,
 							       CAMEL_STORE_FOLDER_INFO_RECURSIVE |
-							       CAMEL_STORE_FOLDER_INFO_NO_VIRTUAL |
 							       CAMEL_STORE_FOLDER_INFO_SUBSCRIBED,
 							       G_PRIORITY_DEFAULT_IDLE,
 							       data->cancellable,
@@ -1166,8 +1165,6 @@ dump_message_info (JsonBuilder *builder,
 	CamelMessageFlags flags;
 
 	flags = camel_message_info_flags (mi);
-	if (flags & CAMEL_MESSAGE_DELETED)
-		return;
 	json_builder_begin_object(builder);
 	json_builder_set_member_name (builder, "uid");
 	json_builder_add_string_value (builder,
@@ -1203,6 +1200,9 @@ dump_message_info (JsonBuilder *builder,
 	json_builder_set_member_name (builder, "unread");
 	json_builder_add_boolean_value (builder,
 					!(flags & CAMEL_MESSAGE_SEEN));
+	json_builder_set_member_name (builder, "deleted");
+	json_builder_add_boolean_value (builder,
+					flags & CAMEL_MESSAGE_DELETED);
 	json_builder_set_member_name (builder, "draft");
 	json_builder_add_boolean_value (builder,
 					flags & CAMEL_MESSAGE_DRAFT);
@@ -1240,8 +1240,6 @@ dump_message_as_info (JsonBuilder *builder,
 {
 	CamelMessageFlags flags;
 	flags = camel_folder_get_message_flags (folder, uid);
-	if (flags & CAMEL_MESSAGE_DELETED)
-		return;
 	json_builder_begin_object(builder);
 	json_builder_set_member_name (builder, "uid");
 	json_builder_add_string_value (builder, uid);
@@ -1269,6 +1267,9 @@ dump_message_as_info (JsonBuilder *builder,
 	json_builder_set_member_name (builder, "unread");
 	json_builder_add_boolean_value (builder,
 					!(flags & CAMEL_MESSAGE_SEEN));
+	json_builder_set_member_name (builder, "deleted");
+	json_builder_add_boolean_value (builder,
+					flags & CAMEL_MESSAGE_DELETED);
 	json_builder_set_member_name (builder, "draft");
 	json_builder_add_boolean_value (builder,
 					flags & CAMEL_MESSAGE_DRAFT);
