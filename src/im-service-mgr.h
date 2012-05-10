@@ -60,6 +60,9 @@
 
 /* other include files */
 
+#define IM_LOCAL_DRAFTS_TAG "__LOCAL_DRAFTS__"
+#define IM_LOCAL_OUTBOX_TAG "__LOCAL_OUTBOX__"
+
 G_BEGIN_DECLS
 
 /* convenience macros */

@@ -227,12 +227,15 @@ function composerIsDirty ()
 function saveDraft ()
 {
     iwkRequest ("composerSaveDraft", "Saving to drafts", {
-	formData: data
+	formData: $("#form-composer").serialize()
     }).done(function (msg) {
 	if (!msg.is_ok)
 	    showError (msg.error);
-	else
+	else {
 	    syncFolders ();
+	    fetchNewMessages ();
+	    history.back();
+	}
     });
 }
 

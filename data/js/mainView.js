@@ -269,7 +269,9 @@ function fetchMoreMessages ()
 
 function fetchNewMessages ()
 {
-    showMessages (globalStatus.currentAccount, globalStatus.currentFolder, true);
+    if (globalStatus.currentAccount != null &&
+	globalStatus.currentFolder != null)
+	showMessages (globalStatus.currentAccount, globalStatus.currentFolder, true);
 }
 
 function refreshAccounts ()
@@ -293,10 +295,5 @@ function syncFolders ()
 }
 
 $(function () {
-    $(".iwk-compose-button").click(function () {
-	clearComposer();
-	return true;
-    });
-
     refreshAccounts();
 });

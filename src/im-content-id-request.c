@@ -388,6 +388,23 @@ fetch_part_get_message_cb (GObject *source_object,
 }
 
 static void
+fetch_part_get_message (CamelFolder *folder,
+			FetchPartData *data)
+{
+	if (data->error == NULL) {
+		char *messageuid;
+
+		get_content_id_hostname_parts (data->uri->host, NULL, NULL, &messageuid);
+		camel_folder_get_message (folder, messageuid,
+					  G_PRIORITY_DEFAULT_IDLE, data->cancellable,
+					  fetch_part_get_message_cb, data);
+		g_free (messageuid);
+	} else {
+		fetch_part_finish (data);
+	}
+}
+
+static void
 fetch_part_get_folder_cb (GObject *source_object,
 			  GAsyncResult *result,
 			  gpointer userdata)
@@ -404,17 +421,7 @@ fetch_part_get_folder_cb (GObject *source_object,
 		g_propagate_error (&data->error, error);
 	}
 
-	if (data->error == NULL) {
-		char *messageuid;
-
-		get_content_id_hostname_parts (data->uri->host, NULL, NULL, &messageuid);
-		camel_folder_get_message (folder, messageuid,
-					  G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-					  fetch_part_get_message_cb, data);
-		g_free (messageuid);
-	} else {
-		fetch_part_finish (data);
-	}
+	fetch_part_get_message (folder, data);
 }
 
 
@@ -445,24 +452,40 @@ im_content_id_request_send_async (SoupRequest          *soup_request,
 	data->uri = soup_uri_copy (uri);
 	data->cancellable = g_object_ref (cancellable);
 	
-	store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
-							   (const char *) account,
-							   IM_ACCOUNT_TYPE_STORE);
-	if (store == NULL) {
-		g_set_error (&data->error, IM_ERROR_DOMAIN, IM_ERROR_SOUP_INVALID_URI,
-			     _("Account does not exist"));
+	if (g_strcmp0 (folder, IM_LOCAL_DRAFTS_TAG) == 0) {
+		CamelFolder *drafts;
+
+		drafts = im_service_mgr_get_drafts (im_service_mgr_get_instance (),
+						    data->cancellable,
+						    &data->error);
+		fetch_part_get_message (drafts, data);
+	} else if (g_strcmp0 (folder, IM_LOCAL_OUTBOX_TAG) == 0) {
+		CamelFolder *outbox;
+
+		outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
+						    (const char *) account,
+						    data->cancellable,
+						    &data->error);
+		fetch_part_get_message (outbox, data);
+	} else {
+		store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
+								   (const char *) account,
+								   IM_ACCOUNT_TYPE_STORE);
+		if (store == NULL) {
+			g_set_error (&data->error, IM_ERROR_DOMAIN, IM_ERROR_SOUP_INVALID_URI,
+				     _("Account does not exist"));
+		}
+		
+		if (data->error == NULL)
+			camel_store_get_folder (store, folder,
+						CAMEL_STORE_FOLDER_CREATE | CAMEL_STORE_FOLDER_BODY_INDEX,
+						G_PRIORITY_DEFAULT_IDLE, data->cancellable,
+						fetch_part_get_folder_cb, data);
+		else
+			fetch_part_finish (data);
 	}
 	
 	g_free (account);
-
-	if (data->error == NULL)
-		camel_store_get_folder (store, folder,
-					CAMEL_STORE_FOLDER_CREATE | CAMEL_STORE_FOLDER_BODY_INDEX,
-					G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-					fetch_part_get_folder_cb, data);
-	else
-		fetch_part_finish (data);
-	
 	g_free (folder);
 }
 
@@ -531,8 +554,19 @@ im_content_id_request_get_data_wrapper (const char *uri, gboolean get_container,
 		goto finish;
 	}
 
-	folder = camel_store_get_folder_sync (store, folder_name,
-					      0, NULL, &_error);
+	if (g_strcmp0 (folder_name, IM_LOCAL_DRAFTS_TAG) == 0) {
+		folder = im_service_mgr_get_drafts (im_service_mgr_get_instance (),
+						    NULL,
+						    &_error);
+	} else if (g_strcmp0 (folder_name, IM_LOCAL_OUTBOX_TAG) == 0) {
+		folder = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
+						    (const char *) account,
+						    NULL,
+						    &_error);
+	} else {
+		folder = camel_store_get_folder_sync (store, folder_name,
+						      0, NULL, &_error);
+	}
 	if (folder == NULL) {
 		g_set_error (&_error, IM_ERROR_DOMAIN, IM_ERROR_SOUP_INVALID_URI,
 			     _("Folder does not exist"));

@@ -460,10 +460,70 @@ typedef struct _SyncFoldersData {
 } SyncFoldersData;
 
 static void
+dump_local_folder (JsonBuilder *builder, CamelFolder *folder)
+{
+	json_builder_set_member_name (builder, "unreadCount");
+	json_builder_add_int_value (builder,
+				    camel_folder_get_unread_message_count (folder));
+	json_builder_set_member_name (builder, "messageCount");
+	json_builder_add_int_value (builder,
+				    camel_folder_get_message_count (folder));
+	json_builder_set_member_name (builder, "noSelect");
+	json_builder_add_boolean_value (builder, FALSE);
+	json_builder_set_member_name (builder, "favourite");
+	json_builder_add_boolean_value (builder, FALSE);
+	json_builder_set_member_name (builder, "isInbox");
+	json_builder_add_boolean_value (builder, FALSE);
+	json_builder_set_member_name (builder, "isSent");
+	json_builder_add_boolean_value (builder, FALSE);
+	json_builder_set_member_name (builder, "isTrash");
+	json_builder_add_boolean_value (builder, FALSE);
+	json_builder_set_member_name (builder, "isLocal");
+	json_builder_add_boolean_value (builder, TRUE);
+}
+
+static void
+dump_drafts_folder (JsonBuilder *builder, CamelFolder *folder)
+{
+	json_builder_set_member_name (builder, IM_LOCAL_DRAFTS_TAG);
+	json_builder_begin_object (builder);
+	json_builder_set_member_name (builder, "fullName");
+	json_builder_add_string_value (builder, IM_LOCAL_DRAFTS_TAG);
+	json_builder_set_member_name (builder, "displayName");
+	json_builder_add_string_value (builder, camel_folder_get_display_name (folder));
+	json_builder_set_member_name (builder, "isOutbox");
+	json_builder_add_boolean_value (builder, FALSE);
+	json_builder_set_member_name (builder, "isDrafts");
+	json_builder_add_boolean_value (builder, TRUE);
+	dump_local_folder (builder, folder);
+	json_builder_end_object (builder);
+}
+
+static void
+dump_outbox_folder (JsonBuilder *builder, CamelFolder *folder)
+{
+	json_builder_set_member_name (builder, IM_LOCAL_OUTBOX_TAG);
+	json_builder_begin_object (builder);
+	json_builder_set_member_name (builder, "fullName");
+	json_builder_add_string_value (builder, IM_LOCAL_OUTBOX_TAG);
+	json_builder_set_member_name (builder, "displayName");
+	json_builder_add_string_value (builder, _("Outbox"));
+	json_builder_set_member_name (builder, "isOutbox");
+	json_builder_add_boolean_value (builder, TRUE);
+	json_builder_set_member_name (builder, "Drafts");
+	json_builder_add_boolean_value (builder, FALSE);
+	dump_local_folder (builder, folder);
+	json_builder_end_object (builder);
+}
+
+static void
 dump_folder_info (JsonBuilder *builder,
 		  CamelFolderInfo *fi,
+		  CamelFolder *drafts,
+		  CamelFolder *outbox,
 		  GHashTable *account_updated_folders)
 {
+	gboolean dumpedLocalFolders = FALSE;
 	while (fi) {
 		CamelFolder *folder = g_hash_table_lookup (account_updated_folders,
 							   fi->full_name);
@@ -493,18 +553,31 @@ dump_folder_info (JsonBuilder *builder,
 		json_builder_set_member_name (builder, "isInbox");
 		json_builder_add_boolean_value (builder, (fi->flags & CAMEL_FOLDER_TYPE_MASK) == CAMEL_FOLDER_TYPE_INBOX);
 		json_builder_set_member_name (builder, "isOutbox");
-		json_builder_add_boolean_value (builder, (fi->flags & CAMEL_FOLDER_TYPE_MASK) == CAMEL_FOLDER_TYPE_OUTBOX);
+		json_builder_add_boolean_value (builder, FALSE);
 		json_builder_set_member_name (builder, "isSent");
 		json_builder_add_boolean_value (builder, (fi->flags & CAMEL_FOLDER_TYPE_MASK) == CAMEL_FOLDER_TYPE_SENT);
 		json_builder_set_member_name (builder, "isTrash");
 		json_builder_add_boolean_value (builder, (fi->flags & CAMEL_FOLDER_TYPE_MASK) == CAMEL_FOLDER_TYPE_TRASH);
+		json_builder_set_member_name (builder, "isLocal");
+		json_builder_add_boolean_value (builder, FALSE);
+		json_builder_set_member_name (builder, "isDrafts");
+		json_builder_add_boolean_value (builder, FALSE);
 		if (fi->parent) {
 			json_builder_set_member_name (builder, "parentFullName");
 			json_builder_add_string_value (builder, fi->parent->full_name);
 		}
 		json_builder_end_object (builder);
+
+		if (!dumpedLocalFolders) {
+			if (drafts)
+				dump_drafts_folder (builder, drafts);
+			if (outbox)
+				dump_outbox_folder (builder, outbox);
+			dumpedLocalFolders = TRUE;
+		}
+
 		if (fi->child) {
-			dump_folder_info (builder, fi->child, account_updated_folders);
+			dump_folder_info (builder, fi->child, NULL, NULL, account_updated_folders);
 		}
 		fi = fi->next;
 	}
@@ -532,6 +605,8 @@ dump_inbox_folder (JsonBuilder *builder,
 	json_builder_add_boolean_value (builder, TRUE);
 	json_builder_set_member_name (builder, "isInbox");
 	json_builder_add_boolean_value (builder, TRUE);
+	json_builder_set_member_name (builder, "isDrafts");
+	json_builder_add_boolean_value (builder, FALSE);
 	json_builder_set_member_name (builder, "isOutbox");
 	json_builder_add_boolean_value (builder, FALSE);
 	json_builder_set_member_name (builder, "isSent");
@@ -545,6 +620,10 @@ static void
 finish_sync_folders (SyncFoldersData *data)
 {
 	GList *account_keys, *node;
+	CamelFolder *drafts;
+
+	drafts = im_service_mgr_get_drafts (im_service_mgr_get_instance (),
+					    NULL, NULL);
 	json_builder_set_member_name (data->builder, "result");
 	json_builder_begin_array (data->builder);
 
@@ -553,7 +632,12 @@ finish_sync_folders (SyncFoldersData *data)
 		char *account_id = (char *) node->data;
 		char *display_name;
 		CamelFolderInfo *fi;
+		CamelFolder *outbox;
 		GHashTable *updated_folders;
+
+		outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
+						    account_id,
+						    NULL, NULL);
 		json_builder_begin_object (data->builder);
 
 		json_builder_set_member_name (data->builder, "accountId");
@@ -571,7 +655,7 @@ finish_sync_folders (SyncFoldersData *data)
 		updated_folders = g_hash_table_lookup (data->updated_folders, account_id);
 		if (fi) {	
 			CamelStore *store = g_hash_table_lookup (data->stores, account_id);
-			dump_folder_info (data->builder, fi, updated_folders);
+			dump_folder_info (data->builder, fi, drafts, outbox, updated_folders);
 			camel_store_free_folder_info (store, fi);
 		} else {
 			/* No hierarchy, we just dump the existing folder */
@@ -582,15 +666,23 @@ finish_sync_folders (SyncFoldersData *data)
 									  folders->data);
 				if (inbox)
 					dump_inbox_folder (data->builder, inbox);
+				if (drafts)
+					dump_drafts_folder (data->builder, drafts);
+				if (outbox)
+					dump_outbox_folder (data->builder, outbox);
 				g_list_free (folders);
 			}
 		}
 		json_builder_end_object (data->builder);
 		json_builder_end_object (data->builder);
 
+		if (outbox) g_object_unref (outbox);
 		g_free (display_name);
 	}
 	json_builder_end_array (data->builder);
+
+	if (drafts)
+		g_object_unref (drafts);
 
 	g_hash_table_destroy (data->stores);
 	g_hash_table_destroy (data->folder_infos);
@@ -1362,6 +1454,17 @@ fetch_messages_refresh_info_cb (GObject *source_object,
 }
 
 static void
+fetch_messages_refresh_info (CamelFolder *folder, FetchMessagesData *data)
+{
+	if (data->error == NULL) {
+		camel_folder_refresh_info (folder, 
+					   G_PRIORITY_DEFAULT_IDLE, data->cancellable,
+					   fetch_messages_refresh_info_cb, data);
+	} else {
+		response_finish (data->result, data->params, data->builder, data->error);
+	}
+}
+static void
 fetch_messages_get_folder_cb (GObject *source_object,
 				GAsyncResult *result,
 				gpointer userdata)
@@ -1378,19 +1481,12 @@ fetch_messages_get_folder_cb (GObject *source_object,
 		g_propagate_error (&data->error, error);
 	}
 
-	if (data->error == NULL) {
-		camel_folder_refresh_info (folder, 
-					   G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-					   fetch_messages_refresh_info_cb, data);
-	}else {
-		response_finish (data->result, data->params, data->builder, data->error);
-	}
+	fetch_messages_refresh_info (folder, data);
 }
 
 static void
 fetch_messages (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 {
-	CamelStore *store;
 	const char *account_name;
 	const char *folder_name;
 	FetchMessagesData *data = g_new0 (FetchMessagesData, 1);
@@ -1402,13 +1498,35 @@ fetch_messages (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 
 	account_name = g_hash_table_lookup (params, "account");
 	folder_name = g_hash_table_lookup (params, "folder");
-	store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
-							   (const char *) account_name,
-							   IM_ACCOUNT_TYPE_STORE);
-	camel_store_get_folder (store, folder_name,
-				CAMEL_STORE_FOLDER_CREATE | CAMEL_STORE_FOLDER_BODY_INDEX, 
-				G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-				fetch_messages_get_folder_cb, data);
+
+	if (g_strcmp0 (folder_name, IM_LOCAL_DRAFTS_TAG) == 0) {
+		CamelFolder *drafts;
+
+		drafts = im_service_mgr_get_drafts (im_service_mgr_get_instance (),
+						    data->cancellable,
+						    &data->error);
+
+		fetch_messages_refresh_info (drafts, data);
+
+	} else if (g_strcmp0 (folder_name, IM_LOCAL_OUTBOX_TAG) == 0) {
+		CamelFolder *outbox;
+
+		outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
+						    (const char *) account_name,
+						    data->cancellable,
+						    &data->error);
+
+		fetch_messages_refresh_info (outbox, data);
+	} else {
+		CamelStore *store;
+		store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
+								   (const char *) account_name,
+								   IM_ACCOUNT_TYPE_STORE);
+		camel_store_get_folder (store, folder_name,
+					CAMEL_STORE_FOLDER_CREATE | CAMEL_STORE_FOLDER_BODY_INDEX, 
+					G_PRIORITY_DEFAULT_IDLE, data->cancellable,
+					fetch_messages_get_folder_cb, data);
+	}
 }
 
 typedef struct _GetMessageData {
@@ -1683,6 +1801,22 @@ get_message_get_message_cb (GObject *source_object,
 }
 
 static void
+get_message_get_message (CamelFolder *folder,
+			 GetMessageData *data)
+{
+	if (data->error == NULL) {
+		const char *message_uid;
+
+		message_uid = g_hash_table_lookup (data->params, "message");
+		camel_folder_get_message (folder, message_uid,
+					   G_PRIORITY_DEFAULT_IDLE, data->cancellable,
+					   get_message_get_message_cb, data);
+	} else {
+		response_finish (data->result, data->params, data->builder, data->error);
+	}
+}
+
+static void
 get_message_get_folder_cb (GObject *source_object,
 			   GAsyncResult *result,
 			   gpointer userdata)
@@ -1699,22 +1833,13 @@ get_message_get_folder_cb (GObject *source_object,
 		g_propagate_error (&data->error, error);
 	}
 
-	if (data->error == NULL) {
-		const char *message_uid;
+	get_message_get_message (folder, data);
 
-		message_uid = g_hash_table_lookup (data->params, "message");
-		camel_folder_get_message (folder, message_uid,
-					   G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-					   get_message_get_message_cb, data);
-	} else {
-		response_finish (data->result, data->params, data->builder, data->error);
-	}
 }
 
 static void
 get_message (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 {
-	CamelStore *store;
 	const char *account_name;
 	const char *folder_name;
 	GetMessageData *data = g_new0 (GetMessageData, 1);
@@ -1726,13 +1851,35 @@ get_message (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 
 	account_name = g_hash_table_lookup (params, "account");
 	folder_name = g_hash_table_lookup (params, "folder");
-	store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
-							   (const char *) account_name,
-							   IM_ACCOUNT_TYPE_STORE);
-	camel_store_get_folder (store, folder_name,
-				CAMEL_STORE_FOLDER_CREATE | CAMEL_STORE_FOLDER_BODY_INDEX, 
-				G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-				get_message_get_folder_cb, data);
+	if (g_strcmp0 (folder_name, IM_LOCAL_DRAFTS_TAG) == 0) {
+		CamelFolder *drafts;
+
+
+		drafts = im_service_mgr_get_drafts (im_service_mgr_get_instance (),
+						    data->cancellable,
+						    &data->error);
+
+		get_message_get_message (drafts, data);
+	} else if (g_strcmp0 (folder_name, IM_LOCAL_OUTBOX_TAG) == 0) {
+		CamelFolder *outbox;
+
+		outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
+						    (const char *) account_name,
+						    data->cancellable,
+						    &data->error);
+
+		get_message_get_message (outbox, data);
+	} else {
+		CamelStore *store;
+
+		store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
+								   (const char *) account_name,
+								   IM_ACCOUNT_TYPE_STORE);
+		camel_store_get_folder (store, folder_name,
+					CAMEL_STORE_FOLDER_CREATE | CAMEL_STORE_FOLDER_BODY_INDEX, 
+					G_PRIORITY_DEFAULT_IDLE, data->cancellable,
+					get_message_get_folder_cb, data);
+	}
 }
 
 typedef struct _FlagMessageData {
@@ -1764,22 +1911,9 @@ parse_flags (const char *flags_list)
 }
 
 static void
-flag_message_get_folder_cb (GObject *source_object,
-			   GAsyncResult *result,
-			   gpointer userdata)
+flag_message_do_flag (CamelFolder *folder,
+		      FlagMessageData *data)
 {
-	FlagMessageData *data = (FlagMessageData *) userdata;
-	GError *error = NULL;
-	CamelStore *store = (CamelStore *) source_object;
-	CamelFolder *folder;
-
-	folder = camel_store_get_folder_finish (store, result, &error);
-
-	if (error && data->error == NULL) {
-		g_cancellable_cancel (data->cancellable);
-		g_propagate_error (&data->error, error);
-	}
-
 	if (data->error == NULL) {
 		const char *message_uid;
 		const char *set_flags_str, *unset_flags_str;
@@ -1815,9 +1949,29 @@ flag_message_get_folder_cb (GObject *source_object,
 }
 
 static void
+flag_message_get_folder_cb (GObject *source_object,
+			   GAsyncResult *result,
+			   gpointer userdata)
+{
+	FlagMessageData *data = (FlagMessageData *) userdata;
+	GError *error = NULL;
+	CamelStore *store = (CamelStore *) source_object;
+	CamelFolder *folder;
+
+	folder = camel_store_get_folder_finish (store, result, &error);
+
+	if (error && data->error == NULL) {
+		g_cancellable_cancel (data->cancellable);
+		g_propagate_error (&data->error, error);
+	}
+
+	flag_message_do_flag (folder, data);
+
+}
+
+static void
 flag_message (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 {
-	CamelStore *store;
 	const char *account_name;
 	const char *folder_name;
 	FlagMessageData *data = g_new0 (FlagMessageData, 1);
@@ -1829,13 +1983,33 @@ flag_message (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 
 	account_name = g_hash_table_lookup (params, "account");
 	folder_name = g_hash_table_lookup (params, "folder");
-	store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
-							   (const char *) account_name,
-							   IM_ACCOUNT_TYPE_STORE);
-	camel_store_get_folder (store, folder_name,
-				CAMEL_STORE_FOLDER_CREATE | CAMEL_STORE_FOLDER_BODY_INDEX, 
-				G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-				flag_message_get_folder_cb, data);
+
+
+	if (g_strcmp0 (folder_name, IM_LOCAL_DRAFTS_TAG) == 0) {
+		CamelFolder *drafts;
+
+		drafts = im_service_mgr_get_drafts (im_service_mgr_get_instance (),
+						    data->cancellable,
+						    &data->error);
+		flag_message_do_flag (drafts, data);
+	} else if (g_strcmp0 (folder_name, IM_LOCAL_OUTBOX_TAG) == 0) {
+		CamelFolder *outbox;
+
+		outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
+						    (const char *) account_name,
+						    data->cancellable,
+						    &data->error);
+		flag_message_do_flag (outbox, data);
+	} else {
+		CamelStore *store;
+		store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
+								   (const char *) account_name,
+								   IM_ACCOUNT_TYPE_STORE);
+		camel_store_get_folder (store, folder_name,
+					CAMEL_STORE_FOLDER_CREATE | CAMEL_STORE_FOLDER_BODY_INDEX, 
+					G_PRIORITY_DEFAULT_IDLE, data->cancellable,
+					flag_message_get_folder_cb, data);
+	}
 }
 
 typedef struct _ComposerSaveData {
