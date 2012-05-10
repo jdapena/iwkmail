@@ -893,6 +893,26 @@ sync_folders_outbox_synchronize_cb (GObject *source_object,
 }
 
 static void
+sync_folders_folder_synchronize_cb (GObject *source_object,
+				    GAsyncResult *result,
+				    gpointer userdata)
+{
+	SyncFoldersData *data = (SyncFoldersData *) userdata;
+	GError *_error = NULL;
+
+	data->count--;
+	camel_folder_synchronize_finish (CAMEL_FOLDER (source_object),
+					 result,
+					 &_error);
+	if (_error)
+		g_error_free (_error);
+
+	if (data->count == 0) {
+		finish_sync_folders (data);
+	}
+}
+
+static void
 sync_folders_refresh_info_cb (GObject *source_object,
 			      GAsyncResult *result,
 			      gpointer userdata)
@@ -915,6 +935,12 @@ sync_folders_refresh_info_cb (GObject *source_object,
 			g_hash_table_insert (g_hash_table_lookup (data->updated_folders, account_id), 
 					     g_strdup (camel_folder_get_full_name (CAMEL_FOLDER (source_object))),
 					     g_object_ref (source_object));
+
+		camel_folder_synchronize (CAMEL_FOLDER (source_object), FALSE,
+					  G_PRIORITY_DEFAULT_IDLE, data->cancellable,
+					  sync_folders_folder_synchronize_cb,
+					  data);
+		data->count++;
 	}
 
 	if (_error)
@@ -1138,6 +1164,10 @@ dump_message_info (JsonBuilder *builder,
 		   CamelMessageInfo *mi)
 {
 	CamelMessageFlags flags;
+
+	flags = camel_message_info_flags (mi);
+	if (flags & CAMEL_MESSAGE_DELETED)
+		return;
 	json_builder_begin_object(builder);
 	json_builder_set_member_name (builder, "uid");
 	json_builder_add_string_value (builder,
@@ -1170,11 +1200,9 @@ dump_message_info (JsonBuilder *builder,
 	json_builder_add_int_value (builder,
 				       camel_message_info_size (mi));
 
-	flags = camel_message_info_flags (mi);
 	json_builder_set_member_name (builder, "unread");
 	json_builder_add_boolean_value (builder,
 					!(flags & CAMEL_MESSAGE_SEEN));
-	flags = camel_message_info_flags (mi);
 	json_builder_set_member_name (builder, "draft");
 	json_builder_add_boolean_value (builder,
 					flags & CAMEL_MESSAGE_DRAFT);
@@ -1211,6 +1239,9 @@ dump_message_as_info (JsonBuilder *builder,
 		      CamelMimeMessage *message)
 {
 	CamelMessageFlags flags;
+	flags = camel_folder_get_message_flags (folder, uid);
+	if (flags & CAMEL_MESSAGE_DELETED)
+		return;
 	json_builder_begin_object(builder);
 	json_builder_set_member_name (builder, "uid");
 	json_builder_add_string_value (builder, uid);
@@ -1235,7 +1266,6 @@ dump_message_as_info (JsonBuilder *builder,
 	json_builder_add_string_value (builder,
 				       camel_mime_message_get_subject (message));
 
-	flags = camel_folder_get_message_flags (folder, uid);
 	json_builder_set_member_name (builder, "unread");
 	json_builder_add_boolean_value (builder,
 					!(flags & CAMEL_MESSAGE_SEEN));
@@ -1903,6 +1933,8 @@ parse_flags (const char *flags_list)
 	for (node = flags; *node != NULL; node++) {
 		if (g_strstr_len (*node, -1, "seen"))
 			result |= CAMEL_MESSAGE_SEEN;
+		if (g_strstr_len (*node, -1, "deleted"))
+			result |= CAMEL_MESSAGE_DELETED;
 	}
 
 	g_strfreev (flags);

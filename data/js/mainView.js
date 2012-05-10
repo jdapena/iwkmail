@@ -155,6 +155,24 @@ function markAsUnread ()
     markMessageAsUnread (globalStatus.currentMessage);
 }
 
+function markMessageAsDeleted(uid)
+{
+    $("#message-item-"+uid).hide();
+    iwkRequest ("flagMessage", "Marking message as deleted", {
+	account: globalStatus.currentAccount,
+	folder: globalStatus.currentFolder,
+	message: uid,
+	setFlags: "deleted",
+    }).done(function (msg) {
+    });
+}
+
+function deleteMessage ()
+{
+    markMessageAsDeleted (globalStatus.currentMessage);
+    history.back ();
+}
+
 function showMessage(message)
 {
     globalStatus.messageStructure = null;
