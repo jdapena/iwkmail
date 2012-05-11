@@ -511,7 +511,6 @@ im_account_mgr_add_server_account (ImAccountMgr * self,
 				       const gchar *hostname,
 				       guint portnumber,
 				       const gchar *username, 
-				       const gchar *password,
 				       ImProtocolType proto,
 				       ImProtocolType security,
 				       ImProtocolType auth)
@@ -559,17 +558,6 @@ im_account_mgr_add_server_account (ImAccountMgr * self,
 		goto cleanup;
 	
 	
-	/* password */
-	key = _im_account_mgr_get_account_keyname_cached (priv, name, IM_ACCOUNT_PASSWORD, TRUE);
-	ok = im_conf_set_string (priv->im_conf, key, null_means_empty (password), &err);
-	if (err) {
-		g_printerr ("im: failed to set %s: %s\n", key, err->message);
-		g_error_free (err);
-		ok = FALSE;
-	}
-	if (!ok)
-		goto cleanup;
-
 	/* proto */
 	key = _im_account_mgr_get_account_keyname_cached (priv, name, IM_ACCOUNT_PROTO, TRUE);
 	ok = im_conf_set_string (priv->im_conf, key,

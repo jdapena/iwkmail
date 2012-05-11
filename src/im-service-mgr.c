@@ -54,9 +54,12 @@
 #include <im-service-mgr.h>
 
 #include <im-account-mgr-helpers.h>
+#include <im-error.h>
 
 #include <string.h>
 #include <glib/gi18n.h>
+#include <gnome-keyring.h>
+#include <gtk/gtk.h>
 
 #define IM_OUTBOX_STORE_NAME "outboxes"
 #define IM_LOCAL_STORE_NAME "local"
@@ -94,6 +97,11 @@ static void    insert_account              (ImServiceMgr *self,
 static void    on_account_removed          (ImAccountMgr *acc_mgr, 
 					    const gchar *account,
 					    gpointer user_data);
+static gboolean authenticate_sync          (CamelSession *session,
+					    CamelService *service,
+					    const gchar *mechanism,
+					    GCancellable *cancellable,
+					    GError **error);
 static gchar * get_password                (CamelSession *session,
 					    CamelService *service,
 					    const gchar *prompt,
@@ -104,6 +112,10 @@ static gboolean forget_password	           (CamelSession *session,
 					    CamelService *service,
 					    const gchar *item,
 					    GError **error);
+static gchar * get_keyring_password        (CamelService *service,
+					    guint32 flags);
+static gboolean set_keyring_password       (CamelService *service,
+					    const char *password);
 static gint    alert_user                  (CamelSession *session,
 					    CamelSessionAlertType type,
 					    const gchar *prompt,
@@ -129,8 +141,6 @@ enum {
 typedef struct _ImServiceMgrPrivate ImServiceMgrPrivate;
 struct _ImServiceMgrPrivate {
 	ImAccountMgr   *account_mgr;
-	GHashTable         *store_passwords;
-	GHashTable         *transport_passwords;
 
 	/* We cache the lists of accounts here */
 	GHashTable          *store_services;
@@ -231,6 +241,7 @@ im_service_mgr_class_init (ImServiceMgrClass *klass)
 
 	session_class->get_password = get_password;
 	session_class->forget_password = forget_password;
+	session_class->authenticate_sync = authenticate_sync;
 	session_class->alert_user = alert_user;
 	session_class->get_filter_driver = get_filter_driver;
 	session_class->forward_to = forward_to;
@@ -245,11 +256,6 @@ im_service_mgr_instance_init (ImServiceMgr *obj)
 	ImServiceMgrPrivate *priv;
 
 	priv = IM_SERVICE_MGR_GET_PRIVATE(obj);
-
-	priv->store_passwords = g_hash_table_new_full (g_str_hash, g_str_equal,
-						       g_free, g_free);
-	priv->transport_passwords = g_hash_table_new_full (g_str_hash, g_str_equal,
-							   g_free, g_free);
 
 	priv->store_services = g_hash_table_new_full (g_str_hash, g_str_equal,
 						      g_free, g_object_unref);
@@ -285,6 +291,143 @@ on_account_changed (ImAccountMgr *acc_mgr,
 	}
 }
 
+static gchar *
+get_keyring_password (CamelService *service, guint32 flags)
+{
+	CamelSettings *settings;
+	gchar *password = NULL;
+
+	settings = camel_service_get_settings (service);
+	if (CAMEL_IS_NETWORK_SETTINGS (settings)) {
+		CamelNetworkSettings *network = (CamelNetworkSettings *) settings;
+		CamelProvider *provider;
+		GList *results = NULL;
+
+		provider = camel_service_get_provider (service);
+		if (GNOME_KEYRING_RESULT_OK == 
+		    gnome_keyring_find_network_password_sync
+		    (camel_network_settings_get_user (network),
+		     NULL,
+		     camel_network_settings_get_host (network),
+		     NULL,
+		     provider->protocol,
+		     NULL,
+		     camel_network_settings_get_port (network),
+		     &results)) {
+			if (results != NULL) {
+				GnomeKeyringNetworkPasswordData *data = 
+					(GnomeKeyringNetworkPasswordData *) results->data;
+
+				password = g_strdup (data->password);
+				gnome_keyring_network_password_list_free (results);
+			}
+		}
+
+		if (password == NULL || flags & CAMEL_SESSION_PASSWORD_REPROMPT) {
+			GtkWidget *dialog;
+			GtkWidget *password_entry;
+
+			dialog = gtk_message_dialog_new_with_markup
+				(NULL, GTK_DIALOG_MODAL,
+				 GTK_MESSAGE_QUESTION, GTK_BUTTONS_OK_CANCEL,
+				 _("<b>Need password</b>\nPassword needed for %s server at %s"),
+				 provider->protocol,
+				 camel_network_settings_get_host (network));
+
+			password_entry = gtk_entry_new ();
+			if (password) gtk_entry_set_text (GTK_ENTRY (password_entry), password);
+			gtk_entry_set_visibility (GTK_ENTRY (password_entry), FALSE);
+			gtk_container_add (GTK_CONTAINER (gtk_message_dialog_get_message_area (GTK_MESSAGE_DIALOG (dialog))),
+					   password_entry);
+			gtk_widget_show (password_entry);
+			g_free (password);
+			password = NULL;
+
+			if (gtk_dialog_run (GTK_DIALOG (dialog)) == GTK_RESPONSE_OK) {
+				password = g_strdup (gtk_entry_get_text (GTK_ENTRY (password_entry)));
+				set_keyring_password (service, password);
+			}
+			gtk_widget_destroy (dialog);
+		}
+	} else {
+		g_return_val_if_reached (NULL);
+	}
+
+	return password;
+}
+
+static gboolean
+set_keyring_password (CamelService *service, const char *password)
+{
+	CamelSettings *settings;
+
+	settings = camel_service_get_settings (service);
+	if (CAMEL_IS_NETWORK_SETTINGS (settings)) {
+		CamelNetworkSettings *network = (CamelNetworkSettings *) settings;
+		CamelProvider *provider;
+		GList *results = NULL;
+
+		provider = camel_service_get_provider (service);
+		if (password != NULL) {
+			guint32 item_id;
+			gnome_keyring_set_network_password_sync
+				(NULL,
+				 camel_network_settings_get_user (network),
+				 NULL,
+				 camel_network_settings_get_host (network),
+				 NULL,
+				 provider->protocol,
+				 NULL,
+				 camel_network_settings_get_port (network),
+				 password,
+				 &item_id);
+		} else {
+			if (GNOME_KEYRING_RESULT_OK == 
+			    gnome_keyring_find_network_password_sync
+			    (camel_network_settings_get_user (network),
+			     NULL,
+			     camel_network_settings_get_host (network),
+			     NULL,
+			     provider->protocol,
+			     NULL,
+			     camel_network_settings_get_port (network),
+			     &results)) {
+				if (results != NULL) {
+					GList *node;
+					for (node = results; node != NULL; node = g_list_next (node)) {
+						GnomeKeyringNetworkPasswordData *data = 
+							(GnomeKeyringNetworkPasswordData *) node->data;
+						gnome_keyring_item_delete_sync (data->keyring, data->item_id);
+					}
+					gnome_keyring_network_password_list_free (results);
+				}
+			}
+		}
+	} else {
+		g_return_val_if_reached (FALSE);
+	}
+	return TRUE;
+}
+
+typedef struct _IdleGetPasswordData {
+	CamelService *service;
+	guint32 flags;
+	gchar *password;
+	GMutex mutex;
+	GCond cond;
+} IdleGetPasswordData;
+
+static gboolean
+idle_get_password (gpointer userdata)
+{
+	IdleGetPasswordData *data = (IdleGetPasswordData *) userdata;
+	g_mutex_lock (&data->mutex);
+	data->password = get_keyring_password (data->service, data->flags);
+	g_cond_signal (&data->cond);
+	g_mutex_unlock (&data->mutex);
+	return FALSE;
+}
+
 static 	gchar *
 get_password (CamelSession *session,
 	      CamelService *service,
@@ -293,28 +436,23 @@ get_password (CamelSession *session,
 	      guint32 flags,
 	      GError **error)
 {
-	ImServiceMgr *self = IM_SERVICE_MGR(session);
-	ImServiceMgrPrivate *priv =IM_SERVICE_MGR_GET_PRIVATE(self);
-	GHashTable *password_hash;
-	gchar *account;
-	gchar *password = NULL;
+	gchar *password;
 
-	if (CAMEL_IS_STORE (service)) {
-		password_hash = priv->store_passwords;
+	if (g_main_context_is_owner (g_main_context_default ())) {
+		password = get_keyring_password (service, flags);
 	} else {
-		password_hash = priv->transport_passwords;
-	}
-	password_hash = CAMEL_IS_STORE (service)?
-		priv->store_passwords:
-		priv->transport_passwords;
-	account = im_account_mgr_get_server_parent_account_name
-		(im_account_mgr_get_instance (),
-		 camel_service_get_uid (service),
-		 CAMEL_IS_STORE (service)?IM_ACCOUNT_TYPE_STORE:IM_ACCOUNT_TYPE_TRANSPORT);
+		IdleGetPasswordData *data = g_new0 (IdleGetPasswordData, 1);
 
-	password = g_strdup (g_hash_table_lookup (password_hash, account));
+		data->service = service;
+		data->flags = flags;
+
+		g_mutex_lock (&data->mutex);
+		gdk_threads_add_idle (idle_get_password, data);
+		g_cond_wait (&data->cond, &data->mutex);
 	
-	g_free (account);
+		password = data->password;
+		g_free (data);
+	}
 
 	return password;
 }
@@ -325,29 +463,111 @@ forget_password	(CamelSession *session,
 		 const gchar *item,
 		 GError **error)
 {
-	ImServiceMgr *self = IM_SERVICE_MGR(session);
-	ImServiceMgrPrivate *priv =IM_SERVICE_MGR_GET_PRIVATE(self);
-	GHashTable *password_hash;
-	gchar *account;
+	gboolean result;
 
-	if (CAMEL_IS_STORE (service)) {
-		password_hash = priv->store_passwords;
-	} else {
-		password_hash = priv->transport_passwords;
+	gdk_threads_enter ();
+	result = set_keyring_password (service, NULL);
+	gdk_threads_leave ();
+
+	return result;
+}
+
+static gboolean
+authenticate_sync (CamelSession *session,
+		   CamelService *service,
+		   const gchar *mechanism,
+		   GCancellable *cancellable,
+		   GError **error)
+{
+	GError *_error = NULL;
+	CamelAuthenticationResult auth_result;
+	CamelServiceAuthType *auth_type = NULL;
+	guint32 password_flags;
+
+	if (mechanism != NULL) {
+		auth_type = camel_sasl_authtype (mechanism);
+		if (auth_type == NULL) {
+			g_set_error (&_error, IM_ERROR_DOMAIN,
+				     IM_ERROR_AUTH_FAILED,
+				     _("Unknown authentication mechanism %s"),
+				     mechanism);
+			goto finish;
+		}
 	}
-	password_hash = CAMEL_IS_STORE (service)?
-		priv->store_passwords:
-		priv->transport_passwords;
-	account = im_account_mgr_get_server_parent_account_name
-		(im_account_mgr_get_instance (),
-		 camel_service_get_uid (service),
-		 CAMEL_IS_STORE (service)?IM_ACCOUNT_TYPE_STORE:IM_ACCOUNT_TYPE_TRANSPORT);
 
-	g_hash_table_remove (password_hash, account);
-	
-	g_free (account);
+	if (auth_type != NULL && !auth_type->need_password) {
+		auth_result = camel_service_authenticate_sync (service, 
+							       mechanism, 
+							       cancellable, error);
+		if (auth_result != CAMEL_AUTHENTICATION_ACCEPTED) {
+			g_set_error (&_error, IM_ERROR_DOMAIN,
+				     IM_ERROR_AUTH_FAILED,
+				     _("Failed to authenticate using %s without password"),
+				     mechanism);
+		}
+		goto finish;
+	}
 
-	return TRUE;
+	if (mechanism != NULL) {
+		CamelProvider *provider;
+		CamelSasl *sasl;
+		GError *sasl_error= NULL;
+
+		provider = camel_service_get_provider (service);
+		sasl = camel_sasl_new (provider->protocol, mechanism, service);
+		if (sasl != NULL) {
+			camel_sasl_try_empty_password_sync (sasl, cancellable, &sasl_error);
+			g_object_unref (sasl);
+			if (g_error_matches (sasl_error, G_IO_ERROR, G_IO_ERROR_CANCELLED)) {
+				g_propagate_error (&_error, sasl_error);
+				goto finish;
+			} else if (sasl_error == NULL) {
+				goto finish;
+			} else {
+				g_error_free (sasl_error);
+			}
+		}
+	}
+
+	password_flags = CAMEL_SESSION_PASSWORD_SECRET;
+	while (TRUE) {
+		const char *password;
+
+		password = camel_service_get_password (service);
+		if (password == NULL) {
+			gchar *new_password;
+
+			new_password = camel_session_get_password (session, service, "", "password",
+								   password_flags, &_error);
+			camel_service_set_password (service, new_password);
+			g_free (new_password);
+
+			if (password == NULL && _error == NULL) {
+				g_set_error (&_error, IM_ERROR_DOMAIN,
+					     IM_ERROR_AUTH_FAILED,
+					     _("No password provided"));
+			}
+			if (_error) goto finish;
+		}
+
+		auth_result = camel_service_authenticate_sync (service, mechanism, 
+							       cancellable, &_error);
+
+		if (auth_result == CAMEL_AUTHENTICATION_REJECTED) {
+			password_flags |= CAMEL_SESSION_PASSWORD_REPROMPT;
+			camel_service_set_password (service, NULL);
+		} else {
+			break;
+		}
+	}
+
+ finish:
+	if (_error) {
+		g_propagate_error (error, _error);
+		return FALSE;
+	} else {
+		return (auth_result == CAMEL_AUTHENTICATION_ACCEPTED);
+	}
 }
 
 static gint
@@ -383,16 +603,6 @@ im_service_mgr_finalize (GObject *obj)
 {
 	ImServiceMgr *self        = IM_SERVICE_MGR(obj);
 	ImServiceMgrPrivate *priv = IM_SERVICE_MGR_GET_PRIVATE(self);
-
-	if (priv->store_passwords) {
-		g_hash_table_destroy (priv->store_passwords);
-		priv->store_passwords = NULL;
-	}
-
-	if (priv->transport_passwords) {
-		g_hash_table_destroy (priv->transport_passwords);
-		priv->transport_passwords = NULL;
-	}
 
 	if (priv->account_mgr) {
 		g_object_unref (G_OBJECT(priv->account_mgr));
@@ -887,13 +1097,6 @@ create_service (ImServiceMgr *self,
 	}
 
 	init_store_outbox (self, name, NULL);
-
-	g_hash_table_replace ((type == IM_ACCOUNT_TYPE_STORE)?
-			      priv->store_passwords:
-			      priv->transport_passwords,
-			      g_strdup (name),
-			      g_strdup (im_server_account_settings_get_password (server_settings)));
-	camel_service_set_password (service, im_server_account_settings_get_password (server_settings));
 
 	g_object_unref (server_settings);
 	g_object_unref (account_settings);

@@ -254,49 +254,6 @@ im_account_mgr_set_server_account_username_has_succeeded (ImAccountMgr *self,
 }
 
 /**
- * im_account_mgr_get_server_account_password:
- * @self: an #ImAccountMgr
- * @account_name: The name of a server account.
- *
- * Gets the password for this server account from the account settings.
- *
- * Returns: (transfer full): the password
- */
-gchar*
-im_account_mgr_get_server_account_password (ImAccountMgr *self,
-					    const gchar* account_name)
-{
-	return im_account_mgr_get_string (self, account_name, IM_ACCOUNT_PASSWORD, 
-		TRUE /* server account */);	
-}
-
-/**
- * im_account_mgr_get_server_account_has_password:
- * @self: an #ImAccountMgr
- * @account_name: The name of a server account.
- *
- * Gets whether a password has been set for this server account in the account settings.
- * Returns: %TRUE if account has password, %FALSE otherwise
- */
-gboolean
-im_account_mgr_get_server_account_has_password (ImAccountMgr *self,
-						const gchar* account_name)
-{
-	gboolean result = FALSE;
-	gchar *password = im_account_mgr_get_string (self, account_name, IM_ACCOUNT_PASSWORD, 
-						     TRUE /* server account */);
-	if (password && strlen (password)) {
-		result = TRUE;
-		
-		/* Clean password */
-		bzero (password, strlen (password));
-	}
-	
-	g_free (password);
-	return result;
-}
-			 
-/**
  * im_server_account_im_account_mgr_get_server_account_hostname:
  * @self: an #ImAccountMgr
  * @account_name: The name of a server account.
@@ -477,7 +434,7 @@ im_account_mgr_load_server_settings (ImAccountMgr *self,
 	ImServerAccountSettings *settings = NULL;
 	ImProtocol *protocol;
 	ImProtocolRegistry *registry;
-	gchar *hostname, *username, *pwd, *uri, *proto, *auth, *sec;
+	gchar *hostname, *username, *uri, *proto, *auth, *sec;
 
 	if (!im_account_mgr_account_exists (self, name, TRUE)) {
 		g_warning ("%s account %s does not exist", __FUNCTION__, name);
@@ -530,20 +487,13 @@ im_account_mgr_load_server_settings (ImAccountMgr *self,
 								  IM_PROTOCOLS_CONNECTION_NONE);
 	}
 	
-	/* Username, password and URI. Note that the URI could include
+	/* Username and URI. Note that the URI could include
 	   the former two, so in this case there is no need to have
 	   them */
 	username = im_account_mgr_get_string (self, name,
 					      IM_ACCOUNT_USERNAME,TRUE);
 	if (username)
 		im_server_account_settings_set_username (settings, username);
-	
-	pwd = im_account_mgr_get_string (self, name,
-					 IM_ACCOUNT_PASSWORD, TRUE);
-	if (pwd) {
-		im_server_account_settings_set_password (settings, pwd);
-		g_free (pwd);
-	}
 	
 	uri = im_account_mgr_get_string (self, name,
 					 IM_ACCOUNT_URI, TRUE);
@@ -609,14 +559,12 @@ im_account_mgr_save_server_settings (ImAccountMgr *self,
 	if (!uri) {
 		const gchar *hostname;
 		const gchar *username;
-		const gchar *password;
 		gint port;
 		const gchar *auth_protocol_name;
 		const gchar *security_name;
 
 		hostname = null_means_empty (im_server_account_settings_get_hostname (settings));
 		username = null_means_empty (im_server_account_settings_get_username (settings));
-		password = null_means_empty (im_server_account_settings_get_password (settings));
 		port = im_server_account_settings_get_port (settings);
 		protocol = im_protocol_registry_get_protocol_by_type (protocol_registry,
 								      im_server_account_settings_get_auth_protocol (settings));
@@ -630,9 +578,6 @@ im_account_mgr_save_server_settings (ImAccountMgr *self,
 		if (!has_errors)
 			(has_errors = !im_account_mgr_set_string (self, account_name, IM_ACCOUNT_USERNAME,
 								  username, TRUE));
-		if (!has_errors)
-			(has_errors = !im_account_mgr_set_string (self, account_name, IM_ACCOUNT_PASSWORD,
-								  password, TRUE));
 		if (!has_errors)
 			(has_errors = !im_account_mgr_set_string (self, account_name, IM_ACCOUNT_PROTO,
 								  protocol_name, TRUE));

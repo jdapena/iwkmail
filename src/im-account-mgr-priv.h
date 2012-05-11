@@ -70,8 +70,6 @@
 #define IM_ACCOUNT_USE_CONNECTION_SPECIFIC_SMTP  "use_specific_smtp" /* boolean */
 
 /* server account keys */
-#define IM_ACCOUNT_PASSWORD          "password"          /* string */
-#define IM_ACCOUNT_REMEMBER_PWD	 "remember_pwd"      /* boolean */
 #define IM_ACCOUNT_HOSTNAME          "hostname"          /* string */
 #define IM_ACCOUNT_USERNAME          "username"          /* string */
 #define IM_ACCOUNT_USERNAME_HAS_SUCCEEDED          "username_succeeded"          /* string */

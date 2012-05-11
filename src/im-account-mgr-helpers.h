@@ -86,10 +86,6 @@ gboolean            im_account_mgr_get_server_account_username_has_succeeded (Im
 void                im_account_mgr_set_server_account_username_has_succeeded (ImAccountMgr *self, 
 									      const gchar* account_name, 
 									      gboolean succeeded);
-gchar *             im_account_mgr_get_server_account_password     (ImAccountMgr *self, 
-								    const gchar* account_name);
-gboolean            im_account_mgr_get_server_account_has_password (ImAccountMgr *self, 
-								    const gchar* account_name);
 
 gchar *             im_account_mgr_get_server_account_hostname     (ImAccountMgr *self, 
 								    const gchar* account_name);

@@ -105,7 +105,6 @@ create_store (GHashTable *params, GError **error)
 	const char *port_str;
 	const char *security_str;
 	const char *username;
-	const char *password;
 
 	ImProtocol *protocol = NULL;
 	guint port;
@@ -126,8 +125,6 @@ create_store (GHashTable *params, GError **error)
 			     _("Missing incoming server username"));
 		goto finish;
 	}
-	password = (const char *) g_hash_table_lookup (params, "incoming-server-password");
-
 	protocol = im_protocol_registry_get_protocol_by_name (im_protocol_registry_get_instance (),
 							      IM_PROTOCOL_REGISTRY_STORE_PROTOCOLS,
 							      protocol_str);
@@ -167,7 +164,6 @@ create_store (GHashTable *params, GError **error)
 	im_server_account_settings_set_protocol (settings, im_protocol_get_type_id (protocol));
 	im_server_account_settings_set_port (settings, port);
 	im_server_account_settings_set_username (settings, username);
-	im_server_account_settings_set_password (settings, password);
 	im_server_account_settings_set_security_protocol (settings, im_protocol_get_type_id (security_protocol));
 
 finish:
@@ -188,7 +184,6 @@ create_transport (GHashTable *params, GError **error)
 	const char *security_str;
 	const char *auth_str;
 	const char *username;
-	const char *password;
 
 	ImProtocol *protocol = NULL;
 	guint port;
@@ -210,7 +205,6 @@ create_transport (GHashTable *params, GError **error)
 		goto finish;
 	}
 	auth_str = (const char *) g_hash_table_lookup (params, "outgoing-auth-choice");
-	password = (const char *) g_hash_table_lookup (params, "outgoing-server-password");
 
 	protocol = im_protocol_registry_get_protocol_by_name (im_protocol_registry_get_instance (),
 							      IM_PROTOCOL_REGISTRY_TRANSPORT_PROTOCOLS,
@@ -254,7 +248,6 @@ create_transport (GHashTable *params, GError **error)
 	im_server_account_settings_set_protocol (settings, im_protocol_get_type_id (protocol));
 	im_server_account_settings_set_port (settings, port);
 	im_server_account_settings_set_username (settings, username);
-	im_server_account_settings_set_password (settings, password);
 	im_server_account_settings_set_security_protocol (settings, im_protocol_get_type_id (security_protocol));
 	im_server_account_settings_set_auth_protocol (settings, im_protocol_get_type_id (auth_protocol));
 
@@ -676,7 +669,6 @@ sync_folders_outbox_send_to_cb (GObject *source_object,
 	GError *_error = NULL;
 	char *uid = get_message_data->uid;
 
-	data->count--;
 	if (!camel_transport_send_to_finish (CAMEL_TRANSPORT (source_object), result, &_error)) {
 		const char *attempt_str;
 		int attempt;
@@ -717,6 +709,7 @@ sync_folders_outbox_send_to_cb (GObject *source_object,
 		g_propagate_error (&data->error, _error);
 	}
 
+	data->count--;
 	if (data->count == 0) {
 		finish_sync_folders (data);
 	}
@@ -734,8 +727,6 @@ sync_folders_outbox_get_message_cb (GObject *source_object,
 	char *uid = get_message_data->uid;
 
 	CamelMimeMessage *message;
-
-	data->count--;
 
 	message = camel_folder_get_message_finish (outbox, result, &_error);
 
@@ -768,12 +759,12 @@ sync_folders_outbox_get_message_cb (GObject *source_object,
 		
 		if (camel_service_connect_sync (CAMEL_SERVICE (transport),
 						&_error)) {
+			data->count++;
 			camel_transport_send_to (transport,
 						 message, CAMEL_ADDRESS (camel_mime_message_get_from (message)),
 						     CAMEL_ADDRESS (recipients),
 						 G_PRIORITY_DEFAULT_IDLE, data->cancellable,
 						 sync_folders_outbox_send_to_cb, get_message_data);
-			data->count++;
 		}
 		
 		g_object_unref (recipients);
@@ -782,6 +773,8 @@ sync_folders_outbox_get_message_cb (GObject *source_object,
 	if (_error) {
 		g_propagate_error (&data->error, _error);
 	}
+
+	data->count--;
 
 	if (data->count == 0) {
 		finish_sync_folders (data);
@@ -795,7 +788,6 @@ sync_folders_outbox_synchronize_cb (GObject *source_object,
 {
 	SyncFoldersData *data = (SyncFoldersData *) userdata;
 	CamelFolder *outbox = (CamelFolder *) source_object;
-	data->count--;
 	if (camel_folder_synchronize_finish (CAMEL_FOLDER (source_object),
 					     result,
 					     NULL)) {
@@ -833,18 +825,19 @@ sync_folders_outbox_synchronize_cb (GObject *source_object,
 						get_message_data->data = data;
 						get_message_data->uid = g_strdup (uid);
 						get_message_data->outbox = g_object_ref (outbox);
+						data->count++;
 						camel_folder_get_message (outbox, uid,
 									  G_PRIORITY_DEFAULT_IDLE,
 									  data->cancellable,
 									  sync_folders_outbox_get_message_cb,
 									  get_message_data);
-						data->count++;
 					}
 				}
 			}
 		}
 	}
 
+	data->count--;
 	if (data->count == 0) {
 		finish_sync_folders (data);
 	}
@@ -858,13 +851,13 @@ sync_folders_folder_synchronize_cb (GObject *source_object,
 	SyncFoldersData *data = (SyncFoldersData *) userdata;
 	GError *_error = NULL;
 
-	data->count--;
 	camel_folder_synchronize_finish (CAMEL_FOLDER (source_object),
 					 result,
 					 &_error);
 	if (_error)
 		g_error_free (_error);
 
+	data->count--;
 	if (data->count == 0) {
 		finish_sync_folders (data);
 	}
@@ -878,20 +871,20 @@ sync_folders_refresh_info_cb (GObject *source_object,
 	SyncFoldersData *data = (SyncFoldersData *) userdata;
 	GError *_error = NULL;
 
-	data->count--;
 	if (camel_folder_refresh_info_finish (CAMEL_FOLDER (source_object),
 					      result,
 					      &_error)) {
+		data->count++;
 		camel_folder_synchronize (CAMEL_FOLDER (source_object), FALSE,
 					  G_PRIORITY_DEFAULT_IDLE, data->cancellable,
 					  sync_folders_folder_synchronize_cb,
 					  data);
-		data->count++;
 	}
 
 	if (_error)
 		g_error_free (_error);
 
+	data->count--;
 	if (data->count == 0) {
 		finish_sync_folders (data);
 	}
@@ -905,8 +898,6 @@ sync_folders_get_folder_cb (GObject *source_object,
 	SyncFoldersData *data = (SyncFoldersData *) userdata;
 	CamelFolder *folder;
 	GError *_error = NULL;
-
-	data->count--;
 
 	folder = camel_store_get_folder_finish (CAMEL_STORE (source_object),
 						result, &_error);
@@ -924,6 +915,8 @@ sync_folders_get_folder_cb (GObject *source_object,
 	}
 	if (_error)
 		g_error_free (_error);
+
+	data->count--;
 
 	if (data->count == 0) {
 		finish_sync_folders (data);
@@ -1046,8 +1039,6 @@ sync_folders_get_local_inbox_folder_info_cb (GObject *source_object,
 	CamelFolderInfo *fi;
 	GError *error = NULL;
 
-	data->count--;
-
 	fi = camel_store_get_folder_info_finish (CAMEL_STORE (source_object),
 						 result, &error);
 	if (fi) {
@@ -1059,6 +1050,8 @@ sync_folders_get_local_inbox_folder_info_cb (GObject *source_object,
 	if (error) {
 		g_error_free (error);
 	}
+
+	data->count--;
 
 	if (data->count == 0) {
 		finish_sync_folders (data);
@@ -1073,8 +1066,6 @@ sync_folders_update_non_storage_uids_cb (GObject *source_object,
 	SyncFoldersData *data = (SyncFoldersData *) userdata;
 	GError *_error = NULL;
 
-	data->count--;
-
 	if (update_non_storage_uids_finish (CAMEL_FOLDER (source_object),
 					    result, &_error)) {
 		CamelStore *remote_store, *local_store;
@@ -1087,15 +1078,17 @@ sync_folders_update_non_storage_uids_cb (GObject *source_object,
 			 IM_ACCOUNT_TYPE_STORE);
 
 		local_store = im_service_mgr_get_local_store (im_service_mgr_get_instance ());
+		data->count++;
 		camel_store_get_folder_info (local_store, account_id, 0,
 					     G_PRIORITY_DEFAULT_IDLE, data->cancellable,
 					     sync_folders_get_local_inbox_folder_info_cb,
 					     data);
-		data->count++;
 	}
 
 	if (_error)
 		g_error_free (_error);
+
+	data->count--;
 
 	if (data->count == 0) {
 		finish_sync_folders (data);
@@ -1110,7 +1103,6 @@ sync_folders_refresh_non_storage_info_cb (GObject *source_object,
 	SyncFoldersData *data = (SyncFoldersData *) userdata;
 	GError *_error = NULL;
 
-	data->count--;
 	if (camel_folder_refresh_info_finish (CAMEL_FOLDER (source_object),
 					      result,
 					      &_error)) {
@@ -1129,13 +1121,13 @@ sync_folders_refresh_non_storage_info_cb (GObject *source_object,
 								      &_error);
 
 			if (local_inbox) {
+				data->count++;
 				update_non_storage_uids (CAMEL_FOLDER (source_object),
 							 local_inbox,
 							 G_PRIORITY_DEFAULT_IDLE,
 							 data->cancellable,
 							 sync_folders_update_non_storage_uids_cb,
 							 data);
-				data->count++;
 			}
 		}
 	}
@@ -1143,6 +1135,7 @@ sync_folders_refresh_non_storage_info_cb (GObject *source_object,
 	if (_error)
 		g_error_free (_error);
 
+	data->count--;
 	if (data->count == 0) {
 		finish_sync_folders (data);
 	}
@@ -1156,8 +1149,6 @@ sync_folders_get_non_storage_inbox_cb (GObject *source_object,
 	SyncFoldersData *data = (SyncFoldersData *) userdata;
 	CamelFolder *folder;
 	GError *_error = NULL;
-
-	data->count--;
 
 	folder = camel_store_get_inbox_folder_finish (CAMEL_STORE (source_object),
 						      result, &_error);
@@ -1174,6 +1165,8 @@ sync_folders_get_non_storage_inbox_cb (GObject *source_object,
 		}
 	}
 
+	data->count--;
+
 	if (data->count == 0) {
 		finish_sync_folders (data);
 	}
@@ -1188,7 +1181,6 @@ sync_folders_get_folder_info_cb (GObject *source_object,
 	CamelFolderInfo *fi;
 	GError *error = NULL;
 	gchar *account_id;
-	data->count--;
 
 	account_id = im_account_mgr_get_server_parent_account_name (im_account_mgr_get_instance (),
 								    camel_service_get_uid (CAMEL_SERVICE (source_object)),
@@ -1200,6 +1192,7 @@ sync_folders_get_folder_info_cb (GObject *source_object,
 			g_hash_table_insert (data->folder_infos, g_strdup (account_id), fi);
 		}
 		if (camel_store_can_refresh_folder (CAMEL_STORE (source_object), fi, NULL)) {
+			data->count++;
 			camel_store_get_folder (CAMEL_STORE (source_object),
 						fi->full_name,
 						CAMEL_STORE_FOLDER_CREATE |
@@ -1208,7 +1201,6 @@ sync_folders_get_folder_info_cb (GObject *source_object,
 						data->cancellable,
 						sync_folders_get_folder_cb,
 						data);
-			data->count++;
 		}
 	}
 	g_free (account_id);
@@ -1216,6 +1208,8 @@ sync_folders_get_folder_info_cb (GObject *source_object,
 		g_cancellable_cancel (data->cancellable);
 		g_propagate_error (&data->error, error);
 	}
+
+	data->count--;
 
 	if (data->count == 0) {
 		finish_sync_folders (data);
@@ -1256,6 +1250,7 @@ sync_folders (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 		  if (CAMEL_IS_STORE (store)) {
 			  CamelProvider *provider = camel_service_get_provider (CAMEL_SERVICE (store));
 			  g_hash_table_insert (data->stores, g_strdup ((char*) node->data), g_object_ref (store));
+			  data->count++;
 			  if (!(provider->flags & CAMEL_PROVIDER_IS_STORAGE)) {
 				  g_hash_table_insert (data->non_storage, g_strdup ((char *) node->data), GINT_TO_POINTER(1));
 				  camel_store_get_inbox_folder (store,
@@ -1272,25 +1267,25 @@ sync_folders (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 							       sync_folders_get_folder_info_cb,
 							       data);
 			  }
-			  data->count++;
 		  }
 		  outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
 						      (const char *)node->data,
 						      data->cancellable,
 						      NULL);
 		  if (outbox) {
+			  data->count++;
 			  camel_folder_synchronize (outbox, TRUE,
 						    G_PRIORITY_DEFAULT_IDLE,
 						    data->cancellable,
 						    sync_folders_outbox_synchronize_cb,
 						    data);
-			  data->count++;
 		  }
 		  
 	  }
 
 	  outbox_store = im_service_mgr_get_outbox_store (im_service_mgr_get_instance ());
 	  if (outbox_store) {
+		  data->count++;
 		  camel_store_get_folder_info (outbox_store, NULL,
 					       CAMEL_STORE_FOLDER_INFO_RECURSIVE |
 					       CAMEL_STORE_FOLDER_INFO_NO_VIRTUAL |
@@ -1299,7 +1294,6 @@ sync_folders (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 					       data->cancellable,
 					       sync_folders_get_folder_info_cb,
 					       data);
-		  data->count++;
 	  }
 	  if (data->count == 0)
 		  finish_sync_folders (data);

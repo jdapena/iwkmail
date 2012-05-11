@@ -175,16 +175,6 @@ $(function () {
 	fillFromAddress ();
     });
 
-    $("input[name='incoming-server-password']").change(function () {
-	if (!$("input[name='outgoing-server-password']").val())
-	    $("input[name='outgoing-server-password']").val($(this).val());
-    });
-
-    $("input[name='outgoing-server-password']").change(function () {
-	if (!$("input[name='incoming-server-password']").val())
-	    $("input[name='incoming-server-password']").val($(this).val());
-    });
-
     updatePorts();
 
 });
