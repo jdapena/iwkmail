@@ -167,6 +167,40 @@ on_navigation_policy_decision_requested (WebKitWebView *web_view,
 	return handled;
 }
 
+
+
+static void
+on_resource_request_starting (WebKitWebView *web_view,
+			      WebKitWebFrame *frame,
+			      WebKitWebResource *resource,
+			      WebKitNetworkRequest *request,
+			      WebKitNetworkResponse *response,
+			      gpointer user_data)
+{
+	SoupURI *uri, *frame_uri;
+	if (frame == webkit_web_view_get_main_frame (web_view))
+		return;
+
+	uri = soup_uri_new (webkit_network_request_get_uri (request));
+	if (uri) {
+		if (g_strcmp0 (uri->scheme, "cid") != 0) {
+			gboolean unblocked = FALSE;
+			frame_uri = soup_uri_new (webkit_web_frame_get_uri (frame));
+			if (frame_uri && g_strcmp0 (frame_uri->scheme, "cid") == 0) {
+				unblocked = im_content_id_request_get_user_flag
+					(webkit_web_frame_get_uri (frame), 
+					 "unblockImages", NULL);
+			}
+			if (frame_uri) soup_uri_free (frame_uri);
+			if (!unblocked) {
+				webkit_network_request_set_uri (request, "about:blank");
+				webkit_web_view_execute_script (web_view, "hasBlockedImages()");
+			}
+		}
+		soup_uri_free (uri);
+	}
+}
+
 static void
 on_download_to_open_notify_status (GObject    *gobject,
 				   GParamSpec *pspec,
@@ -328,6 +362,8 @@ im_window_init (ImWindow *window)
 		    G_CALLBACK (on_mime_type_policy_decision_requested), window);
   g_signal_connect (G_OBJECT (priv->webview), "navigation-policy-decision-requested",
 		    G_CALLBACK (on_navigation_policy_decision_requested), window);
+  g_signal_connect (G_OBJECT (priv->webview), "resource-request-starting",
+		    G_CALLBACK (on_resource_request_starting), window);
   g_signal_connect (G_OBJECT (priv->webview), "download-requested",
 		    G_CALLBACK (on_download_requested), window);
   inspector = webkit_web_view_get_inspector (WEBKIT_WEB_VIEW (priv->webview));

@@ -1392,6 +1392,10 @@ dump_message_info (JsonBuilder *builder,
 	json_builder_set_member_name (builder, "hasAttachments");
 	json_builder_add_boolean_value (builder,
 					flags & CAMEL_MESSAGE_ATTACHMENTS);
+	json_builder_set_member_name (builder, "unblockImages");
+	json_builder_add_boolean_value (builder,
+					camel_message_info_user_flag (mi,
+								      "unblockImages"));
 	json_builder_end_object(builder);
 }
 
@@ -1956,11 +1960,12 @@ typedef struct _FlagMessageData {
 } FlagMessageData;
 
 static CamelMessageFlags
-parse_flags (const char *flags_list)
+parse_flags (const char *flags_list, GList **user_flags)
 {
 	gchar **flags, **node;
 	CamelMessageFlags result = 0;
 
+	*user_flags = NULL;
 	if (flags_list == NULL)
 		return 0;
 
@@ -1968,8 +1973,10 @@ parse_flags (const char *flags_list)
 	for (node = flags; *node != NULL; node++) {
 		if (g_strstr_len (*node, -1, "seen"))
 			result |= CAMEL_MESSAGE_SEEN;
-		if (g_strstr_len (*node, -1, "deleted"))
+		else if (g_strstr_len (*node, -1, "deleted"))
 			result |= CAMEL_MESSAGE_DELETED;
+		else
+			*user_flags = g_list_append (*user_flags, g_strdup (*node));
 	}
 
 	g_strfreev (flags);
@@ -1985,19 +1992,34 @@ flag_message_do_flag (CamelFolder *folder,
 		const char *message_uid;
 		const char *set_flags_str, *unset_flags_str;
 		CamelMessageFlags set_flags, unset_flags;
+		GList *unset_user_flags, *set_user_flags, *node;
 
 		message_uid = g_hash_table_lookup (data->params, "message");
 		set_flags_str = g_hash_table_lookup (data->params, "setFlags");
 		unset_flags_str = g_hash_table_lookup (data->params, "unsetFlags");
 
-		set_flags = parse_flags (set_flags_str);
-		unset_flags = parse_flags (unset_flags_str);
+		set_flags = parse_flags (set_flags_str, &set_user_flags);
+		unset_flags = parse_flags (unset_flags_str, &unset_user_flags);
 
 		if (unset_flags)
 			camel_folder_set_message_flags (folder, message_uid, 0, unset_flags);
 		if (set_flags)
 			camel_folder_set_message_flags (folder, message_uid, set_flags, set_flags);
 
+		for (node = unset_user_flags; node != NULL; node = g_list_next (node)) {
+			camel_folder_set_message_user_flag (folder, message_uid,
+							    (char *) node->data, FALSE);
+			g_free (node->data);
+		}
+		g_list_free (unset_user_flags);
+		
+		for (node = set_user_flags; node != NULL; node = g_list_next (node)) {
+			camel_folder_set_message_user_flag (folder, message_uid,
+							    (char *) node->data, TRUE);
+			g_free (node->data);
+		}
+		g_list_free (set_user_flags);
+		
 		/* We don't wait for result */
 		camel_folder_synchronize_message (folder, message_uid,
 						  G_PRIORITY_DEFAULT_IDLE, data->cancellable,

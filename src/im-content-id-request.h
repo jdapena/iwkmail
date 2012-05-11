@@ -70,8 +70,15 @@ gchar *im_content_id_request_build_hostname (const char *account,
 					     const char *folder,
 					     const char *messageuid);
 
+void im_content_id_request_get_hostname_parts (const char *cid_hostname,
+					       gchar **account,
+					       gchar **folder,
+					       gchar **messageuid);
+
 CamelDataWrapper *im_content_id_request_get_data_wrapper (const char *uri,
 							  gboolean get_container,
 							  GError **error);
+
+gboolean im_content_id_request_get_user_flag (const char *uri, const char *flag, GError **error);
 
 #endif /* IM_CONTENT_ID_REQUEST_H */

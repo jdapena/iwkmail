@@ -118,11 +118,11 @@ im_content_id_request_build_hostname (const char *account,
 	return result;
 }
 
-static void
-get_content_id_hostname_parts (const char *cid_hostname,
-			       gchar **account,
-			       gchar **folder,
-			       gchar **messageuid)
+void
+im_content_id_request_get_hostname_parts (const char *cid_hostname,
+					  gchar **account,
+					  gchar **folder,
+					  gchar **messageuid)
 {
 	gchar **parts = g_strsplit (cid_hostname, ".", 3);
 	gchar *_account, *_folder, *_messageuid;
@@ -156,7 +156,7 @@ im_content_id_request_check_uri (SoupRequest  *request,
 	char *account, *folder, *messageuid;
 	GError *_error = NULL;
 
-	get_content_id_hostname_parts (uri->host, &account, &folder, &messageuid);
+	im_content_id_request_get_hostname_parts (uri->host, &account, &folder, &messageuid);
 
 	if (!im_account_mgr_account_exists (im_account_mgr_get_instance (), account, FALSE)) {
 		g_set_error (&_error, IM_ERROR_DOMAIN, IM_ERROR_SOUP_INVALID_URI,
@@ -394,7 +394,7 @@ fetch_part_get_message (CamelFolder *folder,
 	if (data->error == NULL) {
 		char *messageuid;
 
-		get_content_id_hostname_parts (data->uri->host, NULL, NULL, &messageuid);
+		im_content_id_request_get_hostname_parts (data->uri->host, NULL, NULL, &messageuid);
 		camel_folder_get_message (folder, messageuid,
 					  G_PRIORITY_DEFAULT_IDLE, data->cancellable,
 					  fetch_part_get_message_cb, data);
@@ -436,7 +436,7 @@ im_content_id_request_send_async (SoupRequest          *soup_request,
 	char *account, *folder;
 	CamelStore *store;
 
-	get_content_id_hostname_parts (uri->host, &account, &folder, NULL);
+	im_content_id_request_get_hostname_parts (uri->host, &account, &folder, NULL);
 
 	data = g_new0 (FetchPartData, 1);
 
@@ -552,7 +552,7 @@ im_content_id_request_get_data_wrapper (const char *uri, gboolean get_container,
 	CamelMimeMessage *message = NULL;
 	GError *_error = NULL;
 
-	get_content_id_hostname_parts (soup_uri->host, &account, &folder_name, &message_uid);
+	im_content_id_request_get_hostname_parts (soup_uri->host, &account, &folder_name, &message_uid);
 
 	store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
 							   (const char *) account,
@@ -620,3 +620,64 @@ im_content_id_request_get_data_wrapper (const char *uri, gboolean get_container,
 	return wrapper;
 }
 
+gboolean
+im_content_id_request_get_user_flag (const char *uri, const char *flag, GError **error)
+{
+	gboolean result;
+	SoupURI *soup_uri = soup_uri_new (uri);
+	char *account, *folder_name, *message_uid;
+	CamelStore *store;
+	CamelFolder *folder = NULL;
+	GError *_error = NULL;
+
+	im_content_id_request_get_hostname_parts (soup_uri->host, &account, &folder_name, &message_uid);
+
+	store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
+							   (const char *) account,
+							   IM_ACCOUNT_TYPE_STORE);	
+	if (store == NULL) {
+		g_set_error (&_error, IM_ERROR_DOMAIN, IM_ERROR_SOUP_INVALID_URI,
+			     _("Account does not exist"));
+		goto finish;
+	}
+
+	if (g_strcmp0 (folder_name, "INBOX") == 0 && 
+	    im_service_mgr_has_local_inbox (im_service_mgr_get_instance (),
+					    account)) {
+		folder = im_service_mgr_get_local_inbox (im_service_mgr_get_instance (),
+							 account,
+							 NULL,
+							 &_error);
+	} else if (g_strcmp0 (folder_name, IM_LOCAL_DRAFTS_TAG) == 0) {
+		folder = im_service_mgr_get_drafts (im_service_mgr_get_instance (),
+						    NULL,
+						    &_error);
+	} else if (g_strcmp0 (folder_name, IM_LOCAL_OUTBOX_TAG) == 0) {
+		folder = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
+						    (const char *) account,
+						    NULL,
+						    &_error);
+	} else {
+		folder = camel_store_get_folder_sync (store, folder_name,
+						      0, NULL, &_error);
+	}
+	if (folder == NULL) {
+		g_set_error (&_error, IM_ERROR_DOMAIN, IM_ERROR_SOUP_INVALID_URI,
+			     _("Folder does not exist"));
+		goto finish;
+	}
+
+	result = camel_folder_get_message_user_flag (folder, message_uid, flag);
+
+ finish:
+	if (folder) g_object_unref (folder);
+	g_free (account);
+	g_free (folder_name);
+	g_free (message_uid);
+	soup_uri_free (soup_uri);
+
+	if (error)
+		g_propagate_error (error, _error);
+
+	return result;
+}

@@ -15,6 +15,7 @@
 var globalStatus = {
     currentAccount: null,
     currentFolder: null,
+    currentMessage: null,
     folders: [],
     newestUid: null,
     oldestUid: null,

@@ -173,9 +173,33 @@ function deleteMessage ()
     history.back ();
 }
 
+function hasBlockedImages()
+{
+    globalStatus.hasBlockedImages = true;
+    $("#page-message-blocked-images-banner").show();
+}
+
+function unblockImages ()
+{
+    iwkRequest ("flagMessage", "Marking message as unblockImages", {
+	account: globalStatus.currentAccount,
+	folder: globalStatus.currentFolder,
+	message: globalStatus.currentMessage,
+	setFlags: "unblockImages"
+    }).done(function (msg) {
+	$("#page-message-blocked-images-banner").hide();
+	clearMessageViewBody ();
+	fillMessageViewBody (globalStatus.messageStructure);
+    });
+    
+}
+
 function showMessage(message)
 {
     globalStatus.messageStructure = null;
+    globalStatus.hasBlockedImages = false;
+    globalStatus.showImages = false;
+    $("#page-message-blocked-images-banner").hide();
     clearMessageViewBody ();
     fillMessageViewHeader (message);
     if ('getMessage' in globalStatus.requests) {
@@ -329,5 +353,6 @@ function deleteAccount ()
 }
 
 $(function () {
+    $("#page-message-blocked-images-banner").hide();
     refreshAccounts();
 });
