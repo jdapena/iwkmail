@@ -629,12 +629,53 @@ im_service_mgr_finalize (GObject *obj)
 	G_OBJECT_CLASS(parent_class)->finalize (obj);
 }
 
+static void
+disconnect_service (gpointer key,
+		    gpointer value,
+		    gpointer userdata)
+{
+	CamelService *service = (CamelService *) value;
+
+	if (camel_service_get_connection_status (service) != CAMEL_SERVICE_DISCONNECTED) {
+		camel_service_disconnect_sync (service, FALSE, NULL);
+	}
+}
+
+static void
+disconnect_all (ImServiceMgr *self)
+{
+	ImServiceMgrPrivate *priv = IM_SERVICE_MGR_GET_PRIVATE(self);
+
+	g_hash_table_foreach (priv->store_services,
+			      disconnect_service,
+			      NULL);
+	g_hash_table_foreach (priv->transport_services,
+			      disconnect_service,
+			      NULL);
+}
+
+static void
+on_network_changed (GNetworkMonitor *monitor,
+		    gboolean available,
+		    gpointer userdata)
+{
+	ImServiceMgr *self = (ImServiceMgr *) userdata;
+
+	camel_session_set_online (CAMEL_SESSION (self),
+				  available);
+
+	if (!available) {
+		disconnect_all (self);
+	}
+}
+
 static ImServiceMgr*
 im_service_mgr_new (ImAccountMgr *account_mgr)
 {
 	GObject *obj;
 	ImServiceMgrPrivate *priv;
 	char *user_cache_dir;
+	GNetworkMonitor *monitor;
 
 	g_return_val_if_fail (account_mgr, NULL);
 
@@ -648,6 +689,13 @@ im_service_mgr_new (ImAccountMgr *account_mgr)
 	g_free (user_cache_dir);
 
 	priv = IM_SERVICE_MGR_GET_PRIVATE(obj);
+
+	monitor = g_network_monitor_get_default ();
+	g_signal_connect (G_OBJECT (monitor), "network-changed",
+			  G_CALLBACK (on_network_changed), obj);
+	on_network_changed (monitor,
+			    g_network_monitor_get_network_available (monitor),
+			    (gpointer) obj);
 
 	priv->account_mgr = g_object_ref (G_OBJECT(account_mgr));
 
