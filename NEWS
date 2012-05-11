@@ -1,0 +1,17 @@
+=============
+IWKmail 0.0.1
+=============
+
+First release. Very basic mail experience.
+
+  - Implemented basic browsing of accounts, folders and messages.
+  - Protocols supported: IMAP, POP, SMTP.
+  - Allow to create and delete accounts.
+  - Some preconfigured settings available.
+  - Messages management: delete, mark as (un)read.
+  - Message details view.
+  - Uses GNOME keyring for storing passwords.
+  - Outbox and message send in plain text.
+  - (Un)block external images in messages.
+  - Save to drafts folder (still not implemented opening them
+    again).
