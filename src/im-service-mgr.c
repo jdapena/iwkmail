@@ -82,9 +82,15 @@ static gboolean init_outbox                 (ImServiceMgr *self,
 static gboolean init_store_outbox           (ImServiceMgr *self,
 					     const char *name,
 					     GError **error);
+static gboolean remove_store_outbox         (ImServiceMgr *self,
+					     const char *name,
+					     GError **error);
 static gboolean init_drafts                 (ImServiceMgr *self,
 					     GError **error);
 static gboolean init_local_inbox            (ImServiceMgr *self,
+					     const gchar *account_name,
+					     GError **error);
+static gboolean remove_local_inbox          (ImServiceMgr *self,
 					     const gchar *account_name,
 					     GError **error);
 static gboolean init_local_store            (ImServiceMgr *self,
@@ -848,6 +854,35 @@ init_store_outbox (ImServiceMgr *self, const gchar *name, GError **error)
 	return FALSE;
 }
 
+static gboolean
+remove_store_outbox (ImServiceMgr *self, const gchar *name, GError **error)
+{
+	ImServiceMgrPrivate *priv = IM_SERVICE_MGR_GET_PRIVATE (self);
+	CamelFolderInfo *fi;
+	GError *_error = NULL;
+
+	if (!init_outbox (self, &_error)) {
+		if (_error) g_propagate_error (error, _error);
+		return FALSE;
+	}
+
+	fi = camel_store_get_folder_info_sync (priv->outbox_store,
+					       name,
+					       0,
+					       NULL, NULL);
+	if (fi) {
+		camel_store_free_folder_info (priv->outbox_store, fi);
+		if (camel_store_delete_folder_sync (priv->outbox_store, name,
+						    NULL, &_error))
+			return TRUE;
+	}
+
+	if (_error)
+		g_propagate_error (error, _error);
+
+	return FALSE;
+}
+
 CamelFolder *
 im_service_mgr_get_outbox (ImServiceMgr *self,
 			   const char *account_id,
@@ -978,6 +1013,35 @@ init_local_inbox (ImServiceMgr *self, const gchar *account_name, GError **error)
 	if (fi) {
 		camel_store_free_folder_info (priv->local_store, fi);
 		return TRUE;
+	}
+
+	if (_error)
+		g_propagate_error (error, _error);
+
+	return FALSE;
+}
+
+static gboolean
+remove_local_inbox (ImServiceMgr *self, const gchar *account_name, GError **error)
+{
+	ImServiceMgrPrivate *priv = IM_SERVICE_MGR_GET_PRIVATE (self);
+	CamelFolderInfo *fi;
+	GError *_error = NULL;
+
+	if (!init_local_store (self, &_error)) {
+		if (_error) g_propagate_error (error, _error);
+		return FALSE;
+	}
+
+	fi = camel_store_get_folder_info_sync (priv->local_store,
+					       account_name,
+					       0,
+					       NULL, NULL);
+	if (fi) {
+		camel_store_free_folder_info (priv->local_store, fi);
+		if (camel_store_delete_folder_sync (priv->outbox_store, account_name,
+						    NULL, &_error))
+			return TRUE;
 	}
 
 	if (_error)
@@ -1183,6 +1247,9 @@ on_account_removed (ImAccountMgr *acc_mgr,
 		g_warning ("%s: no transport account for account %s\n", 
 			   __FUNCTION__, account);
 	}
+
+	remove_local_inbox (self, account, NULL);
+	remove_store_outbox (self, account, NULL);
 
 }
 

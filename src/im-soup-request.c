@@ -397,6 +397,36 @@ finish:
 }
 
 static void
+delete_account (GHashTable *request_params,
+		JsonBuilder *builder,
+		GError **error)
+{
+	GError *_error = NULL;
+	ImAccountMgr *account_mgr;
+	const char *account_id;
+
+	account_mgr = im_account_mgr_get_instance ();
+
+	account_id = g_hash_table_lookup (request_params, "accountId");
+
+	if (!im_account_mgr_account_exists (account_mgr, account_id, FALSE)) {
+		g_set_error (&_error, IM_ERROR_DOMAIN,
+			     IM_ERROR_ACCOUNT_MGR_DELETE_ACCOUNT_FAILED,
+			     _("Account does not exist"));
+		goto finish;
+	}
+
+	if (!im_account_mgr_remove_account (im_account_mgr_get_instance (),
+					    account_id)) {
+		g_set_error (&_error, IM_ERROR_DOMAIN,
+			     IM_ERROR_ACCOUNT_MGR_DELETE_ACCOUNT_FAILED,
+			     _("Failed to remove account"));
+	}
+finish:
+	if (_error) g_propagate_error (error, _error);
+}
+
+static void
 get_accounts (GHashTable *request_params,
 	      JsonBuilder *builder,
 	      GError **error)
@@ -2415,6 +2445,10 @@ im_soup_request_send_async (SoupRequest          *soup_request,
   if (!g_strcmp0 (uri->path, "addAccount")) {
 	  response_start (builder);
 	  add_account (params, builder, &_error);
+	  response_finish (result, params, builder, _error);
+  } else if (!g_strcmp0 (uri->path, "deleteAccount")) {
+	  response_start (builder);
+	  delete_account (params, builder, &_error);
 	  response_finish (result, params, builder, _error);
   } else if (!g_strcmp0 (uri->path, "getAccounts")) {
 	  response_start (builder);

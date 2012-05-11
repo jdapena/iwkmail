@@ -312,6 +312,22 @@ function syncFolders ()
     });
 }
 
+function deleteAccount ()
+{
+    iwkRequest ("deleteAccount", "Deleting account", {
+	accountId: globalStatus.currentAccount
+    }).done(function(msg) {
+	if (!msg.is_ok)
+	    showError (msg.error);
+	else {
+	    globalStatus.currentFolder = null;
+	    globalStatus.currentMessage = null;
+	    refreshAccounts ();
+	    history.go(-2);
+	}
+    });
+}
+
 $(function () {
     refreshAccounts();
 });

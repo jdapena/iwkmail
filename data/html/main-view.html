@@ -83,6 +83,7 @@
 	<div data-role="navbar">
 	  <ul>
 	    <li><a href="#composer" class="iwk-compose-button" data-icon="plus">Send email</a></li>
+	    <li><a href="#confirm-delete-account-dialog" class="iwk-delete-account-button" data-icon="delete">Delete account</a></li>
 	    <li><a href="#page-folders" id="folders-list" data-icon="grid" data-rel="dialog">Choose folder</a></li>
 	  </ul>
 	</div>
@@ -298,6 +299,15 @@
 	<a data-role="button" data-rel="back" onclick="saveDraft()">Save draft</a>
 	<a data-role="button" href="#" onclick="discardChanges()">Discard changes</a>
 	<a data-role="button" data-rel="back" data-theme="b">Back to composer</a>
+      </div>
+    </div>
+
+    <div data-role="dialog" id="confirm-delete-account-dialog" class="dialog-actionsheet">
+      <div data-role="content">
+	<h3>Are you sure you want to delete the account?</h3>
+	<p>All data will be permanently removed</p>
+	<a data-role="button" href="#" onclick="deleteAccount()">Delete account</a>
+	<a data-role="button" data-rel="back" data-theme="b">Cancel</a>
       </div>
     </div>
 
