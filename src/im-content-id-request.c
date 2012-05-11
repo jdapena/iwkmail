@@ -452,7 +452,16 @@ im_content_id_request_send_async (SoupRequest          *soup_request,
 	data->uri = soup_uri_copy (uri);
 	data->cancellable = g_object_ref (cancellable);
 	
-	if (g_strcmp0 (folder, IM_LOCAL_DRAFTS_TAG) == 0) {
+	if (g_strcmp0 (folder, "INBOX") == 0 && 
+	    im_service_mgr_has_local_inbox (im_service_mgr_get_instance (),
+					    account)) {
+		CamelFolder *inbox;
+		inbox = im_service_mgr_get_local_inbox (im_service_mgr_get_instance (),
+							account,
+							data->cancellable,
+							&data->error);
+		fetch_part_get_message (inbox, data);
+	} else if (g_strcmp0 (folder, IM_LOCAL_DRAFTS_TAG) == 0) {
 		CamelFolder *drafts;
 
 		drafts = im_service_mgr_get_drafts (im_service_mgr_get_instance (),
@@ -554,7 +563,14 @@ im_content_id_request_get_data_wrapper (const char *uri, gboolean get_container,
 		goto finish;
 	}
 
-	if (g_strcmp0 (folder_name, IM_LOCAL_DRAFTS_TAG) == 0) {
+	if (g_strcmp0 (folder_name, "INBOX") == 0 && 
+	    im_service_mgr_has_local_inbox (im_service_mgr_get_instance (),
+					    account)) {
+		folder = im_service_mgr_get_local_inbox (im_service_mgr_get_instance (),
+							 account,
+							 NULL,
+							 &_error);
+	} else if (g_strcmp0 (folder_name, IM_LOCAL_DRAFTS_TAG) == 0) {
 		folder = im_service_mgr_get_drafts (im_service_mgr_get_instance (),
 						    NULL,
 						    &_error);

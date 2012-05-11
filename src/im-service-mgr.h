@@ -193,6 +193,34 @@ CamelFolder *im_service_mgr_get_drafts (ImServiceMgr *self,
 					GError **error);
 
 /**
+ * im_service_mgr_has_local_inbox:
+ * @self: an #ImServiceMgr instance
+ * @account_name: an account name
+ *
+ * Checks if there's a local inbox for this account.
+ *
+ * Returns: a #CamelFolder
+ */
+gboolean im_service_mgr_has_local_inbox (ImServiceMgr *self,
+					 const char *account_name);
+/**
+ * im_service_mgr_get_local_inbox:
+ * @self: an #ImServiceMgr instance
+ * @account_name: an account name
+ * @cancellable: a #GCancellable
+ * @error: a #GError pointer
+ *
+ * Obtains the local inbox folder. The local inbox folder
+ * is used for store accounts without storage, as POP3.
+ *
+ * Returns: a #CamelFolder
+ */
+CamelFolder *im_service_mgr_get_local_inbox (ImServiceMgr *self,
+					     const char *account_name,
+					     GCancellable *cancellable,
+					     GError **error);
+
+/**
  * im_service_mgr_get_local_store:
  * @self: an #ImServiceMgr instance
  *

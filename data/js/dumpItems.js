@@ -252,6 +252,8 @@ function dumpMessageInMessagesList (message, isNew, parent)
 	return;
     li = document.createElement("li");
     $(li).attr("id", "message-item-"+message.uid);
+    $(li).attr("data-iwk-message-id", message.uid);
+    li.className += " iwk-message-item";
     li.setAttribute('data-role', 'fieldcontain');
     if (message.unread)
 	li.className += " iwk-unread-item";

@@ -81,6 +81,9 @@ static gboolean init_store_outbox           (ImServiceMgr *self,
 					     GError **error);
 static gboolean init_drafts                 (ImServiceMgr *self,
 					     GError **error);
+static gboolean init_local_inbox            (ImServiceMgr *self,
+					     const gchar *account_name,
+					     GError **error);
 static gboolean init_local_store            (ImServiceMgr *self,
 					     GError **error);
 
@@ -136,7 +139,7 @@ struct _ImServiceMgrPrivate {
 	/* Outboxes */
 	CamelStore          *outbox_store;
 
-	/* Local (drafts, sentbox) */
+	/* Local (drafts, sentbox, non storage inboxes) */
 	CamelStore          *local_store;
 };
 
@@ -737,6 +740,42 @@ init_drafts (ImServiceMgr *self, GError **error)
 	return FALSE;
 }
 
+static gboolean
+init_local_inbox (ImServiceMgr *self, const gchar *account_name, GError **error)
+{
+	ImServiceMgrPrivate *priv = IM_SERVICE_MGR_GET_PRIVATE (self);
+	CamelFolderInfo *fi;
+	GError *_error = NULL;
+
+	if (!init_local_store (self, &_error)) {
+		if (_error) g_propagate_error (error, _error);
+		return FALSE;
+	}
+
+	fi = camel_store_get_folder_info_sync (priv->local_store,
+					       account_name,
+					       0,
+					       NULL, NULL);
+	if (fi) {
+		camel_store_free_folder_info (priv->local_store, fi);
+		return TRUE;
+	}
+
+	fi = camel_store_create_folder_sync (priv->local_store,
+					     NULL, account_name,
+					     NULL, &_error);
+
+	if (fi) {
+		camel_store_free_folder_info (priv->local_store, fi);
+		return TRUE;
+	}
+
+	if (_error)
+		g_propagate_error (error, _error);
+
+	return FALSE;
+}
+
 CamelFolder *
 im_service_mgr_get_drafts (ImServiceMgr *self,
 			   GCancellable *cancellable,
@@ -749,6 +788,43 @@ im_service_mgr_get_drafts (ImServiceMgr *self,
 
 	return camel_store_get_folder_sync (priv->local_store,
 					    IM_LOCAL_DRAFTS_NAME,
+					    0,
+					    cancellable, error);
+}
+
+gboolean
+im_service_mgr_has_local_inbox (ImServiceMgr *self,
+				const char *account_name)
+{
+	ImServiceMgrPrivate *priv = IM_SERVICE_MGR_GET_PRIVATE (self);
+	CamelFolderInfo *fi;
+	gboolean result;
+
+	if (!init_local_store (self, NULL))
+		return FALSE;
+
+	fi = camel_store_get_folder_info_sync (priv->local_store,
+					       account_name, 0, NULL, NULL);
+
+	result = (fi != NULL);
+	camel_store_free_folder_info (priv->local_store, fi);
+
+	return result;
+}
+
+CamelFolder *
+im_service_mgr_get_local_inbox (ImServiceMgr *self,
+				const gchar *account_name,
+				GCancellable *cancellable,
+				GError **error)
+{
+	ImServiceMgrPrivate *priv = IM_SERVICE_MGR_GET_PRIVATE (self);
+
+	if (!init_local_inbox (self, account_name, error))
+		return NULL;
+
+	return camel_store_get_folder_sync (priv->local_store,
+					    account_name,
 					    0,
 					    cancellable, error);
 }
@@ -773,7 +849,6 @@ create_service (ImServiceMgr *self,
 {
 	ImServiceMgrPrivate *priv = IM_SERVICE_MGR_GET_PRIVATE (self);
 	CamelService *service;
-	CamelSettings *settings;
 	ImAccountSettings *account_settings;
 	ImServerAccountSettings *server_settings;
 	ImProtocolType protocol_type;
@@ -796,10 +871,18 @@ create_service (ImServiceMgr *self,
 					     (type == IM_ACCOUNT_TYPE_STORE)?CAMEL_PROVIDER_STORE:CAMEL_PROVIDER_TRANSPORT, NULL);
 
 	if (service) {
+		CamelSettings *settings;
+		
 		settings = camel_service_get_settings (service);
-
 		if (CAMEL_IS_NETWORK_SETTINGS (settings))
 			fill_network_settings (server_settings, type, CAMEL_NETWORK_SETTINGS (settings));
+
+		if (type == IM_ACCOUNT_TYPE_STORE) {
+			CamelProvider *provider;
+			provider = camel_service_get_provider (service);
+			if (!(provider->flags & CAMEL_PROVIDER_IS_STORAGE))
+				init_local_inbox (self, name, NULL);
+		}
 		
 	}
 

@@ -157,7 +157,7 @@ function markAsUnread ()
 
 function markMessageAsDeleted(uid)
 {
-    $("#message-item-"+uid).hide();
+    $(".iwk-message-item[data-iwk-message-id='"+uid+"']").hide ();
     iwkRequest ("flagMessage", "Marking message as deleted", {
 	account: globalStatus.currentAccount,
 	folder: globalStatus.currentFolder,

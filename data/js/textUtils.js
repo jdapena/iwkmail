@@ -97,3 +97,4 @@ function uriGetFilename (uri)
 
     return a.pathname.split('/').pop();
 }
+
