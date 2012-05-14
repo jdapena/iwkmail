@@ -1,4 +1,11 @@
 =============
+IWKmail 0.0.2
+=============
+
+  - Misc memory management fixes.
+  - Properly load POP3 accounts if disconnected.
+
+=============
 IWKmail 0.0.1
 =============
 
