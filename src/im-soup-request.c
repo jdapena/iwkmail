@@ -1093,6 +1093,26 @@ sync_folders_get_local_inbox_folder_info_cb (GObject *source_object,
 }
 
 static void
+sync_folders_get_local_inbox_folder_info (CamelStore *remote_store, SyncFoldersData *data)
+{
+	CamelStore *local_store;
+	char *account_id;
+
+	account_id = im_account_mgr_get_server_parent_account_name
+		(im_account_mgr_get_instance (),
+		 camel_service_get_uid (CAMEL_SERVICE (remote_store)),
+		 IM_ACCOUNT_TYPE_STORE);
+
+	local_store = im_service_mgr_get_local_store (im_service_mgr_get_instance ());
+	data->count++;
+	camel_store_get_folder_info (local_store, account_id, 0,
+				     G_PRIORITY_DEFAULT_IDLE, data->cancellable,
+				     sync_folders_get_local_inbox_folder_info_cb,
+				     data);
+	g_free (account_id);
+}
+
+static void
 sync_folders_update_non_storage_uids_cb (GObject *source_object,
 					 GAsyncResult *result,
 					 gpointer userdata)
@@ -1102,22 +1122,10 @@ sync_folders_update_non_storage_uids_cb (GObject *source_object,
 
 	if (update_non_storage_uids_finish (CAMEL_FOLDER (source_object),
 					    result, &_error)) {
-		CamelStore *remote_store, *local_store;
-		char *account_id;
+		CamelStore *remote_store;
 
 		remote_store = camel_folder_get_parent_store (CAMEL_FOLDER (source_object));
-		account_id = im_account_mgr_get_server_parent_account_name
-			(im_account_mgr_get_instance (),
-			 camel_service_get_uid (CAMEL_SERVICE (remote_store)),
-			 IM_ACCOUNT_TYPE_STORE);
-
-		local_store = im_service_mgr_get_local_store (im_service_mgr_get_instance ());
-		data->count++;
-		camel_store_get_folder_info (local_store, account_id, 0,
-					     G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-					     sync_folders_get_local_inbox_folder_info_cb,
-					     data);
-		g_free (account_id);
+		sync_folders_get_local_inbox_folder_info (remote_store, data);
 	}
 
 	if (_error)
@@ -1199,6 +1207,11 @@ sync_folders_get_non_storage_inbox_cb (GObject *source_object,
 						   data->cancellable,
 						   sync_folders_refresh_non_storage_info_cb,
 						   data);
+		} else {
+			CamelStore *remote_store;
+
+			remote_store = camel_folder_get_parent_store (CAMEL_FOLDER (folder));
+			sync_folders_get_local_inbox_folder_info (remote_store, data);
 		}
 		g_object_unref (folder);
 	}
