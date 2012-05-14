@@ -191,7 +191,7 @@ fetch_part_finish (FetchPartData *data)
 		g_simple_async_result_take_error (G_SIMPLE_ASYNC_RESULT (data->result), data->error);
 	}
 	g_simple_async_result_complete_in_idle (G_SIMPLE_ASYNC_RESULT (data->result));
-	soup_uri_free (data->uri);
+	if (data->uri) soup_uri_free (data->uri);
 	if (data->byte_array)
 		g_byte_array_free (data->byte_array, TRUE);
 	g_object_unref (data->cancellable);
@@ -377,7 +377,9 @@ fetch_part_get_message_cb (GObject *source_object,
 							     G_PRIORITY_DEFAULT_IDLE, data->cancellable,
 							     fetch_part_decode_to_stream_cb,
 							     data);
+			g_object_unref (stream);
 		}
+		g_object_unref (message);
 	} else if (data->error == NULL) {
 		g_set_error (&data->error, IM_ERROR_DOMAIN, IM_ERROR_SOUP_INVALID_URI,
 			     _("Message not available"));
@@ -402,6 +404,7 @@ fetch_part_get_message (CamelFolder *folder,
 	} else {
 		fetch_part_finish (data);
 	}
+	g_object_unref (folder);
 }
 
 static void
@@ -436,21 +439,25 @@ im_content_id_request_send_async (SoupRequest          *soup_request,
 	char *account, *folder;
 	CamelStore *store;
 
-	im_content_id_request_get_hostname_parts (uri->host, &account, &folder, NULL);
-
 	data = g_new0 (FetchPartData, 1);
+	data->request = g_object_ref (soup_request);
+	data->cancellable = g_object_ref (cancellable);
+	data->result = (GAsyncResult *) g_simple_async_result_new ((GObject *) soup_request,
+								   callback, userdata,
+								   im_content_id_request_send_async);
+	if (uri == NULL) {
+		fetch_part_finish (data);
+		return;
+	}
+	data->uri = soup_uri_copy (uri);
+
+	im_content_id_request_get_hostname_parts (uri->host, &account, &folder, NULL);
 
 	if (soup_uri_get_query (uri)) {
 		GHashTable *params = soup_form_decode (soup_uri_get_query (uri));
 		data->jsonp_callback = g_strdup (g_hash_table_lookup (params, "callback"));
 	}
 
-	data->request = g_object_ref (soup_request);
-	data->result = (GAsyncResult *) g_simple_async_result_new ((GObject *) soup_request,
-								   callback, userdata,
-								   im_content_id_request_send_async);
-	data->uri = soup_uri_copy (uri);
-	data->cancellable = g_object_ref (cancellable);
 	
 	if (g_strcmp0 (folder, "INBOX") == 0 && 
 	    im_service_mgr_has_local_inbox (im_service_mgr_get_instance (),
@@ -496,6 +503,7 @@ im_content_id_request_send_async (SoupRequest          *soup_request,
 	
 	g_free (account);
 	g_free (folder);
+	if (uri) soup_uri_free (uri);
 }
 
 static GInputStream *
@@ -505,7 +513,7 @@ im_content_id_request_send_finish (SoupRequest          *soup_request,
 {
 	g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (result), error);
 
-	return (GInputStream *) g_simple_async_result_get_op_res_gpointer (G_SIMPLE_ASYNC_RESULT (result));
+	return (GInputStream *) g_object_ref (g_simple_async_result_get_op_res_gpointer (G_SIMPLE_ASYNC_RESULT (result)));
 }
 
 static goffset
@@ -544,7 +552,7 @@ im_content_id_request_class_init (ImContentIdRequestClass *request_class)
 CamelDataWrapper *
 im_content_id_request_get_data_wrapper (const char *uri, gboolean get_container, GError **error)
 {
-	CamelDataWrapper *wrapper;
+	CamelDataWrapper *wrapper = NULL;
 	SoupURI *soup_uri = soup_uri_new (uri);
 	char *account, *folder_name, *message_uid;
 	CamelStore *store;
@@ -605,10 +613,13 @@ im_content_id_request_get_data_wrapper (const char *uri, gboolean get_container,
 		g_set_error (&_error, IM_ERROR_DOMAIN, IM_ERROR_SOUP_INVALID_URI,
 			     _("Part does not exist"));
 		goto finish;
+	} else {
+		g_object_ref (wrapper);
 	}
 
  finish:
 	if (folder) g_object_unref (folder);
+	if (message) g_object_unref (message);
 	g_free (account);
 	g_free (folder_name);
 	g_free (message_uid);
