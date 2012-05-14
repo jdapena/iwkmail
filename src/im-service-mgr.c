@@ -685,8 +685,9 @@ im_service_mgr_new (ImAccountMgr *account_mgr)
 				     "user-data-dir", im_service_mgr_get_user_data_dir (),
 				     "user-cache-dir", user_cache_dir,
 				     NULL));
-
 	g_free (user_cache_dir);
+
+	camel_session_set_junk_headers (CAMEL_SESSION (obj), NULL, NULL, 0);
 
 	priv = IM_SERVICE_MGR_GET_PRIVATE(obj);
 

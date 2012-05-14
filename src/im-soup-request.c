@@ -167,8 +167,6 @@ create_store (GHashTable *params, GError **error)
 	im_server_account_settings_set_security_protocol (settings, im_protocol_get_type_id (security_protocol));
 
 finish:
-	if (protocol) g_object_unref (protocol);
-	if (security_protocol) g_object_unref (protocol);
 	if (_error) g_propagate_error (error, _error);
 
 	return settings;
@@ -252,9 +250,6 @@ create_transport (GHashTable *params, GError **error)
 	im_server_account_settings_set_auth_protocol (settings, im_protocol_get_type_id (auth_protocol));
 
 finish:
-	g_object_unref (protocol);
-	if (security_protocol) g_object_unref (protocol);
-	if (auth_protocol) g_object_unref (auth_protocol);
 	if (_error) g_propagate_error (error, _error);
 
 	return settings;
@@ -349,11 +344,10 @@ response_finish (GAsyncResult *result, GHashTable *params, JsonBuilder *builder,
 	g_simple_async_result_set_op_res_gpointer (G_SIMPLE_ASYNC_RESULT (result),
 						   input_stream,
 						   g_object_unref);
-	g_hash_table_unref (params);
-
 	request->priv->content_length = length;
 
 	g_simple_async_result_complete_in_idle (G_SIMPLE_ASYNC_RESULT (result));
+	g_object_unref (request);
 }
 
 static void
@@ -362,8 +356,8 @@ add_account (GHashTable *request_params,
 	     GError **error)
 {
 	GError *_error = NULL;
-	ImAccountSettings *account;
-	ImServerAccountSettings *store, *transport;
+	ImAccountSettings *account = NULL;
+	ImServerAccountSettings *store = NULL, *transport = NULL;
 	GHashTable *params;
 	const char *form_data;
 
@@ -392,7 +386,10 @@ add_account (GHashTable *request_params,
 	}
 
 finish:
+	if (params) g_hash_table_unref (params);
 	if (store) g_object_unref (store);
+	if (transport) g_object_unref (transport);
+	if (account) g_object_unref (account);
 	if (_error) g_propagate_error (error, _error);
 }
 
@@ -649,8 +646,16 @@ finish_sync_folders (SyncFoldersData *data)
 		fi = g_hash_table_lookup (data->folder_infos, account_id);
 
 		non_storage = (g_hash_table_lookup (data->non_storage, account_id) != NULL);
-		if (fi) {	
-			CamelStore *store = g_hash_table_lookup (data->stores, account_id);
+		if (fi) {
+			ImServiceMgr *service_mgr;
+			CamelStore *store;
+
+			service_mgr = im_service_mgr_get_instance ();
+
+			if (im_service_mgr_has_local_inbox (service_mgr, account_id))
+				store = im_service_mgr_get_local_store (service_mgr);
+			else
+				store = g_hash_table_lookup (data->stores, account_id);
 			dump_folder_info (data->builder, fi, drafts, outbox, non_storage);
 			camel_store_free_folder_info (store, fi);
 		}
@@ -661,13 +666,11 @@ finish_sync_folders (SyncFoldersData *data)
 		g_free (display_name);
 	}
 	json_builder_end_array (data->builder);
+	g_list_free (account_keys);
 
 	if (drafts)
 		g_object_unref (drafts);
 
-	g_hash_table_destroy (data->stores);
-	g_hash_table_destroy (data->folder_infos);
-	g_hash_table_destroy (data->non_storage);
 	response_finish (data->result,
 			 data->params,
 			 data->builder,
@@ -676,9 +679,11 @@ finish_sync_folders (SyncFoldersData *data)
 	g_object_unref (data->result);
 	g_hash_table_unref (data->params);
 	g_object_unref (data->builder);
-	if (data->error) g_error_free (data->error);
 	g_object_unref (data->cancellable);
-
+	if (data->error) g_error_free (data->error);
+	g_hash_table_destroy (data->folder_infos);
+	g_hash_table_destroy (data->stores);
+	g_hash_table_destroy (data->non_storage);
 	g_free (data);
 }
 
@@ -799,11 +804,9 @@ sync_folders_outbox_get_message_cb (GObject *source_object,
 		
 		g_object_unref (recipients);
 	}
+	g_object_unref (message);
 
-	if (_error) {
-		g_propagate_error (&data->error, _error);
-	}
-
+	if (_error) g_propagate_error (&data->error, _error);
 	data->count--;
 
 	if (data->count == 0) {
@@ -863,6 +866,7 @@ sync_folders_outbox_synchronize_cb (GObject *source_object,
 									  get_message_data);
 					}
 				}
+				camel_folder_free_uids (outbox, uids);
 			}
 		}
 	}
@@ -942,6 +946,7 @@ sync_folders_get_folder_cb (GObject *source_object,
 						   sync_folders_refresh_info_cb,
 						   data);
 		}
+		g_object_unref (folder);
 	}
 	if (_error)
 		g_error_free (_error);
@@ -989,17 +994,17 @@ update_non_storage_uids_sync (CamelFolder *remote_inbox,
 							   uid_cache, new_uids, FALSE,
 							   cancellable, &_error);
 			camel_filter_driver_flush (driver, &_error);
-
 			camel_uid_cache_save (uid_cache);
+
+			camel_uid_cache_free_uids (new_uids);
+			g_object_unref (driver);
 		}
 
 		camel_folder_free_uids (remote_inbox, remote_uids);
 		camel_uid_cache_destroy (uid_cache);
 	}
 
-	if (_error)
-		g_propagate_error (error, _error);
-
+	if (_error) g_propagate_error (error, _error);
 	return (_error != NULL);
 }
 
@@ -1042,7 +1047,6 @@ update_non_storage_uids (CamelFolder *remote_inbox,
 
 	g_simple_async_result_run_in_thread (simple, update_non_storage_uids_thread,
 					     io_priority, cancellable);
-	g_object_unref (simple);
 }
 
 static gboolean
@@ -1099,7 +1103,7 @@ sync_folders_update_non_storage_uids_cb (GObject *source_object,
 	if (update_non_storage_uids_finish (CAMEL_FOLDER (source_object),
 					    result, &_error)) {
 		CamelStore *remote_store, *local_store;
-		const char *account_id;
+		char *account_id;
 
 		remote_store = camel_folder_get_parent_store (CAMEL_FOLDER (source_object));
 		account_id = im_account_mgr_get_server_parent_account_name
@@ -1113,6 +1117,7 @@ sync_folders_update_non_storage_uids_cb (GObject *source_object,
 					     G_PRIORITY_DEFAULT_IDLE, data->cancellable,
 					     sync_folders_get_local_inbox_folder_info_cb,
 					     data);
+		g_free (account_id);
 	}
 
 	if (_error)
@@ -1158,7 +1163,9 @@ sync_folders_refresh_non_storage_info_cb (GObject *source_object,
 							 data->cancellable,
 							 sync_folders_update_non_storage_uids_cb,
 							 data);
+				g_object_unref (local_inbox);
 			}
+			g_free (account_id);
 		}
 	}
 
@@ -1193,6 +1200,7 @@ sync_folders_get_non_storage_inbox_cb (GObject *source_object,
 						   sync_folders_refresh_non_storage_info_cb,
 						   data);
 		}
+		g_object_unref (folder);
 	}
 
 	data->count--;
@@ -1232,6 +1240,8 @@ sync_folders_get_folder_info_cb (GObject *source_object,
 						sync_folders_get_folder_cb,
 						data);
 		}
+		if (!account_id)
+			camel_store_free_folder_info (CAMEL_STORE (source_object), fi);
 	}
 	g_free (account_id);
 	if (error && data->error == NULL) {
@@ -1309,9 +1319,11 @@ sync_folders (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 						    data->cancellable,
 						    sync_folders_outbox_synchronize_cb,
 						    data);
+			  g_object_unref (outbox);
 		  }
 		  
 	  }
+	  im_account_mgr_free_account_names (account_names);
 
 	  outbox_store = im_service_mgr_get_outbox_store (im_service_mgr_get_instance ());
 	  if (outbox_store) {
@@ -1337,9 +1349,23 @@ typedef struct _FetchMessagesData {
 	GError *error;
 	GList *new_uids;
 	GList *old_uids;
-	GHashTable *messages;
-	int count;
 } FetchMessagesData;
+
+static void
+finish_fetch_messages (FetchMessagesData *data)
+{
+	response_finish (data->result, data->params, data->builder, data->error);
+	g_object_unref (data->result);
+	g_hash_table_unref (data->params);
+	g_object_unref (data->builder);
+	g_object_unref (data->cancellable);
+	if (data->error) g_error_free  (data->error);
+	g_list_foreach (data->new_uids, (GFunc) g_free, NULL);
+	g_list_free (data->new_uids);
+	g_list_foreach (data->old_uids, (GFunc) g_free, NULL);
+	g_list_free (data->old_uids);
+	g_free (data);
+}
 
 static void
 dump_message_info (JsonBuilder *builder,
@@ -1409,11 +1435,6 @@ dump_mailing_list_as_string (JsonBuilder *builder,
 	g_free (mlist);
 }
 
-typedef struct _FetchMessagesGetMessageData {
-	FetchMessagesData *data;
-	gchar *uid;
-} FetchMessagesGetMessageData;
-
 static void
 fetch_messages_refresh_info_cb (GObject *source_object,
 				GAsyncResult *result,
@@ -1441,8 +1462,6 @@ fetch_messages_refresh_info_cb (GObject *source_object,
 		count = 20;
 
 	camel_folder_refresh_info_finish (folder, result, &error);
-
-	data->count = 0;
 
 	uids = camel_folder_get_uids (folder);
 	response_start (data->builder);
@@ -1495,8 +1514,7 @@ fetch_messages_refresh_info_cb (GObject *source_object,
 		g_propagate_error (&data->error, error);
 	}
 
-	if (data->count == 0)
-		response_finish (data->result, data->params, data->builder, data->error);
+	finish_fetch_messages (data);
 }
 
 static void
@@ -1507,8 +1525,10 @@ fetch_messages_refresh_info (CamelFolder *folder, FetchMessagesData *data)
 					   G_PRIORITY_DEFAULT_IDLE, data->cancellable,
 					   fetch_messages_refresh_info_cb, data);
 	} else {
-		response_finish (data->result, data->params, data->builder, data->error);
+		response_start (data->builder);
+		finish_fetch_messages (data);
 	}
+	if (folder) g_object_unref (folder);
 }
 static void
 fetch_messages_get_folder_cb (GObject *source_object,
@@ -1564,7 +1584,6 @@ fetch_messages (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 						    &data->error);
 
 		fetch_messages_refresh_info (drafts, data);
-
 	} else if (g_strcmp0 (folder_name, IM_LOCAL_OUTBOX_TAG) == 0) {
 		CamelFolder *outbox;
 
@@ -1593,6 +1612,19 @@ typedef struct _GetMessageData {
 	GCancellable *cancellable;
 	GError *error;
 } GetMessageData;
+
+static void
+finish_get_message (GetMessageData *data)
+{
+	response_finish (data->result, data->params, data->builder, data->error);
+	
+	g_object_unref (data->result);
+	g_hash_table_unref (data->params);
+	g_object_unref (data->builder);
+	g_object_unref (data->cancellable);
+	if (data->error) g_error_free (data->error);
+	g_free (data);
+}
 
 /* forward declaration */
 static void dump_data_wrapper (JsonBuilder *builder,
@@ -1852,9 +1884,10 @@ get_message_get_message_cb (GObject *source_object,
 					 g_hash_table_lookup (data->params, "message"));
 		dump_data_wrapper (data->builder, url, CAMEL_DATA_WRAPPER (message));
 		camel_url_free (url);
+		g_object_unref (message);
 	}
 
-	response_finish (data->result, data->params, data->builder, data->error);
+	finish_get_message (data);
 }
 
 static void
@@ -1869,8 +1902,10 @@ get_message_get_message (CamelFolder *folder,
 					   G_PRIORITY_DEFAULT_IDLE, data->cancellable,
 					   get_message_get_message_cb, data);
 	} else {
-		response_finish (data->result, data->params, data->builder, data->error);
+		response_start (data->builder);
+		finish_get_message (data);
 	}
+	g_object_unref (folder);
 }
 
 static void
@@ -1891,7 +1926,6 @@ get_message_get_folder_cb (GObject *source_object,
 	}
 
 	get_message_get_message (folder, data);
-
 }
 
 static void
@@ -2132,6 +2166,7 @@ finish_composer_save_data (ComposerSaveData *data)
 	if (data->uid) {
 		json_builder_set_member_name (data->builder, "messageUid");
 		json_builder_add_string_value (data->builder, data->uid);
+		g_free (data->uid);
 	}
 	response_finish (data->result, data->params, data->builder, data->error);
 
@@ -2204,6 +2239,7 @@ composer_save_append_message (ComposerSaveData *data)
 	} else {
 		finish_composer_save_data (data);
 	}
+	if (folder) g_object_unref (folder);
 }
 
 static void
@@ -2302,6 +2338,7 @@ composer_save (GAsyncResult *result, GHashTable *params, JsonBuilder *builder, g
 				data->pending_attachments_count++;
 
 				camel_medium_set_content (CAMEL_MEDIUM (part), content);
+				g_object_unref (content);
 			} else {
 				g_set_error (&_error, IM_ERROR_DOMAIN,
 					     IM_ERROR_SEND_INVALID_ATTACHMENT,
@@ -2310,10 +2347,13 @@ composer_save (GAsyncResult *result, GHashTable *params, JsonBuilder *builder, g
 			}
 
 			camel_multipart_add_part (multipart, part);
+			g_object_unref (part);
 		}
 		g_strfreev (uris);
 
 		camel_medium_set_content (CAMEL_MEDIUM (data->message), CAMEL_DATA_WRAPPER (multipart));
+		g_object_unref (multipart);
+		g_object_unref (body_part);
 	} else if (body && *body) {
 		camel_mime_part_set_content (CAMEL_MIME_PART (data->message), body, strlen (body), "text/plain; charset=utf8");
 	}
@@ -2501,7 +2541,9 @@ im_soup_request_send_async (SoupRequest          *soup_request,
   if (_error)
 	  g_error_free (_error);
 
+  g_hash_table_unref (params);
   g_object_unref (builder);
+  g_object_unref (result);
 }
 
 static GInputStream *
@@ -2511,7 +2553,7 @@ im_soup_request_send_finish (SoupRequest          *soup_request,
 {
 	g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (result), error);
 
-	return (GInputStream *) g_simple_async_result_get_op_res_gpointer (G_SIMPLE_ASYNC_RESULT (result));
+	return (GInputStream *) g_object_ref (g_simple_async_result_get_op_res_gpointer (G_SIMPLE_ASYNC_RESULT (result)));
 }
 
 static goffset
