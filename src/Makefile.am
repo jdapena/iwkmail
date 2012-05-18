@@ -39,6 +39,7 @@ iwkmail_SOURCES = \
 	im-service-mgr.c \
 	im-soup-request.c \
 	im-window.c \
+	$(BUILT_SOURCES) \
 	$(NULL)
 
 iwkmail_CFLAGS = \
@@ -53,3 +54,18 @@ iwkmail_LDADD = \
 	$(DEPENDENCIES_LIBS) \
 	$(LIBINTL)
 
+BUILT_SOURCES = \
+	im-enum-types.c \
+	im-enum-types.h \
+	$(NULL)
+
+im-enum-types.h: im-enum-types.h.template $(iwkmail_headers) $(GLIB_MKENUMS)
+	$(AM_V_GEN)(cd $(srcdir) && $(GLIB_MKENUMS) --template im-enum-types.h.template $(iwkmail_headers)) > $@
+
+im-enum-types.c: im-enum-types.c.template $(iwkmail_headers) $(GLIB_MKENUMS)
+	$(AM_V_GEN)(cd $(srcdir) && $(GLIB_MKENUMS) --template im-enum-types.c.template $(iwkmail_headers)) > $@
+
+CLEANFILES = $(BUILT_SOURCES)
+
+dist-hook:
+	cd $(distdir); rm -f $(BUILT_SOURCES)

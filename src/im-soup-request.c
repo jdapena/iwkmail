@@ -428,16 +428,16 @@ get_accounts (GHashTable *request_params,
 	      JsonBuilder *builder,
 	      GError **error)
 {
-	  GSList *account_names, *node;
+	  GSList *account_ids, *node;
 	  ImAccountMgr *mgr = im_account_mgr_get_instance ();
 	  char *default_account;
 
-	  account_names = im_account_mgr_account_names (mgr, TRUE);
+	  account_ids = im_account_mgr_get_account_ids (mgr, TRUE);
 	  default_account = im_account_mgr_get_default_account (mgr);
 
 	  json_builder_set_member_name (builder, "result");
 	  json_builder_begin_array (builder);
-	  for (node = account_names; node != NULL; node = g_slist_next (node)) {
+	  for (node = account_ids; node != NULL; node = g_slist_next (node)) {
 		  char *id = (char *) node->data;
 		  ImAccountSettings *settings;
 
@@ -464,7 +464,7 @@ get_accounts (GHashTable *request_params,
 	  json_builder_end_array (builder);
 
 	  g_free (default_account);
-	  im_account_mgr_free_account_names (account_names);
+	  im_account_mgr_free_account_ids (account_ids);
 }
 
 typedef struct _SyncFoldersData {
@@ -1272,7 +1272,7 @@ sync_folders_get_folder_info_cb (GObject *source_object,
 static void
 sync_folders (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 {
-	  GSList *account_names, *node;
+	  GSList *account_ids, *node;
 	  ImAccountMgr *mgr = im_account_mgr_get_instance ();
 	  SyncFoldersData *data = g_new0(SyncFoldersData, 1);
 	  CamelStore *outbox_store;
@@ -1290,9 +1290,9 @@ sync_folders (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 	  data->non_storage = g_hash_table_new_full (g_str_hash, g_str_equal,
 						     g_free, NULL);
 
-	  account_names = im_account_mgr_account_names (mgr, TRUE);
+	  account_ids = im_account_mgr_get_account_ids (mgr, TRUE);
 
-	  for (node = account_names; node != NULL; node = g_slist_next (node)) {
+	  for (node = account_ids; node != NULL; node = g_slist_next (node)) {
 		  CamelStore *store;
 		  CamelFolder *outbox;
 
@@ -1336,7 +1336,7 @@ sync_folders (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 		  }
 		  
 	  }
-	  im_account_mgr_free_account_names (account_names);
+	  im_account_mgr_free_account_ids (account_ids);
 
 	  outbox_store = im_service_mgr_get_outbox_store (im_service_mgr_get_instance ());
 	  if (outbox_store) {

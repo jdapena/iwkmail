@@ -506,7 +506,7 @@ im_conf_type_to_gconf_type (ImConfValueType value_type, GError **err)
 		gconf_type = GCONF_VALUE_INVALID;
 		g_printerr ("im: invalid list value type %d\n", value_type);
 		*err = g_error_new_literal (IM_ERROR_DOMAIN, 
-					    IM_CONF_ERROR_INVALID_VALUE, 
+					    IM_ERROR_CONF_INVALID_VALUE, 
 					    "invalid list value type");
 	}
 	return gconf_type;

@@ -770,22 +770,22 @@ im_service_mgr_get_service (ImServiceMgr *self,
 static void
 add_existing_accounts (ImServiceMgr *self)
 {
-	GSList *account_names = NULL, *iter = NULL;
+	GSList *account_ids = NULL, *iter = NULL;
 	ImServiceMgrPrivate *priv = NULL;
 	
 	priv = IM_SERVICE_MGR_GET_PRIVATE(self);
 
 	/* These are account names, not server_account names */
-	account_names = im_account_mgr_account_names (priv->account_mgr, FALSE);
+	account_ids = im_account_mgr_get_account_ids (priv->account_mgr, FALSE);
 
-	for (iter = account_names; iter != NULL; iter = g_slist_next (iter)) {
-		const gchar *account_name = (const gchar*) iter->data;
+	for (iter = account_ids; iter != NULL; iter = g_slist_next (iter)) {
+		const gchar *account_id = (const gchar*) iter->data;
 		
 		/* Insert all enabled accounts without notifying */
-		if (im_account_mgr_get_enabled (priv->account_mgr, account_name))
-			insert_account (self, account_name, FALSE);
+		if (im_account_mgr_get_enabled (priv->account_mgr, account_id))
+			insert_account (self, account_id, FALSE);
 	}
-	im_account_mgr_free_account_names (account_names);
+	im_account_mgr_free_account_ids (account_ids);
 }
 
 static void

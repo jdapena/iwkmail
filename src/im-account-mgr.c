@@ -349,7 +349,7 @@ im_account_mgr_add_account_from_settings (ImAccountMgr *self,
 								     transport_name_start, TRUE /* server account */);
 	g_free (transport_name_start);
 
-	im_account_settings_set_account_name (settings, account_name);
+	im_account_settings_set_id (settings, account_name);
 	store_settings = im_account_settings_get_store_settings (settings);
 	im_server_account_settings_set_account_name (store_settings, store_name);
 	transport_settings = im_account_settings_get_transport_settings (settings);
@@ -367,7 +367,7 @@ im_account_mgr_add_account_from_settings (ImAccountMgr *self,
 	/* Note, when this fails is is caused by a Maemo gconf bug that has been 
 	 * fixed in versions after 3.1. */
 	if(!im_account_mgr_has_accounts (self, FALSE))
-		g_warning ("im_account_mgr_account_names() returned NULL after adding an account.");
+		g_warning ("im_account_mgr_get_account_ids() returned NULL after adding an account.");
 				
 	/* Notify the observers */
 	g_signal_emit (self, signals[ACCOUNT_INSERTED_SIGNAL], 0, account_name);
@@ -726,7 +726,7 @@ im_account_mgr_remove_account (ImAccountMgr * self,
 
 	/* if this was the last account, stop any auto-updating */
 	/* (re)set the automatic account update */
-	acc_names = im_account_mgr_account_names (self, TRUE);
+	acc_names = im_account_mgr_get_account_ids (self, TRUE);
 	if (!acc_names) {
 #if 0
 		im_platform_set_update_interval (0);
@@ -736,7 +736,7 @@ im_account_mgr_remove_account (ImAccountMgr * self,
 		 */
 		priv->has_accounts = priv->has_enabled_accounts = FALSE; 
 	} else
-		im_account_mgr_free_account_names (acc_names);
+		im_account_mgr_free_account_ids (acc_names);
 	
 	/* Notify the observers. We do this *after* deleting
 	   the keys, because otherwise a call to account_names
@@ -787,7 +787,7 @@ strip_prefix_from_elements (GSList * lst, guint n)
 
 
 GSList*
-im_account_mgr_account_names (ImAccountMgr * self, gboolean only_enabled)
+im_account_mgr_get_account_ids (ImAccountMgr * self, gboolean only_enabled)
 {
 	GSList *accounts;
 	ImAccountMgrPrivate *priv;
@@ -816,7 +816,7 @@ im_account_mgr_account_names (ImAccountMgr * self, gboolean only_enabled)
 	/* Unescape the keys to get the account names: */
 	iter = accounts;
 	while (iter) {
-		const gchar* account_name_key;
+		const gchar* account_id_key;
 		gchar* unescaped_name;
 		gboolean add;
 
@@ -825,9 +825,9 @@ im_account_mgr_account_names (ImAccountMgr * self, gboolean only_enabled)
 			continue;
 		}
 
-		account_name_key = (const gchar*)iter->data;
-		unescaped_name = account_name_key ? 
-			im_conf_key_unescape (account_name_key) 
+		account_id_key = (const gchar*)iter->data;
+		unescaped_name = account_id_key ? 
+			im_conf_key_unescape (account_id_key) 
 			: NULL;
 		
 		add = TRUE;
@@ -845,7 +845,7 @@ im_account_mgr_account_names (ImAccountMgr * self, gboolean only_enabled)
 		 */
 		if (add) {
 			gchar* server_account_name = im_account_mgr_get_string
-				(self, account_name_key, IM_ACCOUNT_STORE_ACCOUNT,
+				(self, account_id_key, IM_ACCOUNT_STORE_ACCOUNT,
 				 FALSE);
 			if (server_account_name) {
 				if (!im_account_mgr_account_exists (self, server_account_name, TRUE))
@@ -856,7 +856,7 @@ im_account_mgr_account_names (ImAccountMgr * self, gboolean only_enabled)
 		
 		if (add) {
 			gchar* server_account_name = im_account_mgr_get_string
-				(self, account_name_key, IM_ACCOUNT_TRANSPORT_ACCOUNT,
+				(self, account_id_key, IM_ACCOUNT_TRANSPORT_ACCOUNT,
 				 FALSE);
 			if (server_account_name) {
 				if (!im_account_mgr_account_exists (self, server_account_name, TRUE))
@@ -886,10 +886,10 @@ im_account_mgr_account_names (ImAccountMgr * self, gboolean only_enabled)
 
 
 void
-im_account_mgr_free_account_names (GSList *account_names)
+im_account_mgr_free_account_ids (GSList *account_ids)
 {
-	g_slist_foreach (account_names, (GFunc)g_free, NULL);
-	g_slist_free (account_names);
+	g_slist_foreach (account_ids, (GFunc)g_free, NULL);
+	g_slist_free (account_ids);
 }
 
 
@@ -1176,22 +1176,22 @@ gboolean
 im_account_mgr_account_with_display_name_exists  (ImAccountMgr *self, 
 						      const gchar *display_name)
 {
-	GSList *account_names = NULL;
+	GSList *account_ids = NULL;
 	GSList *cursor = NULL;
 	gboolean found = FALSE;
 	
 	
-	cursor = account_names = im_account_mgr_account_names (self, 
-								   TRUE /* enabled accounts, because disabled accounts are not user visible. */);
+	cursor = account_ids = im_account_mgr_get_account_ids (self, 
+							       TRUE /* enabled accounts, because disabled accounts are not user visible. */);
 
 	/* Look at each non-server account to check their display names; */
 	while (cursor) {
-		const gchar *account_name = (gchar*)cursor->data;
+		const gchar *account_id = (gchar*)cursor->data;
 		const gchar *cursor_display_name;
 		
-		ImAccountSettings *settings = im_account_mgr_load_account_settings (self, account_name);
+		ImAccountSettings *settings = im_account_mgr_load_account_settings (self, account_id);
 		if (!settings) {
-			g_printerr ("im: failed to get account data for %s\n", account_name);
+			g_printerr ("im: failed to get account data for %s\n", account_id);
 			cursor = cursor->next;
 			continue;
 		}
@@ -1206,8 +1206,8 @@ im_account_mgr_account_with_display_name_exists  (ImAccountMgr *self,
 		g_object_unref (settings);
 		cursor = cursor->next;
 	}
-	im_account_mgr_free_account_names (account_names);
-	account_names = NULL;
+	im_account_mgr_free_account_ids (account_ids);
+	account_ids = NULL;
 	
 	return found;
 }
@@ -1245,31 +1245,31 @@ gboolean
 im_account_mgr_check_already_configured_account  (ImAccountMgr *self, 
 						      ImAccountSettings *settings)
 {
-	GSList *account_names = NULL;
+	GSList *account_ids = NULL;
 	GSList *cursor = NULL;
 	ImServerAccountSettings *server_settings;
 	gboolean found = FALSE;
 
-	cursor = account_names = im_account_mgr_account_names (self, 
-								   TRUE /* enabled accounts, because disabled accounts are not user visible. */);
+	cursor = account_ids = im_account_mgr_get_account_ids (self, 
+							       TRUE /* enabled accounts, because disabled accounts are not user visible. */);
 
 	server_settings = im_account_settings_get_store_settings (settings);
 	if (!server_settings) {
 		g_printerr ("im: couldn't get store settings from settings");
-		im_account_mgr_free_account_names (account_names);
+		im_account_mgr_free_account_ids (account_ids);
 		return FALSE;
 	}
 	
 	/* Look at each non-server account to check their display names; */
 	while (cursor && !found) {
-		const gchar *account_name;
+		const gchar *account_id;
 		ImAccountSettings *from_mgr_settings;
 		ImServerAccountSettings *from_mgr_server_settings;
 
-		account_name = (gchar*)cursor->data;		
-		from_mgr_settings = im_account_mgr_load_account_settings (self, account_name);
+		account_id = (gchar*)cursor->data;		
+		from_mgr_settings = im_account_mgr_load_account_settings (self, account_id);
 		if (!settings) {
-			g_printerr ("im: failed to get account data for %s\n", account_name);
+			g_printerr ("im: failed to get account data for %s\n", account_id);
 			cursor = cursor->next;
 			continue;
 		}
@@ -1281,15 +1281,15 @@ im_account_mgr_check_already_configured_account  (ImAccountMgr *self,
 			}
 			g_object_unref (from_mgr_server_settings);
 		} else {
-			g_printerr ("im: couldn't get store settings from account %s", account_name);
+			g_printerr ("im: couldn't get store settings from account %s", account_id);
 		}
 		g_object_unref (from_mgr_settings);
 		cursor = cursor->next;
 	}
 
 	g_object_unref (server_settings);
-	im_account_mgr_free_account_names (account_names);
-	account_names = NULL;
+	im_account_mgr_free_account_ids (account_ids);
+	account_ids = NULL;
 	
 	return found;
 }
@@ -1492,7 +1492,7 @@ gboolean
 im_account_mgr_has_accounts (ImAccountMgr* self, gboolean enabled)
 {
 	ImAccountMgrPrivate* priv;
-	GSList *account_names;
+	GSList *account_ids;
 	gboolean accounts_exist;
 
 	g_return_val_if_fail (IM_IS_ACCOUNT_MGR(self), FALSE);
@@ -1505,10 +1505,10 @@ im_account_mgr_has_accounts (ImAccountMgr* self, gboolean enabled)
 		return TRUE;
 		
 	/* Check that at least one account exists: */
-	account_names = im_account_mgr_account_names (self,enabled);
-	accounts_exist = account_names != NULL;
-	im_account_mgr_free_account_names (account_names);
-	account_names = NULL;
+	account_ids = im_account_mgr_get_account_ids (self,enabled);
+	accounts_exist = account_ids != NULL;
+	im_account_mgr_free_account_ids (account_ids);
+	account_ids = NULL;
 
 	/* cache it. */
 	if (enabled)
@@ -1520,60 +1520,60 @@ im_account_mgr_has_accounts (ImAccountMgr* self, gboolean enabled)
 }
 
 static int
-compare_account_name(gconstpointer a, gconstpointer b)
+compare_account_id(gconstpointer a, gconstpointer b)
 {
-	const gchar* account_name = (const gchar*) a;
-	const gchar* account_name2 = (const gchar*) b;
-	return strcmp(account_name, account_name2);
+	const gchar* account_id = (const gchar*) a;
+	const gchar* account_id2 = (const gchar*) b;
+	return strcmp(account_id, account_id2);
 }
 
 void 
 im_account_mgr_set_account_busy(ImAccountMgr* self, 
-				    const gchar* account_name, 
-				    gboolean busy)
+				const gchar* account_id, 
+				gboolean busy)
 {
 	ImAccountMgrPrivate* priv;
 
 	g_return_if_fail (IM_IS_ACCOUNT_MGR(self));
-	g_return_if_fail (account_name);
+	g_return_if_fail (account_id);
 
 	priv = IM_ACCOUNT_MGR_GET_PRIVATE (self);
 	if (busy) {
-		GSList *account_names = im_account_mgr_account_names (self, TRUE);
-		GSList* account = g_slist_find_custom(account_names, account_name, 
-						      (GCompareFunc) compare_account_name);
+		GSList *account_ids = im_account_mgr_get_account_ids (self, TRUE);
+		GSList* account = g_slist_find_custom(account_ids, account_id,
+						      (GCompareFunc) compare_account_id);
 
-		if (account && !im_account_mgr_account_is_busy(self, account_name))	{
-			priv->busy_accounts = g_slist_append(priv->busy_accounts, g_strdup(account_name));
+		if (account && !im_account_mgr_account_is_busy(self, account_id)) {
+			priv->busy_accounts = g_slist_append(priv->busy_accounts, g_strdup(account_id));
 			g_signal_emit (G_OBJECT(self), signals[ACCOUNT_BUSY_SIGNAL], 
-				       0, account_name, TRUE);
+				       0, account_id, TRUE);
 		}
-		im_account_mgr_free_account_names (account_names);
-		account_names = NULL;
+		im_account_mgr_free_account_ids (account_ids);
+		account_ids = NULL;
 	} else {
 		GSList* account = 
-			g_slist_find_custom(priv->busy_accounts, account_name, (GCompareFunc) compare_account_name);
+			g_slist_find_custom(priv->busy_accounts, account_id, (GCompareFunc) compare_account_id);
 
 		if (account) {
 			g_free(account->data);
 			priv->busy_accounts = g_slist_delete_link(priv->busy_accounts, account);
 			g_signal_emit (G_OBJECT(self), signals[ACCOUNT_BUSY_SIGNAL], 
-				       0, account_name, FALSE);
+				       0, account_id, FALSE);
 		}
 	}
 }
 
 gboolean
-im_account_mgr_account_is_busy (ImAccountMgr* self, const gchar* account_name)
+im_account_mgr_account_is_busy (ImAccountMgr* self, const gchar* account_id)
 {
 	ImAccountMgrPrivate* priv;
 	
 	g_return_val_if_fail (IM_IS_ACCOUNT_MGR(self), FALSE);
-	g_return_val_if_fail (account_name, FALSE);
+	g_return_val_if_fail (account_id, FALSE);
 
 	priv = IM_ACCOUNT_MGR_GET_PRIVATE (self);
 		
-	return (g_slist_find_custom(priv->busy_accounts, account_name, (GCompareFunc) compare_account_name)
+	return (g_slist_find_custom(priv->busy_accounts, account_id, (GCompareFunc) compare_account_id)
 		!= NULL);
 }
 
@@ -1722,13 +1722,13 @@ gboolean
 im_account_mgr_singleton_protocol_exists (ImAccountMgr *mgr,
 					      ImProtocolType protocol_type)
 {
-	GSList *account_names, *node;
+	GSList *account_ids, *node;
 	gboolean found = FALSE;
 
 	g_return_val_if_fail (IM_IS_ACCOUNT_MGR (mgr), FALSE);
-	account_names = im_account_mgr_account_names (mgr, FALSE);
+	account_ids = im_account_mgr_get_account_ids (mgr, FALSE);
 
-	for (node = account_names; node != NULL; node = g_slist_next (node)) {
+	for (node = account_ids; node != NULL; node = g_slist_next (node)) {
 		ImProtocolType current_protocol;
 
 		current_protocol = im_account_mgr_get_store_protocol (mgr, (gchar *) node->data);
@@ -1738,7 +1738,7 @@ im_account_mgr_singleton_protocol_exists (ImAccountMgr *mgr,
 		}
 	}
 
-	im_account_mgr_free_account_names (account_names);
+	im_account_mgr_free_account_ids (account_ids);
 
 	return found;
 }

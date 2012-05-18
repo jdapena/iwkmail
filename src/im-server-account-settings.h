@@ -39,13 +39,12 @@
  */
 
 
-/* im-server-account-settings.h */
-
 #ifndef __IM_SERVER_ACCOUNT_SETTINGS_H__
 #define __IM_SERVER_ACCOUNT_SETTINGS_H__
 
-#include <glib-object.h>
 #include <im-protocol.h>
+
+#include <glib-object.h>
 
 G_BEGIN_DECLS
 
@@ -69,208 +68,37 @@ struct _ImServerAccountSettingsClass {
 };
 
 
-/**
- * im_server_account_settings_get_type:
- *
- * Returns: GType of the account store
- */
-GType  im_server_account_settings_get_type   (void) G_GNUC_CONST;
+GType                       im_server_account_settings_get_type              (void) G_GNUC_CONST;
 
-/**
- * im_server_account_settings_new:
- *
- * creates a new instance of #ImServerAccountSettings
- *
- * Returns: a #ImServerAccountSettings
- */
-ImServerAccountSettings*    im_server_account_settings_new (void);
+ImServerAccountSettings*    im_server_account_settings_new                   (void);
 
-/**
- * im_server_account_settings_get_hostname:
- * @settings: a #ImServerAccountSettings
- *
- * get the server hostname.
- *
- * Returns: a string
- */
-const gchar* im_server_account_settings_get_hostname (ImServerAccountSettings *settings);
-
-/**
- * im_server_account_settings_set_hostname:
- * @settings: a #ImServerAccountSettings
- * @hostname: a string.
- *
- * set @hostname as the server hostname.
- */
-void         im_server_account_settings_set_hostname (ImServerAccountSettings *settings,
-								      const gchar *hostname);
-
-/**
- * im_server_account_settings_get_protocol:
- * @settings: a #ImServerAccountSettings
- *
- * get the server protocol.
- *
- * Returns: a #ImProtocolType
- */
-ImProtocolType im_server_account_settings_get_protocol (ImServerAccountSettings *settings);
-
-/**
- * im_server_account_settings_set_protocol:
- * @settings: a #ImServerAccountSettings
- * @protocol: a #ImProtocolType
- *
- * set @server_type.
- */
-void                          im_server_account_settings_set_protocol (ImServerAccountSettings *settings,
-									   ImProtocolType protocol_type);
-
-
-/**
- * im_server_account_settings_get_uri:
- * @settings: a #ImServerAccountSettings
- *
- * get the uri, if any. If this is set, then all the other fields are invalid. It's only valid if protocol is %NULL.
- *
- * Returns: a string
- */
-const gchar *im_server_account_settings_get_uri (ImServerAccountSettings *settings);
-
-/**
- * im_server_account_settings_set_uri:
- * @settings: a #ImServerAccountSettings
- * @uri: a string
- *
- * set @uri. When you set an @uri, then the protocol is set to %IM_PROTOCOL_REGISTRY_TYPE_INVALID. This is used for setting maildir or mbox
- * accounts.
- */
-void   im_server_account_settings_set_uri (ImServerAccountSettings *settings,
-					       const gchar *uri);
-
-/**
- * im_server_account_settings_get_port:
- * @settings: a #ImServerAccountSettings
- *
- * get the server port.
- *
- * Returns: a #guint
- */
-guint  im_server_account_settings_get_port (ImServerAccountSettings *settings);
-
-/**
- * im_server_account_settings_set_port:
- * @settings: a #ImServerAccountSettings
- * @port: a #guint.
- *
- * set @port.
- */
-void   im_server_account_settings_set_port (ImServerAccountSettings *settings,
-						guint port);
-
-/**
- * im_server_account_settings_get_username:
- * @settings: a #ImServerAccountSettings
- *
- * get the username.
- *
- * Returns: a string
- */
-const gchar *im_server_account_settings_get_username (ImServerAccountSettings *settings);
-
-/**
- * im_server_account_settings_set_username:
- * @settings: a #ImServerAccountSettings
- * @username: a string
- *
- * set @username.
- */
-void   im_server_account_settings_set_username (ImServerAccountSettings *settings,
-						    const gchar *username);
-
-/**
- * im_server_account_settings_get_password:
- * @settings: a #ImServerAccountSettings
- *
- * get the password.
- *
- * Returns: a string
- */
-const gchar *im_server_account_settings_get_password (ImServerAccountSettings *settings);
-
-/**
- * im_server_account_settings_set_password:
- * @settings: a #ImServerAccountSettings
- * @password: a string
- *
- * set @password.
- */
-void   im_server_account_settings_set_password (ImServerAccountSettings *settings,
-						    const gchar *password);
-
-
-/**
- * im_server_account_settings_get_security_protocol:
- * @settings: a #ImServerAccountSettings
- *
- * get the secure connection type, if any.
- *
- * Returns: a #ImProtocolType
- */
-ImProtocolType im_server_account_settings_get_security_protocol (ImServerAccountSettings *settings);
-
-/**
- * im_server_account_settings_set_security_protocol:
- * @settings: a #ImServerAccountSettings
- * @security: a #ImProtocolType
- *
- * set the current security connection protocol to @security.
- */
-void   im_server_account_settings_set_security_protocol (ImServerAccountSettings *settings,
-							     ImProtocolType security_protocol);
-
-
-/**
- * im_server_account_settings_get_auth_protocol:
- * @settings: a #ImServerAccountSettings
- *
- * get the authentication protocol
- *
- * Returns: a #ImProtocolType
- */
-ImProtocolType im_server_account_settings_get_auth_protocol (ImServerAccountSettings *settings);
-
-/**
- * im_server_account_settings_set_auth_protocol:
- * @settings: a #ImServerAccountSettings
- * @auth_protocol: a #ImProtocolType
- *
- * set the current authentication protocol to @auth_protocol.
- */
-void   im_server_account_settings_set_auth_protocol (ImServerAccountSettings *settings,
-							 ImProtocolType auth_protocol);
-
-/**
- * im_server_account_settings_get_account_name:
- * @settings: a #ImServerAccountSettings
- *
- * get the #ImAccountMgr account name for these settings, or
- * %NULL if it's not in the manager.
- *
- * Returns: a string, or %NULL
- */
-const gchar *im_server_account_settings_get_account_name (ImServerAccountSettings *settings);
-
-/**
- * im_server_account_settings_set_account_name:
- * @settings: a #ImServerAccountSettings
- * @account_name: a string
- *
- * sets the account name that will be used to store the account settings. This should
- * only be called from #ImAccountMgr and #ImAccountSettings.
- */
-void im_server_account_settings_set_account_name (ImServerAccountSettings *settings,
-						      const gchar *account_name);
-
+const gchar *               im_server_account_settings_get_account_name      (ImServerAccountSettings *settings);
+void                        im_server_account_settings_set_account_name      (ImServerAccountSettings *settings,
+									      const gchar *account_name);
+const gchar*                im_server_account_settings_get_hostname          (ImServerAccountSettings *settings);
+void                        im_server_account_settings_set_hostname          (ImServerAccountSettings *settings,
+									      const gchar *hostname);
+guint                       im_server_account_settings_get_port              (ImServerAccountSettings *settings);
+void                        im_server_account_settings_set_port              (ImServerAccountSettings *settings,
+									      guint port);
+ImProtocolType              im_server_account_settings_get_protocol          (ImServerAccountSettings *settings);
+void                        im_server_account_settings_set_protocol          (ImServerAccountSettings *settings,
+									      ImProtocolType protocol_type);
+ImProtocolType              im_server_account_settings_get_security_protocol (ImServerAccountSettings *settings);
+void                        im_server_account_settings_set_security_protocol (ImServerAccountSettings *settings,
+									      ImProtocolType security_protocol);
+ImProtocolType              im_server_account_settings_get_auth_protocol     (ImServerAccountSettings *settings);
+void                        im_server_account_settings_set_auth_protocol     (ImServerAccountSettings *settings,
+									      ImProtocolType auth_protocol);
+const gchar *               im_server_account_settings_get_username          (ImServerAccountSettings *settings);
+void                        im_server_account_settings_set_username          (ImServerAccountSettings *settings,
+									      const gchar *username);
+const gchar *               im_server_account_settings_get_password          (ImServerAccountSettings *settings);
+void                        im_server_account_settings_set_password          (ImServerAccountSettings *settings,
+									      const gchar *password);
+const gchar *               im_server_account_settings_get_uri               (ImServerAccountSettings *settings);
+void                        im_server_account_settings_set_uri               (ImServerAccountSettings *settings,
+									      const gchar *uri);
 
 G_END_DECLS
 

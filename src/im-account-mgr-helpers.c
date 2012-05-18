@@ -637,7 +637,7 @@ im_account_mgr_load_account_settings (ImAccountMgr *self,
 	
 	settings = im_account_settings_new ();
 
-	im_account_settings_set_account_name (settings, name);
+	im_account_settings_set_id (settings, name);
 
 	string = im_account_mgr_get_string (self, name,
 						IM_ACCOUNT_DISPLAY_NAME,
@@ -729,37 +729,37 @@ void
 im_account_mgr_save_account_settings (ImAccountMgr *mgr,
 				      ImAccountSettings *settings)
 {
-	const gchar *account_name;
+	const gchar *id;
 	ImServerAccountSettings *store_settings;
 	ImServerAccountSettings *transport_settings;
 
 	g_return_if_fail (IM_IS_ACCOUNT_MGR (mgr));
 	g_return_if_fail (IM_IS_ACCOUNT_SETTINGS (settings));
 
-	account_name = im_account_settings_get_account_name (settings);
-	g_return_if_fail (account_name != NULL);
+	id = im_account_settings_get_id (settings);
+	g_return_if_fail (id != NULL);
 
-	im_account_mgr_set_display_name (mgr, account_name,
-					     im_account_settings_get_display_name (settings));
-	im_account_mgr_set_user_fullname (mgr, account_name,
-					      im_account_settings_get_fullname (settings));
-	im_account_mgr_set_user_email (mgr, account_name,
-					   im_account_settings_get_email_address (settings));
-	im_account_mgr_set_retrieve_type (mgr, account_name,
-					      im_account_settings_get_retrieve_type (settings));
-	im_account_mgr_set_retrieve_limit (mgr, account_name,
-					       im_account_settings_get_retrieve_limit (settings));
-	im_account_mgr_set_leave_on_server (mgr, account_name,
-						im_account_settings_get_leave_messages_on_server (settings));
-	im_account_mgr_set_signature (mgr, account_name,
-					  im_account_settings_get_signature (settings),
-					  im_account_settings_get_use_signature (settings));
+	im_account_mgr_set_display_name (mgr, id,
+					 im_account_settings_get_display_name (settings));
+	im_account_mgr_set_user_fullname (mgr, id,
+					  im_account_settings_get_fullname (settings));
+	im_account_mgr_set_user_email (mgr, id,
+				       im_account_settings_get_email_address (settings));
+	im_account_mgr_set_retrieve_type (mgr, id,
+					  im_account_settings_get_retrieve_type (settings));
+	im_account_mgr_set_retrieve_limit (mgr, id,
+					   im_account_settings_get_retrieve_limit (settings));
+	im_account_mgr_set_leave_on_server (mgr, id,
+					    im_account_settings_get_leave_messages_on_server (settings));
+	im_account_mgr_set_signature (mgr, id,
+				      im_account_settings_get_signature (settings),
+				      im_account_settings_get_use_signature (settings));
 	store_settings = im_account_settings_get_store_settings (settings);
 	if (store_settings) {
 		const gchar *store_account_name;
 		store_account_name = im_server_account_settings_get_account_name (store_settings);
 		if (store_account_name)
-			im_account_mgr_set_string (mgr, account_name, IM_ACCOUNT_STORE_ACCOUNT, 
+			im_account_mgr_set_string (mgr, id, IM_ACCOUNT_STORE_ACCOUNT, 
 						       store_account_name, FALSE);
 		im_account_mgr_save_server_settings (mgr, store_settings);
 		g_object_unref (store_settings);
@@ -770,12 +770,12 @@ im_account_mgr_save_account_settings (ImAccountMgr *mgr,
 		const gchar *transport_account_name;
 		transport_account_name = im_server_account_settings_get_account_name (transport_settings);
 		if (transport_account_name)
-			im_account_mgr_set_string (mgr, account_name, IM_ACCOUNT_TRANSPORT_ACCOUNT, 
+			im_account_mgr_set_string (mgr, id, IM_ACCOUNT_TRANSPORT_ACCOUNT, 
 						       transport_account_name, FALSE);
 		im_account_mgr_save_server_settings (mgr, transport_settings);
 		g_object_unref (transport_settings);
 	}
-	im_account_mgr_set_bool (mgr, account_name, IM_ACCOUNT_ENABLED, TRUE,FALSE);
+	im_account_mgr_set_bool (mgr, id, IM_ACCOUNT_ENABLED, TRUE,FALSE);
 }
 
 
@@ -786,7 +786,7 @@ on_accounts_list_sort_by_title(gconstpointer a, gconstpointer b)
 }
 
 /**
- * im_account_mgr_get_first_account_name:
+ * im_account_mgr_get_first_account_id:
  * @self: an #ImAccountMgr
  *
  * Get the first one, alphabetically, by title.
@@ -794,41 +794,41 @@ on_accounts_list_sort_by_title(gconstpointer a, gconstpointer b)
  * Returns: (transfer full): the name of the first account
  */
 gchar* 
-im_account_mgr_get_first_account_name (ImAccountMgr *self)
+im_account_mgr_get_first_account_id (ImAccountMgr *self)
 {
-	const gchar* account_name = NULL;
+	const gchar* account_id = NULL;
 	GSList* list_sorted;
 	GSList *iter;
 	gboolean found = FALSE;
-	GSList *account_names;
+	GSList *account_ids;
 	gchar* result = NULL;
 	
-	account_names = im_account_mgr_account_names (self, TRUE /* only enabled */);
+	account_ids = im_account_mgr_get_account_ids (self, TRUE /* only enabled */);
 
 	/* Return TRUE if there is no account */
-	if (!account_names)
+	if (!account_ids)
 		return NULL;
 
 	/* Get the first one, alphabetically, by title: */
 	/* gchar *old_default = im_account_mgr_get_default_account (self); */
-	list_sorted = g_slist_sort (account_names, on_accounts_list_sort_by_title);
+	list_sorted = g_slist_sort (account_ids, on_accounts_list_sort_by_title);
 
 	iter = list_sorted;
 	while (iter && !found) {
-		account_name = (const gchar*)list_sorted->data;
+		account_id = (const gchar*)list_sorted->data;
 
-		if (account_name)
+		if (account_id)
 			found = TRUE;
 
 		if (!found)
 			iter = g_slist_next (iter);
 	}
 
-	if (account_name)
-		result = g_strdup (account_name);
+	if (account_id)
+		result = g_strdup (account_id);
 		
-	im_account_mgr_free_account_names (account_names);
-	account_names = NULL;
+	im_account_mgr_free_account_ids (account_ids);
+	account_ids = NULL;
 
 	return result;
 }
@@ -847,12 +847,12 @@ gboolean
 im_account_mgr_set_first_account_as_default (ImAccountMgr *self)
 {
 	gboolean result = FALSE;
-	gchar* account_name;
+	gchar* account_id;
 
-	account_name = im_account_mgr_get_first_account_name(self);
-	if (account_name) {
-		result = im_account_mgr_set_default_account (self, account_name);
-		g_free (account_name);
+	account_id = im_account_mgr_get_first_account_id (self);
+	if (account_id) {
+		result = im_account_mgr_set_default_account (self, account_id);
+		g_free (account_id);
 	}
 	else
 		result = TRUE; /* If there are no accounts then it's not a failure. */
@@ -1200,11 +1200,11 @@ im_account_mgr_get_server_parent_account_name (ImAccountMgr *self,
 					       const char *server_account_name,
 					       ImAccountType account_type)
 {
-	GSList *account_names, *node;
+	GSList *account_ids, *node;
 	gchar *result = NULL;
 	
-	account_names = im_account_mgr_account_names (self, TRUE);
-	for (node = account_names; result == NULL && node != NULL; node = g_slist_next (node)) {
+	account_ids = im_account_mgr_get_account_ids (self, TRUE);
+	for (node = account_ids; result == NULL && node != NULL; node = g_slist_next (node)) {
 		char *server_name;
 		
 		server_name = im_account_mgr_get_server_account_name (self, (char *) node->data, account_type);
@@ -1214,7 +1214,7 @@ im_account_mgr_get_server_parent_account_name (ImAccountMgr *self,
 		g_free (server_name);
 	}
 	
-	im_account_mgr_free_account_names (account_names);
+	im_account_mgr_free_account_ids (account_ids);
 	return result;
 }
 

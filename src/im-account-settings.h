@@ -44,8 +44,9 @@
 #ifndef __IM_ACCOUNT_SETTINGS_H__
 #define __IM_ACCOUNT_SETTINGS_H__
 
-#include <glib-object.h>
 #include <im-server-account-settings.h>
+
+#include <glib-object.h>
 
 G_BEGIN_DECLS
 
@@ -79,301 +80,48 @@ typedef enum {
 	IM_ACCOUNT_RETRIEVE_MESSAGES_AND_ATTACHMENTS
 } ImAccountRetrieveType;
 
+GType                    im_account_settings_get_type               (void) G_GNUC_CONST;
+ImAccountSettings*       im_account_settings_new                    (void);
 
-/**
- * im_account_settings_get_type:
- *
- * Returns: GType of the account store
- */
-GType  im_account_settings_get_type   (void) G_GNUC_CONST;
-
-/**
- * im_account_settings_new:
- *
- * creates a new instance of #ImAccountSettings
- *
- * Returns: a #ImAccountSettings
- */
-ImAccountSettings*    im_account_settings_new (void);
-
-/**
- * im_account_settings_get_fullname:
- * @settings: a #ImAccountSettings
- *
- * get the user full name.
- *
- * Returns: a string
- */
-const gchar* im_account_settings_get_fullname (ImAccountSettings *settings);
-
-/**
- * im_account_settings_set_fullname:
- * @settings: a #ImAccountSettings
- * @hostname: a string.
- *
- * set @fullname as the user full name .
- */
-void         im_account_settings_set_fullname (ImAccountSettings *settings,
-						   const gchar *fullname);
-/**
- * im_account_settings_get_email_address:
- * @settings: a #ImAccountSettings
- *
- * get the user email address.
- *
- * Returns: a string
- */
-const gchar* im_account_settings_get_email_address (ImAccountSettings *settings);
-
-/**
- * im_account_settings_set_email_address:
- * @settings: a #ImAccountSettings
- * @hostname: a string.
- *
- * set @email_address of the account.
- */
-void         im_account_settings_set_email_address (ImAccountSettings *settings,
-							const gchar *email_address);
-/**
- * im_account_settings_get_retrieve_type:
- * @settings: a #ImAccountSettings
- *
- * get the account retrieve type.
- *
- * Returns: a #ImAccountRetrieveType
- */
-ImAccountRetrieveType im_account_settings_get_retrieve_type (ImAccountSettings *settings);
-
-/**
- * im_account_settings_set_retrieve_type:
- * @settings: a #ImAccountSettings
- * @retrieve_type: a #ImAccountRetrieveType.
- *
- * set @retrieve_type of the account.
- */
-void         im_account_settings_set_retrieve_type (ImAccountSettings *settings,
-							ImAccountRetrieveType retrieve_type);
-
-/**
- * im_account_settings_get_retrieve_limit:
- * @settings: a #ImAccountSettings
- *
- * get the account retrieve limit. 0 is no limit.
- *
- * Returns: a #gint
- */
-gint im_account_settings_get_retrieve_limit (ImAccountSettings *settings);
-
-/**
- * im_account_settings_set_retrieve_limit:
- * @settings: a #ImAccountSettings
- * @retrieve_limit: a #gint.
- *
- * set @retrieve_limit of the account. 0 is no limit.
- */
-void         im_account_settings_set_retrieve_limit (ImAccountSettings *settings,
-							 gint retrieve_limit);
-
-/**
- * im_account_settings_get_display_name:
- * @settings: a #ImAccountSettings
- *
- * get the visible name of the account.
- *
- * Returns: a string
- */
-const gchar* im_account_settings_get_display_name (ImAccountSettings *settings);
-
-/**
- * im_account_settings_set_display_name:
- * @settings: a #ImAccountSettings
- * @hostname: a string.
- *
- * set @display_name as the name of the account visible to the users in UI.
- */
-void         im_account_settings_set_display_name (ImAccountSettings *settings,
-						       const gchar *display_name);
-
-/**
- * im_account_settings_get_account_name:
- * @settings: a #ImAccountSettings
- *
- * get the #ImAccountMgr account name for these settings, or
- * %NULL if it's not in the manager.
- *
- * Returns: a string, or %NULL
- */
-const gchar *im_account_settings_get_account_name (ImAccountSettings *settings);
-
-/**
- * im_account_settings_set_account_name:
- * @settings: a #ImAccountSettings
- * @account_name: a string
- *
- * sets the account name that will be used to store the account settings. This should
- * only be called from #ImAccountMgr and #ImAccountSettings.
- */
-void im_account_settings_set_account_name (ImAccountSettings *settings,
-					       const gchar *account_name);
-
-/**
- * im_account_settings_get_enabled:
- * @settings: a #ImAccountSettings
- *
- * obtains whether the account is enabled or not.
- *
- * Returns: a #gboolean
- */
-gboolean im_account_settings_get_enabled (ImAccountSettings *settings);
-					      
-/**
- * im_account_settings_set_enabled:
- * @settings: a #ImAccountSettings
- * @enabled: a #gboolean
- *
- * set if @settings account is enabled or not.
- */
-void im_account_settings_set_enabled (ImAccountSettings *settings, gboolean enabled);
-
-
-/**
- * im_account_settings_get_is_default:
- * @settings: a #ImAccountSettings
- *
- * obtains whether the account is the default account or not.
- *
- * Returns: a #gboolean
- */
-gboolean im_account_settings_get_is_default (ImAccountSettings *settings);
-					      
-/**
- * im_account_settings_set_is_default:
- * @settings: a #ImAccountSettings
- * @is_default: a #gboolean
- *
- * set if @settings account is the default account or not.
- */
-void im_account_settings_set_is_default (ImAccountSettings *settings, gboolean is_default);
-
-/**
- * im_account_settings_get_store_settings:
- * @settings: a #ImAccountSettings
- *
- * obtains a ref'ed instance of the store account server settings
- *
- * Returns: a ref'd #ImServerAccountSettings. You should unreference it on finishing usage.
- */
-ImServerAccountSettings *im_account_settings_get_store_settings (ImAccountSettings *settings);
-
-/**
- * im_account_settings_set_store_settings:
- * @settings: a #ImAccountSettings
- *
- * sets @store_settings as the settings of the store account of @settings account.
- * @settings will keep an internal reference to it.
- */
-void im_account_settings_set_store_settings (ImAccountSettings *settings, 
-						 ImServerAccountSettings *store_settings);
-
-/**
- * im_account_settings_get_transport_settings:
- * @settings: a #ImAccountSettings
- *
- * obtains a ref'ed instance of the transport account server settings
- *
- * Returns: a ref'd #ImServerAccountSettings. You should unreference it on finishing usage.
- */
+const gchar *            im_account_settings_get_id                 (ImAccountSettings *settings);
+void                     im_account_settings_set_id                 (ImAccountSettings *settings,
+								     const gchar *id);
+const gchar*             im_account_settings_get_display_name       (ImAccountSettings *settings);
+void                     im_account_settings_set_display_name       (ImAccountSettings *settings,
+								     const gchar *display_name);
+gboolean                 im_account_settings_get_enabled            (ImAccountSettings *settings);
+void                     im_account_settings_set_enabled            (ImAccountSettings *settings,
+								     gboolean enabled);
+gboolean                 im_account_settings_get_is_default         (ImAccountSettings *settings);
+void                     im_account_settings_set_is_default         (ImAccountSettings *settings,
+								     gboolean is_default);
+const gchar*             im_account_settings_get_fullname           (ImAccountSettings *settings);
+void                     im_account_settings_set_fullname           (ImAccountSettings *settings,
+								     const gchar *fullname);
+const gchar*             im_account_settings_get_email_address      (ImAccountSettings *settings);
+void                     im_account_settings_set_email_address      (ImAccountSettings *settings,
+								     const gchar *email_address);
+gboolean                 im_account_settings_get_use_signature      (ImAccountSettings *settings);
+void                     im_account_settings_set_use_signature      (ImAccountSettings *settings,
+								     gboolean use_signature);
+const gchar*             im_account_settings_get_signature          (ImAccountSettings *settings);
+void                     im_account_settings_set_signature          (ImAccountSettings *settings,
+								     const gchar *signature);
+ImAccountRetrieveType    im_account_settings_get_retrieve_type      (ImAccountSettings *settings);
+void                     im_account_settings_set_retrieve_type      (ImAccountSettings *settings,
+								     ImAccountRetrieveType retrieve_type);
+guint                    im_account_settings_get_retrieve_limit     (ImAccountSettings *settings);
+void                     im_account_settings_set_retrieve_limit     (ImAccountSettings *settings,
+								     guint retrieve_limit);
+gboolean                 im_account_settings_get_leave_messages_on_server (ImAccountSettings *settings);
+void                     im_account_settings_set_leave_messages_on_server (ImAccountSettings *settings, 
+									   gboolean leave_messages_on_server);
+ImServerAccountSettings *im_account_settings_get_store_settings     (ImAccountSettings *settings);
+void                     im_account_settings_set_store_settings     (ImAccountSettings *settings, 
+								     ImServerAccountSettings *store_settings);
 ImServerAccountSettings *im_account_settings_get_transport_settings (ImAccountSettings *settings);
-
-/**
- * im_account_settings_set_transport_settings:
- * @settings: a #ImAccountSettings
- *
- * sets @transport_settings as the settings of the transport account of @settings account.
- * @settings will keep an internal reference to it.
- */
-void im_account_settings_set_transport_settings (ImAccountSettings *settings, 
-						     ImServerAccountSettings *transport_settings);
-
-/**
- * im_account_settings_get_use_signature:
- * @settings: a #ImAccountSettings
- *
- * obtains whether the mails from this account use signature or not.
- *
- * Returns: a #gboolean
- */
-gboolean im_account_settings_get_use_signature (ImAccountSettings *settings);
-					      
-/**
- * im_account_settings_set_use_signature:
- * @settings: a #ImAccountSettings
- * @use_signature: a #gboolean
- *
- * set if @settings mails use signature or not
- */
-void im_account_settings_set_use_signature (ImAccountSettings *settings, gboolean use_signature);
-
-/**
- * im_account_settings_get_signature:
- * @settings: a #ImAccountSettings
- *
- * get the signature.
- *
- * Returns: a string
- */
-const gchar* im_account_settings_get_signature (ImAccountSettings *settings);
-
-/**
- * im_account_settings_set_signature:
- * @settings: a #ImAccountSettings
- * @hostname: a string.
- *
- * set @signature for the account .
- */
-void         im_account_settings_set_signature (ImAccountSettings *settings,
-						   const gchar *signature);
-/**
- * im_account_settings_get_leave_messages_on_server:
- * @settings: a #ImAccountSettings
- *
- * obtains whether messages should be left on server or not
- *
- * Returns: a #gboolean
- */
-gboolean im_account_settings_get_leave_messages_on_server (ImAccountSettings *settings);
-					      
-/**
- * im_account_settings_set_leave_messages_on_server:
- * @settings: a #ImAccountSettings
- * @leave_messages_on_server: a #gboolean
- *
- * set if we leave the messages on server or not.
- */
-void im_account_settings_set_leave_messages_on_server (ImAccountSettings *settings, 
-							   gboolean leave_messages_on_server);
-
-
-/**
- * im_account_settings_get_use_connection_specific_smtp:
- * @settings: a #ImAccountSettings
- *
- * obtains if we should try the connection specific smtp servers
- *
- * Returns: a #gboolean
- */
-gboolean im_account_settings_get_use_connection_specific_smtp (ImAccountSettings *settings);
-					      
-/**
- * im_account_settings_set_use_connection_specific_smtp:
- * @settings: a #ImAccountSettings
- * @use_connection_specific_smtp: a #gboolean
- *
- * if set, mails sent from this account first try the connection specific smtp servers
- * before the transport account.
- */
-void im_account_settings_set_use_connection_specific_smtp (ImAccountSettings *settings, 
-							       gboolean use_connection_specific_smtp);
+void                     im_account_settings_set_transport_settings (ImAccountSettings *settings, 
+								     ImServerAccountSettings *transport_settings);
 
 G_END_DECLS
 

@@ -229,28 +229,26 @@ gboolean        im_account_mgr_remove_server_account         (ImAccountMgr *self
 							      const gchar* name);
 
 /**
- * im_account_mgr_account_names:
+ * im_account_mgr_get_account_ids:
  * @self: a ImAccountMgr instance
  * @only_enabled: Whether only enabled accounts should be returned.
  * 
- * list all account names
+ * list ids of all accounts
  *
- * Returns: a newly allocated list of account names, or NULL in case of error or
- * if there are no accounts. The caller must free the returned GSList.
- *
+ * Returns: (element-type utf8) (transfer full): list of account ids,
  */
-GSList*	        im_account_mgr_account_names    (ImAccountMgr *self,
-						 gboolean only_enabled);
+GSList*	        im_account_mgr_get_account_ids    (ImAccountMgr *self,
+						   gboolean only_enabled);
 
 /**
- * im_account_mgr_free_account_names:
- * @account_name: a gslist of account names
+ * im_account_mgr_free_account_ids:
+ * @account_name: (element-type utf8): a #GSList of account ids
  * 
- * list all account names
+ * list all account ids
  *
- * free the list of account names
+ * free the list of account ids
  */
-void	        im_account_mgr_free_account_names    (GSList *account_names);
+void	        im_account_mgr_free_account_ids    (GSList *account_ids);
 							  
 
 /**

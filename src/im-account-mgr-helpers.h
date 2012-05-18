@@ -60,7 +60,7 @@ ImProtocolType      im_account_mgr_get_store_protocol              (ImAccountMgr
 								    const gchar* name);
 
 gboolean            im_account_mgr_set_first_account_as_default    (ImAccountMgr *self);
-gchar *             im_account_mgr_get_first_account_name          (ImAccountMgr *self);
+gchar *             im_account_mgr_get_first_account_id            (ImAccountMgr *self);
 
 
 gboolean            im_account_mgr_set_enabled                     (ImAccountMgr *self,
