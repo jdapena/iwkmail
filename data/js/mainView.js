@@ -273,21 +273,21 @@ function showMessages(accountId, folderId, onlyNew)
 	    oldestUid: globalStatus.oldestUid,
 	    count: retrieveCount
 	}).done(function (msg) {
-	    if (msg.newMessages.length > 0) {
-		globalStatus.newestUid = msg.newMessages[0].uid;
+	    if (msg.result.newMessages.length > 0) {
+		globalStatus.newestUid = msg.result.newMessages[0].uid;
 	    }
-	    if (globalStatus.newestUid == null && msg.messages.length > 0) {
-		globalStatus.newestUid = msg.messages[0].uid;
+	    if (globalStatus.newestUid == null && msg.result.messages.length > 0) {
+		globalStatus.newestUid = msg.result.messages[0].uid;
 	    }
-	    if (msg.messages.length > 0) {
-		globalStatus.oldestUid = msg.messages[msg.messages.length - 1].uid;
+	    if (msg.result.messages.length > 0) {
+		globalStatus.oldestUid = msg.result.messages[msg.result.messages.length - 1].uid;
 	    }
-	    msg.newMessages.reverse();
-	    for (i in msg.newMessages) {
-		dumpMessageInMessagesList (msg.newMessages[i], true, "#page-messages #messages-list");
+	    msg.result.newMessages.reverse();
+	    for (i in msg.result.newMessages) {
+		dumpMessageInMessagesList (msg.result.newMessages[i], true, "#page-messages #messages-list");
 	    }
-	    for (i in msg.messages) {
-		dumpMessageInMessagesList (msg.messages[i], false, "#page-messages #messages-list");
+	    for (i in msg.result.messages) {
+		dumpMessageInMessagesList (msg.result.messages[i], false, "#page-messages #messages-list");
 	    }
 	    if ($("#messages-list").hasClass("ui-listview"))
 		$("#messages-list").listview('refresh');

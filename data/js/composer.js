@@ -177,16 +177,16 @@ function attachFiles ()
 	title: 'Add attachments...',
 	attachAction: 'Attach'
     }).done(function (msg) {
-	if (msg.uris) {
-	    for (i in msg.uris) {
+	if (msg.result) {
+	    for (i in msg.result) {
 		item = document.createElement ("a");
 		item.className += "iwk-attachment-item";
 		item.isAttachment = true;
-		item.uri = msg.uris[i];
+		item.uri = msg.result[i];
 		item.setAttribute('href', '#');
 		item.setAttribute('data-role', 'button');
 		item.setAttribute('data-icon', 'minus');
-		$(item).text(uriGetFilename (msg.uris[i]));
+		$(item).text(uriGetFilename (msg.result[i]));
 
 		$(item).click(function () {
 		    $(this).remove();

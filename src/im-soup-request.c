@@ -293,35 +293,34 @@ finish:
 }
 
 static void
-response_start (JsonBuilder *builder)
-{
-  json_builder_begin_object (builder);
-
-}
-
-static void
-response_finish (GAsyncResult *result, GHashTable *params, JsonBuilder *builder, GError *error)
+response_finish (GAsyncResult *result, const gchar *callback_id, JsonNode *result_node, GError *error)
 {
 	ImSoupRequest *request;
 	JsonGenerator *generator;
 	char *json_data;
 	gssize length;
 	GString *buffer = g_string_new (NULL);
-	const char *callback;
 	GInputStream *input_stream;
+	JsonBuilder *builder;
+
+	builder = json_builder_new ();
 
 	request = (ImSoupRequest *) g_async_result_get_source_object (result);
 	
-	callback = (char *) g_hash_table_lookup (params, "callback");
+	if (callback_id)
+		g_string_append_printf (buffer, "%s (", callback_id);
 
-	if (callback)
-		g_string_append_printf (buffer, "%s (", callback);
+	json_builder_begin_object (builder);
 
 	json_builder_set_member_name (builder, "is_ok");
 	json_builder_add_boolean_value (builder, error == NULL);
 	if (error) {
 		json_builder_set_member_name (builder, "error");
 		json_builder_add_string_value (builder, error->message);
+	}
+	if (result_node) {
+		json_builder_set_member_name (builder, "result");
+		json_builder_add_value (builder, json_node_copy (result_node));
 	}
 	json_builder_end_object (builder);
 
@@ -333,7 +332,7 @@ response_finish (GAsyncResult *result, GHashTable *params, JsonBuilder *builder,
 	g_string_append (buffer, json_data);
 	g_free (json_data);
 
-	if (callback)
+	if (callback_id)
 		g_string_append (buffer, ")");
 
 	length = buffer->len;
@@ -351,16 +350,17 @@ response_finish (GAsyncResult *result, GHashTable *params, JsonBuilder *builder,
 }
 
 static void
-add_account (GHashTable *request_params,
-	     JsonBuilder *builder,
-	     GError **error)
+add_account (GAsyncResult *result,
+	     GHashTable *request_params)
 {
 	GError *_error = NULL;
 	ImAccountSettings *account = NULL;
 	ImServerAccountSettings *store = NULL, *transport = NULL;
 	GHashTable *params;
 	const char *form_data;
+	const char *callback_id;
 
+	callback_id = g_hash_table_lookup (request_params, "callback");
 	form_data = g_hash_table_lookup (request_params, "formData");
 	params = soup_form_decode (form_data);
 
@@ -386,25 +386,28 @@ add_account (GHashTable *request_params,
 	}
 
 finish:
+	response_finish (result, callback_id, NULL, _error);
+
 	if (params) g_hash_table_unref (params);
 	if (store) g_object_unref (store);
 	if (transport) g_object_unref (transport);
 	if (account) g_object_unref (account);
-	if (_error) g_propagate_error (error, _error);
+	if (_error) g_error_free (_error);
 }
 
 static void
-delete_account (GHashTable *request_params,
-		JsonBuilder *builder,
-		GError **error)
+delete_account (GAsyncResult *result,
+		GHashTable *request_params)
 {
 	GError *_error = NULL;
 	ImAccountMgr *account_mgr;
 	const char *account_id;
+	const char *callback_id;
 
 	account_mgr = im_account_mgr_get_instance ();
 
 	account_id = g_hash_table_lookup (request_params, "accountId");
+	callback_id = g_hash_table_lookup (request_params, "callback");
 
 	if (!im_account_mgr_account_exists (account_mgr, account_id, FALSE)) {
 		g_set_error (&_error, IM_ERROR_DOMAIN,
@@ -420,57 +423,52 @@ delete_account (GHashTable *request_params,
 			     _("Failed to remove account"));
 	}
 finish:
-	if (_error) g_propagate_error (error, _error);
+	response_finish (result, callback_id, NULL, _error);
+	if (_error) g_error_free (_error);
 }
 
 static void
-get_accounts (GHashTable *request_params,
-	      JsonBuilder *builder,
-	      GError **error)
+get_accounts (GAsyncResult *result,
+	      GHashTable *request_params)
 {
 	  GSList *account_ids, *node;
 	  ImAccountMgr *mgr = im_account_mgr_get_instance ();
 	  char *default_account;
+	  const char *callback_id;
+	  JsonBuilder *builder;
+	  JsonNode *result_node;
+
+	  callback_id = g_hash_table_lookup (request_params, "callback");
 
 	  account_ids = im_account_mgr_get_account_ids (mgr, TRUE);
 	  default_account = im_account_mgr_get_default_account (mgr);
 
-	  json_builder_set_member_name (builder, "result");
+	  builder = json_builder_new ();
 	  json_builder_begin_array (builder);
 	  for (node = account_ids; node != NULL; node = g_slist_next (node)) {
 		  char *id = (char *) node->data;
 		  ImAccountSettings *settings;
+		  JsonNode *account_json;
 
 		  settings = im_account_mgr_load_account_settings (mgr, id);
 
-		  json_builder_begin_object (builder);
-
-		  json_builder_set_member_name (builder, "id");
-		  json_builder_add_string_value (builder, id);
-
-		  json_builder_set_member_name (builder, "displayName");
-		  json_builder_add_string_value (builder, im_account_settings_get_display_name (settings));
-
-		  json_builder_set_member_name (builder, "emailAddress");
-		  json_builder_add_string_value (builder, im_account_settings_get_email_address (settings));
-
-		  json_builder_set_member_name (builder, "isDefault");
-		  json_builder_add_boolean_value (builder, im_account_settings_get_is_default (settings));
-
-		  g_object_unref (settings);
-
-		  json_builder_end_object (builder);
+		  account_json = json_gobject_serialize (G_OBJECT (settings));
+		  json_builder_add_value (builder, account_json);
 	  }
 	  json_builder_end_array (builder);
 
 	  g_free (default_account);
 	  im_account_mgr_free_account_ids (account_ids);
+
+	  result_node = json_builder_get_root (builder);	  
+	  g_object_unref (builder);
+	  response_finish (result, callback_id, result_node, NULL);
+	  json_node_free (result_node);
 }
 
 typedef struct _SyncFoldersData {
 	GAsyncResult *result;
-	GHashTable *params;
-	JsonBuilder *builder;
+	gchar *callback_id;
 	GCancellable *cancellable;
 	GError *error;
 	gint count;
@@ -614,11 +612,13 @@ finish_sync_folders (SyncFoldersData *data)
 {
 	GList *account_keys, *node;
 	CamelFolder *drafts;
+	JsonBuilder *builder;
+	JsonNode *result_node;
 
 	drafts = im_service_mgr_get_drafts (im_service_mgr_get_instance (),
 					    NULL, NULL);
-	json_builder_set_member_name (data->builder, "result");
-	json_builder_begin_array (data->builder);
+	builder = json_builder_new ();
+	json_builder_begin_array (builder);
 
 	account_keys = g_hash_table_get_keys (data->folder_infos);
 	for (node = account_keys; node != NULL; node = g_list_next (node)) {
@@ -631,18 +631,18 @@ finish_sync_folders (SyncFoldersData *data)
 		outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
 						    account_id,
 						    NULL, NULL);
-		json_builder_begin_object (data->builder);
+		json_builder_begin_object (builder);
 
-		json_builder_set_member_name (data->builder, "accountId");
-		json_builder_add_string_value (data->builder, account_id);
+		json_builder_set_member_name (builder, "accountId");
+		json_builder_add_string_value (builder, account_id);
 
-		json_builder_set_member_name (data->builder, "accountName");
+		json_builder_set_member_name (builder, "accountName");
 		display_name = im_account_mgr_get_display_name (im_account_mgr_get_instance (),
 								account_id);
-		json_builder_add_string_value (data->builder, display_name);
+		json_builder_add_string_value (builder, display_name);
 
-		json_builder_set_member_name (data->builder, "folders");
-		json_builder_begin_object (data->builder);
+		json_builder_set_member_name (builder, "folders");
+		json_builder_begin_object (builder);
 		fi = g_hash_table_lookup (data->folder_infos, account_id);
 
 		non_storage = (g_hash_table_lookup (data->non_storage, account_id) != NULL);
@@ -656,29 +656,32 @@ finish_sync_folders (SyncFoldersData *data)
 				store = im_service_mgr_get_local_store (service_mgr);
 			else
 				store = g_hash_table_lookup (data->stores, account_id);
-			dump_folder_info (data->builder, fi, drafts, outbox, non_storage);
+			dump_folder_info (builder, fi, drafts, outbox, non_storage);
 			camel_store_free_folder_info (store, fi);
 		}
-		json_builder_end_object (data->builder);
-		json_builder_end_object (data->builder);
+		json_builder_end_object (builder);
+		json_builder_end_object (builder);
 
 		if (outbox) g_object_unref (outbox);
 		g_free (display_name);
 	}
-	json_builder_end_array (data->builder);
+	json_builder_end_array (builder);
 	g_list_free (account_keys);
 
 	if (drafts)
 		g_object_unref (drafts);
 
+	result_node = json_builder_get_root (builder);
+	g_object_unref (builder);
+
 	response_finish (data->result,
-			 data->params,
-			 data->builder,
+			 data->callback_id,
+			 result_node,
 			 data->error);
+	json_node_free (result_node);
 
 	g_object_unref (data->result);
-	g_hash_table_unref (data->params);
-	g_object_unref (data->builder);
+	g_free (data->callback_id);
 	g_object_unref (data->cancellable);
 	if (data->error) g_error_free (data->error);
 	g_hash_table_destroy (data->folder_infos);
@@ -1270,18 +1273,16 @@ sync_folders_get_folder_info_cb (GObject *source_object,
 }
 
 static void
-sync_folders (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
+sync_folders (GAsyncResult *result, GHashTable *params)
 {
 	  GSList *account_ids, *node;
 	  ImAccountMgr *mgr = im_account_mgr_get_instance ();
 	  SyncFoldersData *data = g_new0(SyncFoldersData, 1);
 	  CamelStore *outbox_store;
-
-	  response_start (builder);
+	  
 
 	  data->result = g_object_ref (result);
-	  data->params = g_hash_table_ref (params);
-	  data->builder = g_object_ref (builder);
+	  data->callback_id = g_strdup ((char *) g_hash_table_lookup (params, "callback"));
 	  data->cancellable = g_cancellable_new ();
 	  data->stores = g_hash_table_new_full (g_str_hash, g_str_equal,
 						g_free, (GDestroyNotify) g_object_unref);
@@ -1356,8 +1357,10 @@ sync_folders (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 
 typedef struct _FetchMessagesData {
 	GAsyncResult *result;
-	GHashTable *params;
-	JsonBuilder *builder;
+	gchar *callback_id;
+	gchar *newest_uid;
+	gchar *oldest_uid;
+	gint count;
 	GCancellable *cancellable;
 	GError *error;
 	GList *new_uids;
@@ -1365,12 +1368,13 @@ typedef struct _FetchMessagesData {
 } FetchMessagesData;
 
 static void
-finish_fetch_messages (FetchMessagesData *data)
+finish_fetch_messages (FetchMessagesData *data, JsonNode *result_node)
 {
-	response_finish (data->result, data->params, data->builder, data->error);
+	response_finish (data->result, data->callback_id, result_node, data->error);
 	g_object_unref (data->result);
-	g_hash_table_unref (data->params);
-	g_object_unref (data->builder);
+	g_free (data->callback_id);
+	g_free (data->newest_uid);
+	g_free (data->oldest_uid);
 	g_object_unref (data->cancellable);
 	if (data->error) g_error_free  (data->error);
 	g_list_foreach (data->new_uids, (GFunc) g_free, NULL);
@@ -1456,78 +1460,72 @@ fetch_messages_refresh_info_cb (GObject *source_object,
 	FetchMessagesData *data = (FetchMessagesData *) userdata;
 	GError *error = NULL;
 	CamelFolder *folder = (CamelFolder *) source_object;
-	const char *newest_uid;
-	const char *oldest_uid;
-	const char *count_str;
-	gint count;
 	GPtrArray *uids;
 	int i, j;
+	JsonBuilder *builder;
+	JsonNode *result_node;
 
-	newest_uid = g_hash_table_lookup (data->params, "newestUid");
-	if (newest_uid == '\0' || g_strcmp0 (newest_uid, "null") == 0) newest_uid = NULL;
-	oldest_uid = g_hash_table_lookup (data->params, "oldestUid");
-	if (oldest_uid == '\0' || g_strcmp0 (oldest_uid, "null") == 0) oldest_uid = NULL;
-	count_str = g_hash_table_lookup (data->params, "count");
-	if (count_str) {
-		count = atoi(count_str);
-	}
-	if (count < 0)
-		count = 20;
+	builder = json_builder_new ();
+	json_builder_begin_object (builder);
 
 	camel_folder_refresh_info_finish (folder, result, &error);
 
 	uids = camel_folder_get_uids (folder);
-	response_start (data->builder);
 	camel_folder_sort_uids (folder, uids);
 		
 	/* Fetch first new messages */
-	json_builder_set_member_name (data->builder, "newMessages");
-	json_builder_begin_array(data->builder);
+	json_builder_set_member_name (builder, "newMessages");
+	json_builder_begin_array(builder);
 	i = uids->len - 1;
-	if (newest_uid != NULL) {
+	if (data->newest_uid != NULL) {
 		while (i >= 0) {
 			const char *uid = uids->pdata[i];
 			CamelMessageInfo *mi;
-			if (g_strcmp0 (uid, newest_uid) == 0)
+			if (g_strcmp0 (uid, data->newest_uid) == 0)
 				break;
 			mi = camel_folder_get_message_info (folder, uid);
-			dump_message_info (data->builder, mi);
+			dump_message_info (builder, mi);
 			camel_folder_free_message_info (folder, mi);
 			i--;
 		}
 	}
-	json_builder_end_array (data->builder);
-	if (oldest_uid != NULL) {
+	json_builder_end_array (builder);
+	if (data->oldest_uid != NULL) {
 		while (i >= 0) {
 			const char *uid = uids->pdata[i];
-			if (g_strcmp0 (uid, oldest_uid) == 0)
+			if (g_strcmp0 (uid, data->oldest_uid) == 0)
 				break;
 			i--;
 		}
 		i--;
 	}
-	json_builder_set_member_name (data->builder, "messages");
-	json_builder_begin_array (data->builder);
-	for (j = 0; j < count; j++) {
+	json_builder_set_member_name (builder, "messages");
+	json_builder_begin_array (builder);
+	for (j = 0; j < data->count; j++) {
 		const char *uid;
 		CamelMessageInfo *mi;
 		if (i < 0)
 			break;
 		uid = (const char *) uids->pdata[i];
 		mi = camel_folder_get_message_info (folder, uid);
-		dump_message_info (data->builder, mi);
+		dump_message_info (builder, mi);
 		camel_folder_free_message_info (folder, mi);
 		i--;
 	}
-	json_builder_end_array(data->builder);
+	json_builder_end_array(builder);
 	camel_folder_free_uids (folder, uids);
+	json_builder_end_object (builder);
+
+	result_node = json_builder_get_root (builder);
+	g_object_unref (builder);
 
 	if (error && data->error == NULL) {
 		g_cancellable_cancel (data->cancellable);
 		g_propagate_error (&data->error, error);
 	}
 
-	finish_fetch_messages (data);
+	finish_fetch_messages (data, result_node);
+	json_node_free (result_node);
 }
 
 static void
@@ -1538,8 +1536,7 @@ fetch_messages_refresh_info (CamelFolder *folder, FetchMessagesData *data)
 					   G_PRIORITY_DEFAULT_IDLE, data->cancellable,
 					   fetch_messages_refresh_info_cb, data);
 	} else {
-		response_start (data->builder);
-		finish_fetch_messages (data);
+		finish_fetch_messages (data, NULL);
 	}
 	if (folder) g_object_unref (folder);
 }
@@ -1564,16 +1561,32 @@ fetch_messages_get_folder_cb (GObject *source_object,
 }
 
 static void
-fetch_messages (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
+fetch_messages (GAsyncResult *result, GHashTable *params)
 {
 	const char *account_name;
 	const char *folder_name;
 	FetchMessagesData *data = g_new0 (FetchMessagesData, 1);
+	const gchar *newest_uid;
+	const gchar *oldest_uid;
+	const gchar *count_str;
 
 	data->result = g_object_ref (result);
-	data->params = g_hash_table_ref (params);
-	data->builder = g_object_ref (builder);
+	data->callback_id = g_strdup (g_hash_table_lookup (params, "callback"));
 	data->cancellable = g_cancellable_new ();
+
+	newest_uid = g_hash_table_lookup (params, "newestUid");
+	if (newest_uid == '\0' || g_strcmp0 (newest_uid, "null") == 0) newest_uid = NULL;
+	data->newest_uid = g_strdup (newest_uid);
+	oldest_uid = g_hash_table_lookup (params, "oldestUid");
+	if (oldest_uid == '\0' || g_strcmp0 (oldest_uid, "null") == 0) oldest_uid = NULL;
+	data->oldest_uid = g_strdup (oldest_uid);
+	count_str = g_hash_table_lookup (params, "count");
+	if (count_str) {
+		data->count = atoi(count_str);
+	}
+	if (data->count < 0)
+		data->count = 20;
+
 
 	account_name = g_hash_table_lookup (params, "account");
 	folder_name = g_hash_table_lookup (params, "folder");
@@ -1620,20 +1633,24 @@ fetch_messages (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 
 typedef struct _GetMessageData {
 	GAsyncResult *result;
-	GHashTable *params;
-	JsonBuilder *builder;
+	gchar *callback_id;
+	gchar *account_id;
+	gchar *folder_fullname;
+	gchar *message_uid;
 	GCancellable *cancellable;
 	GError *error;
 } GetMessageData;
 
 static void
-finish_get_message (GetMessageData *data)
+finish_get_message (GetMessageData *data, JsonNode *result_node)
 {
-	response_finish (data->result, data->params, data->builder, data->error);
+	response_finish (data->result, data->callback_id, result_node, data->error);
 	
 	g_object_unref (data->result);
-	g_hash_table_unref (data->params);
-	g_object_unref (data->builder);
+	g_free (data->callback_id);
+	g_free (data->account_id);
+	g_free (data->folder_fullname);
+	g_free (data->message_uid);
 	g_object_unref (data->cancellable);
 	if (data->error) g_error_free (data->error);
 	g_free (data);
@@ -1880,6 +1897,7 @@ get_message_get_message_cb (GObject *source_object,
 	GError *error = NULL;
 	CamelFolder *folder = (CamelFolder *) source_object;
 	CamelMimeMessage *message;
+	JsonNode *result_node = NULL;
 
 	message = camel_folder_get_message_finish (folder, result, &error);
 
@@ -1888,19 +1906,24 @@ get_message_get_message_cb (GObject *source_object,
 		g_propagate_error (&data->error, error);
 	}
 
-	response_start (data->builder);
 	if (message) {
 		CamelURL *url;
-		json_builder_set_member_name (data->builder, "result");
-		url = build_message_url (g_hash_table_lookup (data->params, "account"),
-					 g_hash_table_lookup (data->params, "folder"),
-					 g_hash_table_lookup (data->params, "message"));
-		dump_data_wrapper (data->builder, url, CAMEL_DATA_WRAPPER (message));
+		JsonBuilder *builder;
+
+		builder = json_builder_new ();
+		url = build_message_url (data->account_id,
+					 data->folder_fullname,
+					 data->message_uid);
+		dump_data_wrapper (builder, url, CAMEL_DATA_WRAPPER (message));
 		camel_url_free (url);
 		g_object_unref (message);
+
+		result_node = json_builder_get_root (builder);
+		g_object_unref (builder);
 	}
 
-	finish_get_message (data);
+	finish_get_message (data, result_node);
+	if (result_node) json_node_free (result_node);
 }
 
 static void
@@ -1908,15 +1931,11 @@ get_message_get_message (CamelFolder *folder,
 			 GetMessageData *data)
 {
 	if (data->error == NULL) {
-		const char *message_uid;
-
-		message_uid = g_hash_table_lookup (data->params, "message");
-		camel_folder_get_message (folder, message_uid,
+		camel_folder_get_message (folder, data->message_uid,
 					   G_PRIORITY_DEFAULT_IDLE, data->cancellable,
 					   get_message_get_message_cb, data);
 	} else {
-		response_start (data->builder);
-		finish_get_message (data);
+		finish_get_message (data, NULL);
 	}
 	g_object_unref (folder);
 }
@@ -1942,32 +1961,30 @@ get_message_get_folder_cb (GObject *source_object,
 }
 
 static void
-get_message (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
+get_message (GAsyncResult *result, GHashTable *params)
 {
-	const char *account_name;
-	const char *folder_name;
 	GetMessageData *data = g_new0 (GetMessageData, 1);
 
 	data->result = g_object_ref (result);
-	data->params = g_hash_table_ref (params);
-	data->builder = g_object_ref (builder);
+	data->callback_id = g_strdup (g_hash_table_lookup (params, "callback"));
 	data->cancellable = g_cancellable_new ();
 
-	account_name = g_hash_table_lookup (params, "account");
-	folder_name = g_hash_table_lookup (params, "folder");
+	data->account_id = g_strdup (g_hash_table_lookup (params, "account"));
+	data->folder_fullname = g_strdup (g_hash_table_lookup (params, "folder"));
+	data->message_uid = g_strdup (g_hash_table_lookup (params, "message"));
 
-	if (g_strcmp0 (folder_name, "INBOX") == 0 && 
+	if (g_strcmp0 (data->folder_fullname, "INBOX") == 0 && 
 	    im_service_mgr_has_local_inbox (im_service_mgr_get_instance (),
-					    account_name)) {
+					    data->account_id)) {
 		CamelFolder *inbox;
 
 		inbox = im_service_mgr_get_local_inbox (im_service_mgr_get_instance (),
-							account_name,
+							data->account_id,
 							data->cancellable,
 							&data->error);
 
 		get_message_get_message (inbox, data);
-	} else if (g_strcmp0 (folder_name, IM_LOCAL_DRAFTS_TAG) == 0) {
+	} else if (g_strcmp0 (data->folder_fullname, IM_LOCAL_DRAFTS_TAG) == 0) {
 		CamelFolder *drafts;
 
 
@@ -1976,11 +1993,11 @@ get_message (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 						    &data->error);
 
 		get_message_get_message (drafts, data);
-	} else if (g_strcmp0 (folder_name, IM_LOCAL_OUTBOX_TAG) == 0) {
+	} else if (g_strcmp0 (data->folder_fullname, IM_LOCAL_OUTBOX_TAG) == 0) {
 		CamelFolder *outbox;
 
 		outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
-						    (const char *) account_name,
+						    (const char *) data->account_id,
 						    data->cancellable,
 						    &data->error);
 
@@ -1989,9 +2006,9 @@ get_message (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 		CamelStore *store;
 
 		store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
-								   (const char *) account_name,
+								   (const char *) data->account_id,
 								   IM_ACCOUNT_TYPE_STORE);
-		camel_store_get_folder (store, folder_name,
+		camel_store_get_folder (store, data->folder_fullname,
 					CAMEL_STORE_FOLDER_CREATE | CAMEL_STORE_FOLDER_BODY_INDEX, 
 					G_PRIORITY_DEFAULT_IDLE, data->cancellable,
 					get_message_get_folder_cb, data);
@@ -2000,8 +2017,11 @@ get_message (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 
 typedef struct _FlagMessageData {
 	GAsyncResult *result;
-	GHashTable *params;
-	JsonBuilder *builder;
+	gchar *callback_id;
+	gchar *message_uid;
+	gchar *set_flags;
+	gchar *unset_flags;
+
 	GCancellable *cancellable;
 	GError *error;
 } FlagMessageData;
@@ -2036,49 +2056,44 @@ flag_message_do_flag (CamelFolder *folder,
 		      FlagMessageData *data)
 {
 	if (data->error == NULL) {
-		const char *message_uid;
-		const char *set_flags_str, *unset_flags_str;
 		CamelMessageFlags set_flags, unset_flags;
 		GList *unset_user_flags, *set_user_flags, *node;
 
-		message_uid = g_hash_table_lookup (data->params, "message");
-		set_flags_str = g_hash_table_lookup (data->params, "setFlags");
-		unset_flags_str = g_hash_table_lookup (data->params, "unsetFlags");
-
-		set_flags = parse_flags (set_flags_str, &set_user_flags);
-		unset_flags = parse_flags (unset_flags_str, &unset_user_flags);
+		set_flags = parse_flags (data->set_flags, &set_user_flags);
+		unset_flags = parse_flags (data->unset_flags, &unset_user_flags);
 
 		if (unset_flags)
-			camel_folder_set_message_flags (folder, message_uid, 0, unset_flags);
+			camel_folder_set_message_flags (folder, data->message_uid, 0, unset_flags);
 		if (set_flags)
-			camel_folder_set_message_flags (folder, message_uid, set_flags, set_flags);
+			camel_folder_set_message_flags (folder, data->message_uid, set_flags, set_flags);
 
 		for (node = unset_user_flags; node != NULL; node = g_list_next (node)) {
-			camel_folder_set_message_user_flag (folder, message_uid,
+			camel_folder_set_message_user_flag (folder, data->message_uid,
 							    (char *) node->data, FALSE);
 			g_free (node->data);
 		}
 		g_list_free (unset_user_flags);
 		
 		for (node = set_user_flags; node != NULL; node = g_list_next (node)) {
-			camel_folder_set_message_user_flag (folder, message_uid,
+			camel_folder_set_message_user_flag (folder, data->message_uid,
 							    (char *) node->data, TRUE);
 			g_free (node->data);
 		}
 		g_list_free (set_user_flags);
 		
 		/* We don't wait for result */
-		camel_folder_synchronize_message (folder, message_uid,
+		camel_folder_synchronize_message (folder, data->message_uid,
 						  G_PRIORITY_DEFAULT_IDLE, data->cancellable,
 						  NULL, NULL);
 	}
 	if (folder)
 		g_object_unref (folder);
-	response_start (data->builder);
-	response_finish (data->result, data->params, data->builder, data->error);
+	response_finish (data->result, data->callback_id, NULL, data->error);
 	g_object_unref (data->result);
-	g_hash_table_unref (data->params);
-	g_object_unref (data->builder);
+	g_free (data->callback_id);
+	g_free (data->message_uid);
+	g_free (data->set_flags);
+	g_free (data->unset_flags);
 	if (data->error) g_error_free (data->error);
 	g_object_unref (data->cancellable);
 	g_free (data);
@@ -2106,16 +2121,18 @@ flag_message_get_folder_cb (GObject *source_object,
 }
 
 static void
-flag_message (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
+flag_message (GAsyncResult *result, GHashTable *params)
 {
 	const char *account_name;
 	const char *folder_name;
 	FlagMessageData *data = g_new0 (FlagMessageData, 1);
 
 	data->result = g_object_ref (result);
-	data->params = g_hash_table_ref (params);
-	data->builder = g_object_ref (builder);
+	data->callback_id = g_strdup (g_hash_table_lookup (params, "callback"));
 	data->cancellable = g_cancellable_new ();
+	data->message_uid = g_strdup (g_hash_table_lookup (params, "message"));
+	data->set_flags = g_strdup (g_hash_table_lookup (params, "setFlags"));
+	data->unset_flags = g_strdup (g_hash_table_lookup (params, "unsetFlags"));
 
 	account_name = g_hash_table_lookup (params, "account");
 	folder_name = g_hash_table_lookup (params, "folder");
@@ -2161,12 +2178,13 @@ flag_message (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 
 typedef struct _ComposerSaveData {
 	GAsyncResult *result;
-	GHashTable *params;
-	JsonBuilder *builder;
+	gchar *callback_id;
 	GCancellable *cancellable;
 	GError *error;
 	gboolean is_sending;
 	char *uid;
+	GHashTable *form_params;
+	gchar *form_data;
 	gint pending_attachments_count;
 	CamelMimeMessage *message;
 	CamelMessageInfo *mi;
@@ -2175,19 +2193,28 @@ typedef struct _ComposerSaveData {
 static void
 finish_composer_save_data (ComposerSaveData *data)
 {
-	response_start (data->builder);
+	JsonNode *result_node = NULL;
 	if (data->uid) {
-		json_builder_set_member_name (data->builder, "messageUid");
-		json_builder_add_string_value (data->builder, data->uid);
+		JsonBuilder *builder;
+
+		builder = json_builder_new ();
+		json_builder_begin_object (builder);
+		json_builder_set_member_name (builder, "messageUid");
+		json_builder_add_string_value (builder, data->uid);
+		json_builder_end_object (builder);
+
+		result_node = json_builder_get_root (builder);
+		g_object_unref (builder);
 		g_free (data->uid);
 	}
-	response_finish (data->result, data->params, data->builder, data->error);
+	response_finish (data->result, data->callback_id, result_node, data->error);
+	if (result_node) json_node_free (result_node);
 
 	if (data->mi) camel_message_info_free (data->mi);
 	if (data->message) g_object_unref (data->message);
 	g_object_unref (data->result);
-	g_hash_table_unref (data->params);
-	g_object_unref (data->builder);
+	g_free (data->callback_id);
+	g_hash_table_unref (data->form_params);
 	if (data->error) g_error_free (data->error);
 	g_object_unref (data->cancellable);
 	g_free (data);
@@ -2219,14 +2246,9 @@ composer_save_append_message (ComposerSaveData *data)
 {
 	CamelFolder *folder;
 	GError *_error = NULL;
-	const char *form_data;
-	GHashTable *form_params;
 	const char *account_id;
 
-	form_data = g_hash_table_lookup (data->params, "formData");
-	form_params = soup_form_decode (form_data);
-
-	account_id = g_hash_table_lookup (form_params, "composer-from-choice");
+	account_id = g_hash_table_lookup (data->form_params, "composer-from-choice");
 	if (data->is_sending) {
 		folder = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
 						    account_id,
@@ -2241,8 +2263,6 @@ composer_save_append_message (ComposerSaveData *data)
 	if (_error) {
 		g_propagate_error (&data->error, _error);
 	}
-
-	g_hash_table_destroy (form_params);
 
 	if (_error == NULL && folder) {
 		camel_folder_append_message (folder, data->message, data->mi,
@@ -2276,7 +2296,7 @@ on_content_part_constructed (GObject *source_object,
 }
 
 static void
-composer_save (GAsyncResult *result, GHashTable *params, JsonBuilder *builder, gboolean is_sending)
+composer_save (GAsyncResult *result, GHashTable *params, gboolean is_sending)
 {
 	ComposerSaveData *data = g_new0 (ComposerSaveData, 1);
 	const char *account_id;
@@ -2285,25 +2305,23 @@ composer_save (GAsyncResult *result, GHashTable *params, JsonBuilder *builder, g
 	const char *body;
 	GError *_error = NULL;
 	const char *form_data;
-	GHashTable *form_params;
 	const char *attachments;
 
 	data->result = g_object_ref (result);
-	data->builder = g_object_ref (builder);
 	data->cancellable = g_cancellable_new ();
-	data->params = g_hash_table_ref (params);
+	data->callback_id = g_strdup (g_hash_table_lookup (params, "callback"));
 	data->is_sending = is_sending;
 
 	form_data = g_hash_table_lookup (params, "formData");
-	form_params = soup_form_decode (form_data);
+	data->form_params = soup_form_decode (form_data);
 
-	account_id = g_hash_table_lookup (form_params, "composer-from-choice");
-	to = g_hash_table_lookup (form_params, "composer-to");
-	cc = g_hash_table_lookup (form_params, "composer-cc");
-	bcc = g_hash_table_lookup (form_params, "composer-bcc");
-	subject = g_hash_table_lookup (form_params, "composer-subject");
-	body = g_hash_table_lookup (form_params, "composer-body");
-	attachments = g_hash_table_lookup (form_params, "composer-attachments");
+	account_id = g_hash_table_lookup (data->form_params, "composer-from-choice");
+	to = g_hash_table_lookup (data->form_params, "composer-to");
+	cc = g_hash_table_lookup (data->form_params, "composer-cc");
+	bcc = g_hash_table_lookup (data->form_params, "composer-bcc");
+	subject = g_hash_table_lookup (data->form_params, "composer-subject");
+	body = g_hash_table_lookup (data->form_params, "composer-body");
+	attachments = g_hash_table_lookup (data->form_params, "composer-attachments");
 
 	data->message = camel_mime_message_new ();
 	camel_medium_set_header (CAMEL_MEDIUM (data->message), "X-Mailer", IM_X_MAILER);
@@ -2449,8 +2467,6 @@ composer_save (GAsyncResult *result, GHashTable *params, JsonBuilder *builder, g
 		g_propagate_error (&data->error, _error);
 	}
 
-	g_hash_table_destroy (form_params);
-
 	if (_error == NULL) {
 		if (data->pending_attachments_count == 0)
 			composer_save_append_message (data);
@@ -2461,11 +2477,14 @@ composer_save (GAsyncResult *result, GHashTable *params, JsonBuilder *builder, g
 }
 
 static void
-open_file_uri (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
+open_file_uri (GAsyncResult *result, GHashTable *params)
 {
-	const char *title, *attach_action;
+	const char *title, *attach_action, *callback_id;
 	GtkWidget *dialog;
+	JsonBuilder *builder;
+	JsonNode *result_node;
 
+	callback_id = g_hash_table_lookup (params, "callback");
 	title = g_hash_table_lookup (params, "title");
 	attach_action = g_hash_table_lookup (params, "attachAction");
 	dialog = gtk_file_chooser_dialog_new (title, NULL,
@@ -2476,8 +2495,7 @@ open_file_uri (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 	gtk_file_chooser_set_select_multiple (GTK_FILE_CHOOSER (dialog), TRUE);
 	gtk_file_chooser_set_local_only (GTK_FILE_CHOOSER (dialog), TRUE);
 
-	response_start (builder);
-	json_builder_set_member_name (builder, "uris");
+	builder = json_builder_new ();
 	json_builder_begin_array (builder);
 	if (gtk_dialog_run (GTK_DIALOG (dialog)) == GTK_RESPONSE_ACCEPT) {
 		GSList *uris, *node;
@@ -2491,7 +2509,11 @@ open_file_uri (GAsyncResult *result, GHashTable *params, JsonBuilder *builder)
 	json_builder_end_array (builder);
 	gtk_widget_destroy (dialog);
 
-	response_finish (result, params, builder, NULL);
+	result_node = json_builder_get_root (builder);
+	g_object_unref (builder);
+
+	response_finish (result, callback_id, result_node, NULL);
+	json_node_free (result_node);
 
 }
 
@@ -2505,7 +2527,6 @@ im_soup_request_send_async (SoupRequest          *soup_request,
   SoupURI *uri = soup_request_get_uri (SOUP_REQUEST (request));
   GHashTable *params = NULL;
   GError *_error = NULL;
-  JsonBuilder *builder = json_builder_new ();
   GAsyncResult *result;
 
   if (soup_uri_get_query (uri)) {
@@ -2518,44 +2539,38 @@ im_soup_request_send_async (SoupRequest          *soup_request,
 						       im_soup_request_send_async);
 
   if (!g_strcmp0 (uri->path, "addAccount")) {
-	  response_start (builder);
-	  add_account (params, builder, &_error);
-	  response_finish (result, params, builder, _error);
+	  add_account (result, params);
   } else if (!g_strcmp0 (uri->path, "deleteAccount")) {
-	  response_start (builder);
-	  delete_account (params, builder, &_error);
-	  response_finish (result, params, builder, _error);
+	  delete_account (result, params);
   } else if (!g_strcmp0 (uri->path, "getAccounts")) {
-	  response_start (builder);
-	  get_accounts (params, builder, &_error);
-	  response_finish (result, params, builder, _error);
+	  get_accounts (result, params);
   } else if (!g_strcmp0 (uri->path, "getMessages")) {
-	  fetch_messages (result, params, builder);
+	  fetch_messages (result, params);
   } else if (!g_strcmp0 (uri->path, "syncFolders")) {
-	  sync_folders (result, params, builder);
+	  sync_folders (result, params);
   } else if (!g_strcmp0 (uri->path, "getMessage")) {
-	  get_message (result, params, builder);
+	  get_message (result, params);
   } else if (!g_strcmp0 (uri->path, "composerSend")) {
-	  composer_save (result, params, builder, TRUE);
+	  composer_save (result, params, TRUE);
   } else if (!g_strcmp0 (uri->path, "composerSaveDraft")) {
-	  composer_save (result, params, builder, FALSE);
+	  composer_save (result, params, FALSE);
   } else if (!g_strcmp0 (uri->path, "flagMessage")) {
-	  flag_message (result, params, builder);
+	  flag_message (result, params);
   } else if (!g_strcmp0 (uri->path, "openFileURI")) {
-	  open_file_uri (result, params, builder);
+	  open_file_uri (result, params);
   } else {
-	  response_start (builder);
+	  const gchar *callback_id;
+	  callback_id = g_hash_table_lookup (params, "callback");
 	  if (_error == NULL)
 		  g_set_error (&_error, IM_ERROR_DOMAIN, IM_ERROR_SOUP_INVALID_URI,
 			       _("Non supported method"));
-	  response_finish (result, params, builder, _error);
+	  response_finish (result, callback_id, NULL, _error);
   }
 
   if (_error)
 	  g_error_free (_error);
 
   g_hash_table_unref (params);
-  g_object_unref (builder);
   g_object_unref (result);
 }
 
