@@ -39,6 +39,7 @@
 #include <config.h>
 #endif
 
+#include "im-account-mgr-helpers.h"
 #include "im-error.h"
 #include "im-mail-ops.h"
 
@@ -46,20 +47,125 @@
 #include <libsoup/soup.h>
 #include <string.h>
 
-/**
- * im_mail_op_synchronize_storage_account_sync:
- * @store: a #CamelStore, with %CAMEL_PROVIDER_IS_STORAGE flag
- * @cancellable: optional #GCancellable object, or %NULL.
- * @error: (out) (allow-none): return location for a #GError, or %NULL.
- *
- * Refreshes and obtains the folders structure for @store, and updates inbox.
- *
- * Returns: (transfer full): #CamelFolderInfo of the store if successful, %NULL otherwise.
- */
-CamelFolderInfo *
-im_mail_op_synchronize_storage_store_sync (CamelStore *store,
-					   GCancellable *cancellable,
-					   GError **error)
+static gboolean
+update_non_storage_uids_sync (CamelFolder *remote_inbox,
+			      CamelFolder *local_inbox,
+			      GCancellable *cancellable,
+			      GError **error)
+{
+	GError *_error = NULL;
+	const gchar *store_data_dir;
+	gchar *uid_cache_path;
+	CamelUIDCache *uid_cache;
+	CamelStore *remote_store;
+
+	remote_store = camel_folder_get_parent_store (remote_inbox);
+
+	store_data_dir = camel_service_get_user_data_dir (CAMEL_SERVICE (remote_store));
+	uid_cache_path = g_build_filename (store_data_dir, "remote-uid.cache", NULL);
+	uid_cache = camel_uid_cache_new (uid_cache_path);
+	g_free (uid_cache_path);
+
+	if (uid_cache) {
+		GPtrArray *remote_uids;
+		GPtrArray *new_uids;
+
+		remote_uids = camel_folder_get_uids (remote_inbox);
+		new_uids = camel_uid_cache_get_new_uids (uid_cache, remote_uids);
+
+		if (new_uids) {
+			CamelFilterDriver *driver;
+
+			driver = camel_filter_driver_new (CAMEL_SESSION (im_service_mgr_get_instance ()));
+			camel_filter_driver_set_default_folder (driver,
+								local_inbox);
+			camel_filter_driver_filter_folder (driver, remote_inbox, 
+							   uid_cache, new_uids, FALSE,
+							   cancellable, &_error);
+			camel_filter_driver_flush (driver, &_error);
+			camel_uid_cache_save (uid_cache);
+
+			camel_uid_cache_free_uids (new_uids);
+			g_object_unref (driver);
+		}
+
+		camel_folder_free_uids (remote_inbox, remote_uids);
+		camel_uid_cache_destroy (uid_cache);
+	}
+
+	if (_error) g_propagate_error (error, _error);
+	return (_error != NULL);
+}
+
+static CamelFolderInfo *
+synchronize_nonstorage_store_sync (CamelStore *store,
+				   GCancellable *cancellable,
+				   GError **error)
+{
+	GError *_error = NULL;
+	CamelFolder *remote_inbox;
+	CamelFolder *local_inbox;
+	gchar *account_id;
+	CamelFolderInfo *fi = NULL;
+
+	remote_inbox = camel_store_get_inbox_folder_sync (store,
+							  cancellable,
+							  &_error);
+
+	if (_error == NULL) {
+		if (camel_service_get_connection_status (CAMEL_SERVICE (store)) ==
+		    CAMEL_SERVICE_CONNECTED ||
+		    camel_service_connect_sync (CAMEL_SERVICE (store), &_error)) {
+			camel_folder_refresh_info_sync (remote_inbox,
+							cancellable,
+							&_error);
+		} else {
+			g_clear_error (&_error);
+		}
+	}
+
+	if (_error == NULL) {
+		account_id = im_account_mgr_get_server_parent_account_name (im_account_mgr_get_instance (),
+									    camel_service_get_uid (CAMEL_SERVICE (store)),
+									    IM_ACCOUNT_TYPE_STORE);
+		if (account_id == NULL) {
+			g_set_error (&_error, IM_ERROR_DOMAIN,
+				     IM_ERROR_INTERNAL,
+				     _("Could not find account of store"));
+		}
+	}
+
+	if (_error == NULL) {
+		local_inbox = im_service_mgr_get_local_inbox (im_service_mgr_get_instance (),
+							      account_id,
+							      cancellable,
+							      &_error);
+	}
+
+	if (_error == NULL) {
+		update_non_storage_uids_sync (remote_inbox, local_inbox,
+					      cancellable, &_error);
+	}
+
+	if (_error == NULL) {
+		CamelStore *local_store;
+
+		local_store = im_service_mgr_get_local_store (im_service_mgr_get_instance ());
+		fi = camel_store_get_folder_info_sync (local_store, account_id, 0,
+						       cancellable, &_error);
+	}
+
+	g_free (account_id);
+	if (local_inbox) g_object_unref (local_inbox);
+	if (remote_inbox) g_object_unref (remote_inbox);
+
+	return fi;
+}
+
+static CamelFolderInfo *
+synchronize_storage_store_sync (CamelStore *store,
+				GCancellable *cancellable,
+				GError **error)
 {
 	GError *_error = NULL;
 	CamelFolderInfo *fi = NULL;
@@ -106,17 +212,42 @@ im_mail_op_synchronize_storage_store_sync (CamelStore *store,
 	return fi;
 }
 
+/**
+ * im_mail_op_synchronize_store_sync:
+ * @store: a #CamelStore
+ * @cancellable: optional #GCancellable object, or %NULL.
+ * @error: (out) (allow-none): return location for a #GError, or %NULL.
+ *
+ * Refreshes and obtains the folders structure for @store, and updates inbox.
+ *
+ * Returns: (transfer full): #CamelFolderInfo of the store if successful, %NULL otherwise.
+ */
+CamelFolderInfo *
+im_mail_op_synchronize_store_sync (CamelStore *store,
+				   GCancellable *cancellable,
+				   GError **error)
+{
+	CamelProvider *provider;
+
+	provider = camel_service_get_provider (CAMEL_SERVICE (store));
+	if (provider->flags & CAMEL_PROVIDER_IS_STORAGE)
+		return synchronize_storage_store_sync (store, cancellable, error);
+	else
+		return synchronize_nonstorage_store_sync (store, cancellable, error);
+
+}
+
 static void
-im_mail_op_synchronize_storage_store_thread (GSimpleAsyncResult *simple,
-					     GObject *object,
-					     GCancellable *cancellable)
+im_mail_op_synchronize_store_thread (GSimpleAsyncResult *simple,
+				     GObject *object,
+				     GCancellable *cancellable)
 {
 	GError *_error = NULL;
 	CamelFolderInfo *fi;
 
-	fi = im_mail_op_synchronize_storage_store_sync (CAMEL_STORE (object),
-							cancellable,
-							&_error);
+	fi = im_mail_op_synchronize_store_sync (CAMEL_STORE (object),
+						cancellable,
+						&_error);
 
 	g_simple_async_result_set_op_res_gpointer (simple,
 						   fi,
@@ -127,7 +258,7 @@ im_mail_op_synchronize_storage_store_thread (GSimpleAsyncResult *simple,
 }
 
 /**
- * im_mail_op_synchronize_storage_store_async:
+ * im_mail_op_synchronize_store_async:
  * @store: a #CamelStore
  * @io_priority: the I/O priority of the request
  * @cancellable: optional #GCancellable object, or %NULL,
@@ -141,47 +272,47 @@ im_mail_op_synchronize_storage_store_thread (GSimpleAsyncResult *simple,
  * im_mail_op_synchronize_storage_store_finish() to get the result of the operation.
  */
 void
-im_mail_op_synchronize_storage_store_async (CamelStore *store,
-					    int io_priority,
-					    GCancellable *cancellable,
-					    GAsyncReadyCallback callback,
-					    gpointer userdata)
+im_mail_op_synchronize_store_async (CamelStore *store,
+				    int io_priority,
+				    GCancellable *cancellable,
+				    GAsyncReadyCallback callback,
+				    gpointer userdata)
 {
 	GSimpleAsyncResult *simple;
-
+	
 	simple = g_simple_async_result_new (G_OBJECT (store),
 					    callback, userdata,
-					    im_mail_op_synchronize_storage_store_async);
+					    im_mail_op_synchronize_store_async);
 
 	g_simple_async_result_run_in_thread (simple,
-					     im_mail_op_synchronize_storage_store_thread,
+					     im_mail_op_synchronize_store_thread,
 					     io_priority, cancellable);
 	g_object_unref (simple);
 }
 
 
 /**
- * im_mail_op_synchronize_storage_store_finish:
+ * im_mail_op_synchronize_store_finish:
  * @store: a #CamelStore
  * @result: a #GAsyncResult
  * @error: (out) (allow-none): return location for a #GError, or %NULL
  *
- * Finishes the operation started with im_mail_op_synchronize_storage_store_async().
+ * Finishes the operation started with im_mail_op_synchronize_store_async().
  *
  * Returns: a #CamelFolderInfo on success which should be freed with
  * camel_store_free_folder_info(), %NULL otherwise.
  */
 CamelFolderInfo *
-im_mail_op_synchronize_storage_store_finish (CamelStore *store,
-					     GAsyncResult *result,
-					     GError **error)
+im_mail_op_synchronize_store_finish (CamelStore *store,
+				     GAsyncResult *result,
+				     GError **error)
 {
 	GSimpleAsyncResult *simple;
 	CamelFolderInfo *fi;
 
 	g_return_val_if_fail (
 		g_simple_async_result_is_valid (
-		result, G_OBJECT (store), im_mail_op_synchronize_storage_store_async), FALSE);
+		result, G_OBJECT (store), im_mail_op_synchronize_store_async), FALSE);
 
 
 	simple = G_SIMPLE_ASYNC_RESULT (result);

@@ -881,123 +881,17 @@ sync_folders_outbox_synchronize_cb (GObject *source_object,
 	}
 }
 
-static gboolean
-update_non_storage_uids_sync (CamelFolder *remote_inbox,
-			      CamelFolder *local_inbox,
-			      GCancellable *cancellable,
-			      GError **error)
-{
-	GError *_error = NULL;
-	const gchar *store_data_dir;
-	gchar *uid_cache_path;
-	CamelUIDCache *uid_cache;
-	CamelStore *remote_store;
-
-	remote_store = camel_folder_get_parent_store (remote_inbox);
-
-	store_data_dir = camel_service_get_user_data_dir (CAMEL_SERVICE (remote_store));
-	uid_cache_path = g_build_filename (store_data_dir, "remote-uid.cache", NULL);
-	uid_cache = camel_uid_cache_new (uid_cache_path);
-	g_free (uid_cache_path);
-
-	if (uid_cache) {
-		GPtrArray *remote_uids;
-		GPtrArray *new_uids;
-
-		remote_uids = camel_folder_get_uids (remote_inbox);
-		new_uids = camel_uid_cache_get_new_uids (uid_cache, remote_uids);
-
-		if (new_uids) {
-			CamelFilterDriver *driver;
-
-			driver = camel_filter_driver_new (CAMEL_SESSION (im_service_mgr_get_instance ()));
-			camel_filter_driver_set_default_folder (driver,
-								local_inbox);
-			camel_filter_driver_filter_folder (driver, remote_inbox, 
-							   uid_cache, new_uids, FALSE,
-							   cancellable, &_error);
-			camel_filter_driver_flush (driver, &_error);
-			camel_uid_cache_save (uid_cache);
-
-			camel_uid_cache_free_uids (new_uids);
-			g_object_unref (driver);
-		}
-
-		camel_folder_free_uids (remote_inbox, remote_uids);
-		camel_uid_cache_destroy (uid_cache);
-	}
-
-	if (_error) g_propagate_error (error, _error);
-	return (_error != NULL);
-}
-
 static void
-update_non_storage_uids_thread (GSimpleAsyncResult *simple,
-				GObject *object,
-				GCancellable *cancellable)
-{
-	CamelFolder *local_inbox;
-	GError *_error = NULL;
-
-	local_inbox = (CamelFolder *) g_simple_async_result_get_op_res_gpointer (simple);
-
-	update_non_storage_uids_sync (CAMEL_FOLDER (object),
-				      local_inbox,
-				      cancellable,
-				      &_error);
-
-	if (_error != NULL)
-		g_simple_async_result_take_error (simple, _error);
-				 
-}
-
-static void
-update_non_storage_uids (CamelFolder *remote_inbox,
-			 CamelFolder *local_inbox,
-			 gint io_priority,
-			 GCancellable *cancellable,
-			 GAsyncReadyCallback callback,
-			 gpointer userdata)
-{
-	GSimpleAsyncResult *simple;
-
-	simple = g_simple_async_result_new (G_OBJECT (remote_inbox),
-					    callback, userdata,
-					    update_non_storage_uids);
-	g_simple_async_result_set_op_res_gpointer (simple,
-						   g_object_ref (local_inbox),
-						   (GDestroyNotify) g_object_unref);
-
-	g_simple_async_result_run_in_thread (simple, update_non_storage_uids_thread,
-					     io_priority, cancellable);
-}
-
-static gboolean
-update_non_storage_uids_finish (CamelFolder *source,
-				GAsyncResult *result,
-				GError **error)
-{
-	GSimpleAsyncResult *simple;
-
-	g_return_val_if_fail (g_simple_async_result_is_valid (result, G_OBJECT (source),
-							      update_non_storage_uids),
-			      FALSE);
-
-	simple = G_SIMPLE_ASYNC_RESULT (result);
-	return !g_simple_async_result_propagate_error (simple, error);
-}
-
-static void
-sync_folders_get_local_inbox_folder_info_cb (GObject *source_object,
-					     GAsyncResult *result,
-					     gpointer userdata)
+sync_folders_synchronize_nonstorage_store_cb (GObject *source_object,
+					      GAsyncResult *result,
+					      gpointer userdata)
 {
 	SyncFoldersData *data = (SyncFoldersData *) userdata;
 	CamelFolderInfo *fi;
 	GError *error = NULL;
 
-	fi = camel_store_get_folder_info_finish (CAMEL_STORE (source_object),
-						 result, &error);
+	fi = im_mail_op_synchronize_store_finish (CAMEL_STORE (source_object),
+						  result, &error);
 	if (fi) {
 		const gchar *account_id;
 		account_id = fi->full_name;
@@ -1006,137 +900,6 @@ sync_folders_get_local_inbox_folder_info_cb (GObject *source_object,
 
 	if (error) {
 		g_error_free (error);
-	}
-
-	data->count--;
-
-	if (data->count == 0) {
-		finish_sync_folders (data);
-	}
-}
-
-static void
-sync_folders_get_local_inbox_folder_info (CamelStore *remote_store, SyncFoldersData *data)
-{
-	CamelStore *local_store;
-	char *account_id;
-
-	account_id = im_account_mgr_get_server_parent_account_name
-		(im_account_mgr_get_instance (),
-		 camel_service_get_uid (CAMEL_SERVICE (remote_store)),
-		 IM_ACCOUNT_TYPE_STORE);
-
-	local_store = im_service_mgr_get_local_store (im_service_mgr_get_instance ());
-	data->count++;
-	camel_store_get_folder_info (local_store, account_id, 0,
-				     G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-				     sync_folders_get_local_inbox_folder_info_cb,
-				     data);
-	g_free (account_id);
-}
-
-static void
-sync_folders_update_non_storage_uids_cb (GObject *source_object,
-					 GAsyncResult *result,
-					 gpointer userdata)
-{
-	SyncFoldersData *data = (SyncFoldersData *) userdata;
-	GError *_error = NULL;
-
-	if (update_non_storage_uids_finish (CAMEL_FOLDER (source_object),
-					    result, &_error)) {
-		CamelStore *remote_store;
-
-		remote_store = camel_folder_get_parent_store (CAMEL_FOLDER (source_object));
-		sync_folders_get_local_inbox_folder_info (remote_store, data);
-	}
-
-	if (_error)
-		g_error_free (_error);
-
-	data->count--;
-
-	if (data->count == 0) {
-		finish_sync_folders (data);
-	}
-}
-
-static void
-sync_folders_refresh_non_storage_info_cb (GObject *source_object,
-					  GAsyncResult *result,
-					  gpointer userdata)
-{
-	SyncFoldersData *data = (SyncFoldersData *) userdata;
-	GError *_error = NULL;
-
-	if (camel_folder_refresh_info_finish (CAMEL_FOLDER (source_object),
-					      result,
-					      &_error)) {
-		CamelStore *store;
-		char *account_id;
-		CamelFolder *local_inbox;
-
-		store = camel_folder_get_parent_store (CAMEL_FOLDER (source_object));
-		account_id = im_account_mgr_get_server_parent_account_name (im_account_mgr_get_instance (),
-									    camel_service_get_uid (CAMEL_SERVICE (store)),
-									    IM_ACCOUNT_TYPE_STORE);
-		if (account_id) {
-			local_inbox = im_service_mgr_get_local_inbox (im_service_mgr_get_instance (),
-								      account_id,
-								      data->cancellable,
-								      &_error);
-
-			if (local_inbox) {
-				data->count++;
-				update_non_storage_uids (CAMEL_FOLDER (source_object),
-							 local_inbox,
-							 G_PRIORITY_DEFAULT_IDLE,
-							 data->cancellable,
-							 sync_folders_update_non_storage_uids_cb,
-							 data);
-				g_object_unref (local_inbox);
-			}
-			g_free (account_id);
-		}
-	}
-
-	if (_error)
-		g_error_free (_error);
-
-	data->count--;
-	if (data->count == 0) {
-		finish_sync_folders (data);
-	}
-}
-
-static void
-sync_folders_get_non_storage_inbox_cb (GObject *source_object,
-				       GAsyncResult *result,
-				       gpointer userdata)
-{
-	SyncFoldersData *data = (SyncFoldersData *) userdata;
-	CamelFolder *folder;
-	GError *_error = NULL;
-
-	folder = camel_store_get_inbox_folder_finish (CAMEL_STORE (source_object),
-						      result, &_error);
-	if (folder) {
-		if (camel_service_get_connection_status (CAMEL_SERVICE (source_object)) ==
-		    CAMEL_SERVICE_CONNECTED ||
-		    camel_service_connect_sync (CAMEL_SERVICE (source_object), &_error)) {
-			data->count++;
-			camel_folder_refresh_info (folder,
-						   G_PRIORITY_DEFAULT_IDLE,
-						   data->cancellable,
-						   sync_folders_refresh_non_storage_info_cb,
-						   data);
-		} else {
-			CamelStore *remote_store;
-
-			remote_store = camel_folder_get_parent_store (CAMEL_FOLDER (folder));
-			sync_folders_get_local_inbox_folder_info (remote_store, data);
-		}
-		g_object_unref (folder);
 	}
 
 	data->count--;
@@ -1159,8 +922,8 @@ sync_folders_synchronize_storage_store_cb (GObject *source_object,
 	account_id = im_account_mgr_get_server_parent_account_name (im_account_mgr_get_instance (),
 								    camel_service_get_uid (CAMEL_SERVICE (source_object)),
 								    IM_ACCOUNT_TYPE_STORE);
-	fi = im_mail_op_synchronize_storage_store_finish (CAMEL_STORE (source_object),
-							  res, &error);
+	fi = im_mail_op_synchronize_store_finish (CAMEL_STORE (source_object),
+						  res, &error);
 	if (fi) {
 		if (account_id) {
 			g_hash_table_insert (data->folder_infos, g_strdup (account_id), fi);
@@ -1216,17 +979,17 @@ sync_folders (GAsyncResult *result, GHashTable *params)
 			  data->count++;
 			  if (!(provider->flags & CAMEL_PROVIDER_IS_STORAGE)) {
 				  g_hash_table_insert (data->non_storage, g_strdup ((char *) node->data), GINT_TO_POINTER(1));
-				  camel_store_get_inbox_folder (store,
-								G_PRIORITY_DEFAULT_IDLE,
-								data->cancellable,
-								sync_folders_get_non_storage_inbox_cb,
-								data);
+				  im_mail_op_synchronize_store_async (store,
+								      G_PRIORITY_DEFAULT_IDLE,
+								      data->cancellable,
+								      sync_folders_synchronize_nonstorage_store_cb,
+								      data);
 			  } else {
-				  im_mail_op_synchronize_storage_store_async (store,
-									      G_PRIORITY_DEFAULT_IDLE,
-									      data->cancellable,
-									      sync_folders_synchronize_storage_store_cb,
-									      data);
+				  im_mail_op_synchronize_store_async (store,
+								      G_PRIORITY_DEFAULT_IDLE,
+								      data->cancellable,
+								      sync_folders_synchronize_storage_store_cb,
+								      data);
 			  }
 		  }
 		  outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
@@ -1249,11 +1012,11 @@ sync_folders (GAsyncResult *result, GHashTable *params)
 	  outbox_store = im_service_mgr_get_outbox_store (im_service_mgr_get_instance ());
 	  if (outbox_store) {
 		  data->count++;
-		  im_mail_op_synchronize_storage_store_async (outbox_store,
-							      G_PRIORITY_DEFAULT_IDLE,
-							      data->cancellable,
-							      sync_folders_synchronize_storage_store_cb,
-							      data);
+		  im_mail_op_synchronize_store_async (outbox_store,
+						      G_PRIORITY_DEFAULT_IDLE,
+						      data->cancellable,
+						      sync_folders_synchronize_storage_store_cb,
+						      data);
 	  }
 	  if (data->count == 0)
 		  finish_sync_folders (data);
