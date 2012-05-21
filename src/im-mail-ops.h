@@ -38,8 +38,34 @@
 #ifndef IM_MAIL_OPS_H
 #define IM_MAIL_OPS_H 1
 
+#include "im-service-mgr.h"
+
 #include <camel/camel.h>
 #include <glib.h>
+
+G_BEGIN_DECLS
+
+gboolean          im_mail_op_flag_message_sync            (ImServiceMgr *service_mgr,
+							   const gchar *account_id,
+							   const gchar *folder_name,
+							   const gchar *message_uid,
+							   const gchar *set_flags,
+							   const gchar *unset_flags,
+							   GCancellable *cancellable,
+							   GError **error);
+void              im_mail_op_flag_message_async           (ImServiceMgr *mgr,
+							   const gchar *account_id,
+							   const gchar *folder_name,
+							   const gchar *message_uid,
+							   const gchar *set_flags,
+							   const gchar *unset_flags,
+							   int io_priority,
+							   GCancellable *cancellable,
+							   GAsyncReadyCallback callback,
+							   gpointer userdata);
+gboolean          im_mail_op_flag_message_finish          (ImServiceMgr *mgr,
+							   GAsyncResult *result,
+							   GError **error);
 
 gboolean          im_mail_op_composer_save_sync           (CamelFolder *destination,
 							   CamelMimeMessage *message,
@@ -62,5 +88,6 @@ gboolean          im_mail_op_composer_save_finish         (CamelFolder *folder,
 							   GError **error);
 
 
+G_END_DECLS
 
 #endif /* IM_MAIL_OPS_H */

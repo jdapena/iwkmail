@@ -161,6 +161,26 @@ CamelService* im_service_mgr_get_service (ImServiceMgr *self,
 					  ImAccountType type);
 
 /**
+ * im_service_mgr_get_folder:
+ * @self: a #ImServiceMgr instance
+ * @account_id: an account id
+ * @folder_name: name of the folder
+ * @cancellable: (allow-none): optional #GCancellable object, or %NULL.
+ * @error: (out) (allow-none): return location for a #GError, or %NULL.
+ *
+ * Obtains synchronously the #CamelFolder with @folder_name in account
+ * with @account_id. It takes into account the special internal names
+ * for outbox and drafts.
+ *
+ * Returns: a #CamelFolder, or %NULL if failed
+ */
+CamelFolder *im_service_mgr_get_folder (ImServiceMgr *self,
+					const gchar *account_id,
+					const gchar *folder_name,
+					GCancellable *cancellable,
+					GError **error);
+
+/**
  * im_service_mgr_get_outbox:
  * @self: an #ImServiceMgr instance
  * @account_name: the account name

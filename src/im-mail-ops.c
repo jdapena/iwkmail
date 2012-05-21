@@ -46,6 +46,179 @@
 #include <libsoup/soup.h>
 #include <string.h>
 
+typedef struct _MessageFlagAsyncContext {
+	gchar *account_id;
+	gchar *folder_name;
+	gchar *message_uid;
+	gchar *set_flags;
+	gchar *unset_flags;
+} FlagMessageAsyncContext;
+
+static void
+flag_message_async_context_free (FlagMessageAsyncContext *context)
+{
+	g_free (context->account_id);
+	g_free (context->folder_name);
+	g_free (context->message_uid);
+	g_free (context->set_flags);
+	g_free (context->unset_flags);
+	g_free (context);
+}
+
+static CamelMessageFlags
+parse_flags (const char *flags_list, GList **user_flags)
+{
+	gchar **flags, **node;
+	CamelMessageFlags result = 0;
+
+	*user_flags = NULL;
+	if (flags_list == NULL)
+		return 0;
+
+	flags = g_strsplit (flags_list, ",", 0);
+	for (node = flags; *node != NULL; node++) {
+		if (g_strstr_len (*node, -1, "seen"))
+			result |= CAMEL_MESSAGE_SEEN;
+		else if (g_strstr_len (*node, -1, "deleted"))
+			result |= CAMEL_MESSAGE_DELETED;
+		else
+			*user_flags = g_list_append (*user_flags, g_strdup (*node));
+	}
+
+	g_strfreev (flags);
+
+	return result;
+}
+
+gboolean
+im_mail_op_flag_message_sync (ImServiceMgr *service_mgr,
+			      const gchar *account_id,
+			      const gchar *folder_name,
+			      const gchar *message_uid,
+			      const gchar *set_flags,
+			      const gchar *unset_flags,
+			      GCancellable *cancellable,
+			      GError **error)
+{
+	GError *_error = NULL;
+	CamelFolder *folder;
+
+	folder = im_service_mgr_get_folder (service_mgr, account_id,
+					    folder_name, cancellable, &_error);
+
+	if (_error == NULL) {
+		CamelMessageFlags camel_set_flags, camel_unset_flags;
+		GList *unset_user_flags, *set_user_flags, *node;
+
+		camel_set_flags = parse_flags (set_flags, &set_user_flags);
+		camel_unset_flags = parse_flags (unset_flags, &unset_user_flags);
+
+		if (camel_unset_flags)
+			camel_folder_set_message_flags (folder, message_uid, 0, camel_unset_flags);
+		if (camel_set_flags)
+			camel_folder_set_message_flags (folder, message_uid, camel_set_flags, camel_set_flags);
+
+		for (node = unset_user_flags; node != NULL; node = g_list_next (node)) {
+			camel_folder_set_message_user_flag (folder, message_uid,
+							    (char *) node->data, FALSE);
+			g_free (node->data);
+		}
+		g_list_free (unset_user_flags);
+		
+		for (node = set_user_flags; node != NULL; node = g_list_next (node)) {
+			camel_folder_set_message_user_flag (folder, message_uid,
+							    (char *) node->data, TRUE);
+			g_free (node->data);
+		}
+		g_list_free (set_user_flags);
+		
+		/* We don't wait for result */
+		camel_folder_synchronize_message (folder, message_uid,
+						  G_PRIORITY_DEFAULT_IDLE, NULL,
+						  NULL, NULL);
+	}
+
+	if (_error)
+		g_propagate_error (error, _error);
+
+	return _error == NULL;
+}
+
+static void
+im_mail_op_flag_message_thread (GSimpleAsyncResult *simple,
+				GObject *object,
+				GCancellable *cancellable)
+{
+	GError *_error = NULL;
+	FlagMessageAsyncContext *context;
+
+	context = (FlagMessageAsyncContext *)
+		g_simple_async_result_get_op_res_gpointer (simple);
+
+	im_mail_op_flag_message_sync (IM_SERVICE_MGR (object),
+				      context->account_id,
+				      context->folder_name,
+				      context->message_uid,
+				      context->set_flags,
+				      context->unset_flags,
+				      cancellable,
+				      &_error);
+	
+	if (_error != NULL)
+		g_simple_async_result_take_error (simple, _error);
+}
+
+void
+im_mail_op_flag_message_async (ImServiceMgr *mgr,
+			       const gchar *account_id,
+			       const gchar *folder_name,
+			       const gchar *message_uid,
+			       const gchar *set_flags,
+			       const gchar *unset_flags,
+			       int io_priority,
+			       GCancellable *cancellable,
+			       GAsyncReadyCallback callback,
+			       gpointer userdata)
+{
+	GSimpleAsyncResult *simple;
+	FlagMessageAsyncContext *context;
+
+	context = g_new0 (FlagMessageAsyncContext, 1);
+	context->account_id = g_strdup (account_id);
+	context->folder_name = g_strdup (folder_name);
+	context->message_uid = g_strdup (message_uid);
+	context->set_flags = g_strdup (set_flags);
+	context->unset_flags = g_strdup (unset_flags);
+
+	simple = g_simple_async_result_new (G_OBJECT (mgr),
+					    callback, userdata,
+					    im_mail_op_flag_message_async);
+
+	g_simple_async_result_set_op_res_gpointer (simple, context, 
+						   (GDestroyNotify) flag_message_async_context_free);
+
+	g_simple_async_result_run_in_thread (simple,
+					     im_mail_op_flag_message_thread,
+					     io_priority, cancellable);
+	g_object_unref (simple);
+}
+
+gboolean
+im_mail_op_flag_message_finish (ImServiceMgr *mgr,
+				GAsyncResult *result,
+				GError **error)
+{
+	GSimpleAsyncResult *simple;
+
+	g_return_val_if_fail (
+		g_simple_async_result_is_valid (
+		result, G_OBJECT (mgr), im_mail_op_flag_message_async), FALSE);
+
+	simple = G_SIMPLE_ASYNC_RESULT (result);
+
+	return !g_simple_async_result_propagate_error (simple, error);
+}
+
 typedef struct _ComposerSaveAsyncContext {
 	CamelMimeMessage *message;
 	gchar *body;
@@ -61,6 +234,7 @@ composer_save_async_context_free (ComposerSaveAsyncContext *context)
 	g_list_foreach (context->attachment_uris, (GFunc) g_free, NULL);
 	g_list_free (context->attachment_uris);
 	g_free (context->uid);
+	g_free (context);
 }
 
 /**
@@ -70,8 +244,8 @@ composer_save_async_context_free (ComposerSaveAsyncContext *context)
  * @body: a string with the plain text body
  * @attachment_uris: (element-type utf-8): list of attachment URIS
  * @uid: (out) (allow-none): the UID of the appended message.
- * @cancellable: optional #GCancellable object, or %NULL,
- * @error: (out) (allow-none): return location for a #GError, or %NULL
+ * @cancellable: optional #GCancellable object, or %NULL.
+ * @error: (out) (allow-none): return location for a #GError, or %NULL.
  *
  * Appends @message to @folder, creating its parts structure
  * from @body and @attachment_uris.

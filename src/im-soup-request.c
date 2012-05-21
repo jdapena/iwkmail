@@ -2019,162 +2019,53 @@ get_message (GAsyncResult *result, GHashTable *params)
 typedef struct _FlagMessageData {
 	GAsyncResult *result;
 	gchar *callback_id;
-	gchar *message_uid;
-	gchar *set_flags;
-	gchar *unset_flags;
-
-	GCancellable *cancellable;
-	GError *error;
 } FlagMessageData;
 
-static CamelMessageFlags
-parse_flags (const char *flags_list, GList **user_flags)
-{
-	gchar **flags, **node;
-	CamelMessageFlags result = 0;
-
-	*user_flags = NULL;
-	if (flags_list == NULL)
-		return 0;
-
-	flags = g_strsplit (flags_list, ",", 0);
-	for (node = flags; *node != NULL; node++) {
-		if (g_strstr_len (*node, -1, "seen"))
-			result |= CAMEL_MESSAGE_SEEN;
-		else if (g_strstr_len (*node, -1, "deleted"))
-			result |= CAMEL_MESSAGE_DELETED;
-		else
-			*user_flags = g_list_append (*user_flags, g_strdup (*node));
-	}
-
-	g_strfreev (flags);
-
-	return result;
-}
-
 static void
-flag_message_do_flag (CamelFolder *folder,
-		      FlagMessageData *data)
+flag_message_mail_op_cb (GObject *object,
+			 GAsyncResult *result,
+			 gpointer userdata)
 {
-	if (data->error == NULL) {
-		CamelMessageFlags set_flags, unset_flags;
-		GList *unset_user_flags, *set_user_flags, *node;
+	GError *_error = NULL;
+	FlagMessageData *data = (FlagMessageData *) userdata;
 
-		set_flags = parse_flags (data->set_flags, &set_user_flags);
-		unset_flags = parse_flags (data->unset_flags, &unset_user_flags);
-
-		if (unset_flags)
-			camel_folder_set_message_flags (folder, data->message_uid, 0, unset_flags);
-		if (set_flags)
-			camel_folder_set_message_flags (folder, data->message_uid, set_flags, set_flags);
-
-		for (node = unset_user_flags; node != NULL; node = g_list_next (node)) {
-			camel_folder_set_message_user_flag (folder, data->message_uid,
-							    (char *) node->data, FALSE);
-			g_free (node->data);
-		}
-		g_list_free (unset_user_flags);
-		
-		for (node = set_user_flags; node != NULL; node = g_list_next (node)) {
-			camel_folder_set_message_user_flag (folder, data->message_uid,
-							    (char *) node->data, TRUE);
-			g_free (node->data);
-		}
-		g_list_free (set_user_flags);
-		
-		/* We don't wait for result */
-		camel_folder_synchronize_message (folder, data->message_uid,
-						  G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-						  NULL, NULL);
-	}
-	if (folder)
-		g_object_unref (folder);
-	response_finish (data->result, data->callback_id, NULL, data->error);
+	im_mail_op_flag_message_finish (IM_SERVICE_MGR (object),
+					result, &_error);
+	response_finish (data->result, data->callback_id, NULL, _error);
+	if (_error) g_error_free (_error);
 	g_object_unref (data->result);
 	g_free (data->callback_id);
-	g_free (data->message_uid);
-	g_free (data->set_flags);
-	g_free (data->unset_flags);
-	if (data->error) g_error_free (data->error);
-	g_object_unref (data->cancellable);
 	g_free (data);
 }
 
 static void
-flag_message_get_folder_cb (GObject *source_object,
-			   GAsyncResult *result,
-			   gpointer userdata)
+flag_message (GAsyncResult *result, GHashTable *params, GCancellable *cancellable)
 {
-	FlagMessageData *data = (FlagMessageData *) userdata;
-	GError *error = NULL;
-	CamelStore *store = (CamelStore *) source_object;
-	CamelFolder *folder;
-
-	folder = camel_store_get_folder_finish (store, result, &error);
-
-	if (error && data->error == NULL) {
-		g_cancellable_cancel (data->cancellable);
-		g_propagate_error (&data->error, error);
-	}
-
-	flag_message_do_flag (folder, data);
-
-}
-
-static void
-flag_message (GAsyncResult *result, GHashTable *params)
-{
-	const char *account_name;
-	const char *folder_name;
+	const gchar *account_id;
+	const gchar *folder_name;
+	const gchar *message_uid;
+	const gchar *set_flags, *unset_flags;
 	FlagMessageData *data = g_new0 (FlagMessageData, 1);
 
 	data->result = g_object_ref (result);
 	data->callback_id = g_strdup (g_hash_table_lookup (params, "callback"));
-	data->cancellable = g_cancellable_new ();
-	data->message_uid = g_strdup (g_hash_table_lookup (params, "message"));
-	data->set_flags = g_strdup (g_hash_table_lookup (params, "setFlags"));
-	data->unset_flags = g_strdup (g_hash_table_lookup (params, "unsetFlags"));
 
-	account_name = g_hash_table_lookup (params, "account");
+	account_id = g_hash_table_lookup (params, "account");
 	folder_name = g_hash_table_lookup (params, "folder");
+	message_uid = g_hash_table_lookup (params, "message");
+	set_flags = g_strdup (g_hash_table_lookup (params, "setFlags"));
+	unset_flags = g_strdup (g_hash_table_lookup (params, "unsetFlags"));
 
-
-	if (g_strcmp0 (folder_name, "INBOX") == 0 && 
-	    im_service_mgr_has_local_inbox (im_service_mgr_get_instance (),
-					    account_name)) {
-		CamelFolder *inbox;
-
-		inbox = im_service_mgr_get_local_inbox (im_service_mgr_get_instance (),
-							account_name,
-							data->cancellable,
-							&data->error);
-
-		flag_message_do_flag (inbox, data);
-	} else if (g_strcmp0 (folder_name, IM_LOCAL_DRAFTS_TAG) == 0) {
-		CamelFolder *drafts;
-
-		drafts = im_service_mgr_get_drafts (im_service_mgr_get_instance (),
-						    data->cancellable,
-						    &data->error);
-		flag_message_do_flag (drafts, data);
-	} else if (g_strcmp0 (folder_name, IM_LOCAL_OUTBOX_TAG) == 0) {
-		CamelFolder *outbox;
-
-		outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
-						    (const char *) account_name,
-						    data->cancellable,
-						    &data->error);
-		flag_message_do_flag (outbox, data);
-	} else {
-		CamelStore *store;
-		store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
-								   (const char *) account_name,
-								   IM_ACCOUNT_TYPE_STORE);
-		camel_store_get_folder (store, folder_name,
-					CAMEL_STORE_FOLDER_CREATE | CAMEL_STORE_FOLDER_BODY_INDEX, 
-					G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-					flag_message_get_folder_cb, data);
-	}
+	im_mail_op_flag_message_async (im_service_mgr_get_instance (),
+				       account_id,
+				       folder_name,
+				       message_uid,
+				       set_flags,
+				       unset_flags,
+				       G_PRIORITY_DEFAULT_IDLE,
+				       cancellable,
+				       flag_message_mail_op_cb,
+				       data);
 }
 
 typedef struct _ComposerSaveData {
@@ -2455,7 +2346,7 @@ im_soup_request_send_async (SoupRequest          *soup_request,
   } else if (!g_strcmp0 (uri->path, "composerSaveDraft")) {
 	  composer_save (result, params, FALSE, cancellable);
   } else if (!g_strcmp0 (uri->path, "flagMessage")) {
-	  flag_message (result, params);
+	  flag_message (result, params, cancellable);
   } else if (!g_strcmp0 (uri->path, "openFileURI")) {
 	  open_file_uri (result, params);
   } else {

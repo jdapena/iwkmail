@@ -1162,6 +1162,45 @@ im_service_mgr_get_local_store (ImServiceMgr *self)
 
 	return priv->local_store;
 }
+
+CamelFolder *
+im_service_mgr_get_folder (ImServiceMgr *self,
+			   const gchar *account_id,
+			   const gchar *folder_name,
+			   GCancellable *cancellable,
+			   GError **error)
+{
+	CamelFolder *folder;
+	if (g_strcmp0 (folder_name, "INBOX") == 0 && 
+	    im_service_mgr_has_local_inbox (self,
+					    account_id)) {
+		folder = im_service_mgr_get_local_inbox (self,
+							 account_id,
+							 cancellable,
+							 error);
+	} else if (g_strcmp0 (folder_name, IM_LOCAL_DRAFTS_TAG) == 0) {
+		folder = im_service_mgr_get_drafts (self,
+						    cancellable,
+						    error);
+	} else if (g_strcmp0 (folder_name, IM_LOCAL_OUTBOX_TAG) == 0) {
+		folder = im_service_mgr_get_outbox (self,
+						    account_id,
+						    cancellable,
+						    error);
+	} else {
+		CamelStore *store;
+		store = (CamelStore *) im_service_mgr_get_service (self,
+								   account_id,
+								   IM_ACCOUNT_TYPE_STORE);
+		folder = camel_store_get_folder_sync 
+			(store, folder_name,
+			 CAMEL_STORE_FOLDER_CREATE | CAMEL_STORE_FOLDER_BODY_INDEX, 
+			 cancellable,
+			 error);
+	}
+
+	return folder;
+}
 						
 
 static CamelService*
