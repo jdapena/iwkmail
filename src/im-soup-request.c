@@ -1362,26 +1362,16 @@ typedef struct _FetchMessagesData {
 	gchar *newest_uid;
 	gchar *oldest_uid;
 	gint count;
-	GCancellable *cancellable;
-	GError *error;
-	GList *new_uids;
-	GList *old_uids;
 } FetchMessagesData;
 
 static void
-finish_fetch_messages (FetchMessagesData *data, JsonNode *result_node)
+finish_fetch_messages (FetchMessagesData *data, JsonNode *result_node, GError *error)
 {
-	response_finish (data->result, data->callback_id, result_node, data->error);
+	response_finish (data->result, data->callback_id, result_node, error);
 	g_object_unref (data->result);
 	g_free (data->callback_id);
 	g_free (data->newest_uid);
 	g_free (data->oldest_uid);
-	g_object_unref (data->cancellable);
-	if (data->error) g_error_free  (data->error);
-	g_list_foreach (data->new_uids, (GFunc) g_free, NULL);
-	g_list_free (data->new_uids);
-	g_list_foreach (data->old_uids, (GFunc) g_free, NULL);
-	g_list_free (data->old_uids);
 	g_free (data);
 }
 
@@ -1460,7 +1450,7 @@ fetch_messages_refresh_info_cb (GObject *source_object,
 {
 	FetchMessagesData *data = (FetchMessagesData *) userdata;
 	GError *error = NULL;
-	CamelFolder *folder = (CamelFolder *) source_object;
+	CamelFolder *folder = NULL;
 	GPtrArray *uids;
 	int i, j;
 	JsonBuilder *builder;
@@ -1469,102 +1459,79 @@ fetch_messages_refresh_info_cb (GObject *source_object,
 	builder = json_builder_new ();
 	json_builder_begin_object (builder);
 
-	camel_folder_refresh_info_finish (folder, result, &error);
+	im_mail_op_refresh_folder_info_finish (IM_SERVICE_MGR (source_object),
+					       result,
+					       &folder,
+					       &error);
 
-	uids = camel_folder_get_uids (folder);
-	camel_folder_sort_uids (folder, uids);
+	if (folder) {
+
+		uids = camel_folder_get_uids (folder);
+		camel_folder_sort_uids (folder, uids);
 		
-	/* Fetch first new messages */
-	json_builder_set_member_name (builder, "newMessages");
-	json_builder_begin_array(builder);
-	i = uids->len - 1;
-	if (data->newest_uid != NULL) {
-		while (i >= 0) {
-			const char *uid = uids->pdata[i];
+		/* Fetch first new messages */
+		json_builder_set_member_name (builder, "newMessages");
+		json_builder_begin_array(builder);
+		i = uids->len - 1;
+		if (data->newest_uid != NULL) {
+			while (i >= 0) {
+				const char *uid = uids->pdata[i];
+				CamelMessageInfo *mi;
+				if (g_strcmp0 (uid, data->newest_uid) == 0)
+					break;
+				mi = camel_folder_get_message_info (folder, uid);
+				dump_message_info (builder, mi);
+				camel_folder_free_message_info (folder, mi);
+				i--;
+			}
+		}
+		json_builder_end_array (builder);
+		if (data->oldest_uid != NULL) {
+			while (i >= 0) {
+				const char *uid = uids->pdata[i];
+				if (g_strcmp0 (uid, data->oldest_uid) == 0)
+					break;
+				i--;
+			}
+			i--;
+		}
+		json_builder_set_member_name (builder, "messages");
+		json_builder_begin_array (builder);
+		for (j = 0; j < data->count; j++) {
+			const char *uid;
 			CamelMessageInfo *mi;
-			if (g_strcmp0 (uid, data->newest_uid) == 0)
+			if (i < 0)
 				break;
+			uid = (const char *) uids->pdata[i];
 			mi = camel_folder_get_message_info (folder, uid);
 			dump_message_info (builder, mi);
 			camel_folder_free_message_info (folder, mi);
 			i--;
 		}
+		json_builder_end_array(builder);
+		camel_folder_free_uids (folder, uids);
 	}
-	json_builder_end_array (builder);
-	if (data->oldest_uid != NULL) {
-		while (i >= 0) {
-			const char *uid = uids->pdata[i];
-			if (g_strcmp0 (uid, data->oldest_uid) == 0)
-				break;
-			i--;
-		}
-		i--;
-	}
-	json_builder_set_member_name (builder, "messages");
-	json_builder_begin_array (builder);
-	for (j = 0; j < data->count; j++) {
-		const char *uid;
-		CamelMessageInfo *mi;
-		if (i < 0)
-			break;
-		uid = (const char *) uids->pdata[i];
-		mi = camel_folder_get_message_info (folder, uid);
-		dump_message_info (builder, mi);
-		camel_folder_free_message_info (folder, mi);
-		i--;
-	}
-	json_builder_end_array(builder);
-	camel_folder_free_uids (folder, uids);
 	json_builder_end_object (builder);
-
+		
 	result_node = json_builder_get_root (builder);
 	g_object_unref (builder);
 
-	if (error && data->error == NULL) {
-		g_cancellable_cancel (data->cancellable);
-		g_propagate_error (&data->error, error);
+	/* Unless we got a cancel, we ignore the error */
+	if (error && 
+	    !(error->domain == G_IO_ERROR && error->code == G_IO_ERROR_CANCELLED)) {
+		g_clear_error (&error);
 	}
 
-	finish_fetch_messages (data, result_node);
+	finish_fetch_messages (data, result_node, error);
+
+	if (error) g_error_free (error);
 	json_node_free (result_node);
 }
 
 static void
-fetch_messages_refresh_info (CamelFolder *folder, FetchMessagesData *data)
+fetch_messages (GAsyncResult *result, GHashTable *params, GCancellable *cancellable)
 {
-	if (data->error == NULL) {
-		camel_folder_refresh_info (folder, 
-					   G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-					   fetch_messages_refresh_info_cb, data);
-	} else {
-		finish_fetch_messages (data, NULL);
-	}
-	if (folder) g_object_unref (folder);
-}
-static void
-fetch_messages_get_folder_cb (GObject *source_object,
-				GAsyncResult *result,
-				gpointer userdata)
-{
-	FetchMessagesData *data = (FetchMessagesData *) userdata;
-	GError *error = NULL;
-	CamelStore *store = (CamelStore *) source_object;
-	CamelFolder *folder;
-
-	folder = camel_store_get_folder_finish (store, result, &error);
-
-	if (error && data->error == NULL) {
-		g_cancellable_cancel (data->cancellable);
-		g_propagate_error (&data->error, error);
-	}
-
-	fetch_messages_refresh_info (folder, data);
-}
-
-static void
-fetch_messages (GAsyncResult *result, GHashTable *params)
-{
-	const char *account_name;
+	const char *account_id;
 	const char *folder_name;
 	FetchMessagesData *data = g_new0 (FetchMessagesData, 1);
 	const gchar *newest_uid;
@@ -1573,7 +1540,6 @@ fetch_messages (GAsyncResult *result, GHashTable *params)
 
 	data->result = g_object_ref (result);
 	data->callback_id = g_strdup (g_hash_table_lookup (params, "callback"));
-	data->cancellable = g_cancellable_new ();
 
 	newest_uid = g_hash_table_lookup (params, "newestUid");
 	if (newest_uid == '\0' || g_strcmp0 (newest_uid, "null") == 0) newest_uid = NULL;
@@ -1589,47 +1555,16 @@ fetch_messages (GAsyncResult *result, GHashTable *params)
 		data->count = 20;
 
 
-	account_name = g_hash_table_lookup (params, "account");
+	account_id = g_hash_table_lookup (params, "account");
 	folder_name = g_hash_table_lookup (params, "folder");
 
-	if (g_strcmp0 (folder_name, "INBOX") == 0 && 
-	    im_service_mgr_has_local_inbox (im_service_mgr_get_instance (),
-					    account_name)) {
-		CamelFolder *inbox;
-
-		inbox = im_service_mgr_get_local_inbox (im_service_mgr_get_instance (),
-							account_name,
-							data->cancellable,
-							&data->error);
-
-		fetch_messages_refresh_info (inbox, data);
-	} else if (g_strcmp0 (folder_name, IM_LOCAL_DRAFTS_TAG) == 0) {
-		CamelFolder *drafts;
-
-		drafts = im_service_mgr_get_drafts (im_service_mgr_get_instance (),
-						    data->cancellable,
-						    &data->error);
-
-		fetch_messages_refresh_info (drafts, data);
-	} else if (g_strcmp0 (folder_name, IM_LOCAL_OUTBOX_TAG) == 0) {
-		CamelFolder *outbox;
-
-		outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
-						    (const char *) account_name,
-						    data->cancellable,
-						    &data->error);
-
-		fetch_messages_refresh_info (outbox, data);
-	} else {
-		CamelStore *store;
-		store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
-								   (const char *) account_name,
-								   IM_ACCOUNT_TYPE_STORE);
-		camel_store_get_folder (store, folder_name,
-					CAMEL_STORE_FOLDER_CREATE | CAMEL_STORE_FOLDER_BODY_INDEX, 
-					G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-					fetch_messages_get_folder_cb, data);
-	}
+	im_mail_op_refresh_folder_info_async (im_service_mgr_get_instance (),
+					      account_id,
+					      folder_name,
+					      G_PRIORITY_DEFAULT_IDLE,
+					      cancellable,
+					      fetch_messages_refresh_info_cb,
+					      data);
 }
 
 typedef struct _GetMessageData {
@@ -2257,7 +2192,7 @@ im_soup_request_send_async (SoupRequest          *soup_request,
   } else if (!g_strcmp0 (uri->path, "getAccounts")) {
 	  get_accounts (result, params);
   } else if (!g_strcmp0 (uri->path, "getMessages")) {
-	  fetch_messages (result, params);
+	  fetch_messages (result, params, cancellable);
   } else if (!g_strcmp0 (uri->path, "syncFolders")) {
 	  sync_folders (result, params);
   } else if (!g_strcmp0 (uri->path, "getMessage")) {

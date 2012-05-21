@@ -46,6 +46,164 @@
 #include <libsoup/soup.h>
 #include <string.h>
 
+typedef struct _RefreshFolderInfoAsyncContext {
+	gchar *account_id;
+	gchar *folder_name;
+	CamelFolder *folder;
+} RefreshFolderInfoAsyncContext;
+
+static void
+refresh_folder_info_async_context_free (RefreshFolderInfoAsyncContext *context)
+{
+	g_free (context->account_id);
+	g_free (context->folder_name);
+	if (context->folder) g_object_unref (context->folder);
+	g_free (context);
+}
+
+/**
+ * im_mail_op_refresh_folder_info_sync:
+ * @account_id: an account id
+ * @folder_name: a folder name
+ * @folder: (out) (allow-none): the refreshed #CamelFolder
+ * @cancellable: optional #GCancellable object, or %NULL.
+ * @error: (out) (allow-none): return location for a #GError, or %NULL.
+ *
+ * Refreshes the summary of folder @folder_name in account @account_id.
+ *
+ * Returns: %TRUE if successful, %FALSE otherwise.
+ */
+gboolean
+im_mail_op_refresh_folder_info_sync (ImServiceMgr *mgr,
+				     const gchar *account_id,
+				     const gchar *folder_name,
+				     CamelFolder **folder,
+				     GCancellable *cancellable,
+				     GError **error)
+{
+	GError *_error = NULL;
+	CamelFolder *_folder;
+
+	_folder = im_service_mgr_get_folder (mgr, account_id,
+					    folder_name, cancellable, &_error);
+
+	if (_error == NULL) {
+		camel_folder_refresh_info_sync (_folder,
+						cancellable, &_error);
+	}
+
+	if (_error)
+		g_propagate_error (error, _error);
+	if (folder)
+		*folder = _folder;
+	else
+		g_object_unref (_folder);
+
+	return _error == NULL;
+}
+
+static void
+im_mail_op_refresh_folder_info_thread (GSimpleAsyncResult *simple,
+				       GObject *object,
+				       GCancellable *cancellable)
+{
+	GError *_error = NULL;
+	RefreshFolderInfoAsyncContext *context;
+
+	context = (RefreshFolderInfoAsyncContext *)
+		g_simple_async_result_get_op_res_gpointer (simple);
+
+	im_mail_op_refresh_folder_info_sync (IM_SERVICE_MGR (object),
+					     context->account_id,
+					     context->folder_name,
+					     &(context->folder),
+					     cancellable,
+					     &_error);
+	
+	if (_error != NULL)
+		g_simple_async_result_take_error (simple, _error);
+}
+
+/**
+ * im_mail_op_refresh_folder_info_async:
+ * @mgr: a #ImServiceMgr
+ * @account_id: an account id
+ * @folder_name: a folder name
+ * @io_priority: the I/O priority of the request
+ * @cancellable: optional #GCancellable object, or %NULL,
+ * @callback: a #GAsyncReadyCallback to call when the request is finished
+ * @userdata: data to pass to callback
+ *
+ * Asynchronously refreshes the summary of folder @folder_name in account
+ * @account_id.
+ *
+ * When the operation is finished, @callback is called. The you should call
+ * im_mail_op_refresh_folder_info_finish() to get the result of the operation.
+ */
+void
+im_mail_op_refresh_folder_info_async (ImServiceMgr *mgr,
+				      const gchar *account_id,
+				      const gchar *folder_name,
+				      int io_priority,
+				      GCancellable *cancellable,
+				      GAsyncReadyCallback callback,
+				      gpointer userdata)
+{
+	GSimpleAsyncResult *simple;
+	RefreshFolderInfoAsyncContext *context;
+
+	context = g_new0 (RefreshFolderInfoAsyncContext, 1);
+	context->account_id = g_strdup (account_id);
+	context->folder_name = g_strdup (folder_name);
+
+	simple = g_simple_async_result_new (G_OBJECT (mgr),
+					    callback, userdata,
+					    im_mail_op_refresh_folder_info_async);
+
+	g_simple_async_result_set_op_res_gpointer (simple, context, 
+						   (GDestroyNotify) refresh_folder_info_async_context_free);
+
+	g_simple_async_result_run_in_thread (simple,
+					     im_mail_op_refresh_folder_info_thread,
+					     io_priority, cancellable);
+	g_object_unref (simple);
+}
+
+/**
+ * im_mail_op_refresh_folder_info_finish:
+ * @mgr: a #ImServiceMgr
+ * @result: a #GAsyncResult
+ * @folder: (out) (allow-none) (transfer full): refreshed #CamelFolder
+ * @error: (out) (allow-none): return location for a #GError, or %NULL
+ *
+ * Finishes the operation started with im_mail_op_refresh_folder_info_async().
+ *
+ * Returns: %TRUE on success, %FALSE otherwise.
+ */
+gboolean
+im_mail_op_refresh_folder_info_finish (ImServiceMgr *mgr,
+				       GAsyncResult *result,
+				       CamelFolder **folder,
+				       GError **error)
+{
+	GSimpleAsyncResult *simple;
+	RefreshFolderInfoAsyncContext *context;
+
+	g_return_val_if_fail (
+		g_simple_async_result_is_valid (
+		result, G_OBJECT (mgr), im_mail_op_refresh_folder_info_async), FALSE);
+
+
+	simple = G_SIMPLE_ASYNC_RESULT (result);
+	context = (RefreshFolderInfoAsyncContext *)
+		g_simple_async_result_get_op_res_gpointer (simple);
+
+	if (folder && context->folder)
+		*folder = g_object_ref (context->folder);
+
+	return !g_simple_async_result_propagate_error (simple, error);
+}
+
 typedef struct _GetMessageAsyncContext {
 	gchar *account_id;
 	gchar *folder_name;

@@ -45,6 +45,24 @@
 
 G_BEGIN_DECLS
 
+gboolean          im_mail_op_refresh_folder_info_sync     (ImServiceMgr *mgr,
+							   const gchar *account_id,
+							   const gchar *folder_name,
+							   CamelFolder **folder,
+							   GCancellable *cancellable,
+							   GError **error);
+void              im_mail_op_refresh_folder_info_async    (ImServiceMgr *mgr,
+							   const gchar *account_id,
+							   const gchar *folder_name,
+							   int io_priority,
+							   GCancellable *cancellable,
+							   GAsyncReadyCallback callback,
+							   gpointer userdata);
+gboolean          im_mail_op_refresh_folder_info_finish   (ImServiceMgr *mgr,
+							   GAsyncResult *result,
+							   CamelFolder **folder,
+							   GError **error);
+
 CamelMimeMessage *im_mail_op_get_message_sync             (ImServiceMgr *service_mgr,
 							   const gchar *account_id,
 							   const gchar *folder_name,
