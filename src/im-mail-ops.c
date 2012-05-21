@@ -46,6 +46,151 @@
 #include <libsoup/soup.h>
 #include <string.h>
 
+/**
+ * im_mail_op_synchronize_storage_account_sync:
+ * @store: a #CamelStore, with %CAMEL_PROVIDER_IS_STORAGE flag
+ * @cancellable: optional #GCancellable object, or %NULL.
+ * @error: (out) (allow-none): return location for a #GError, or %NULL.
+ *
+ * Refreshes and obtains the folders structure for @store, and updates inbox.
+ *
+ * Returns: (transfer full): #CamelFolderInfo of the store if successful, %NULL otherwise.
+ */
+CamelFolderInfo *
+im_mail_op_synchronize_storage_store_sync (CamelStore *store,
+					   GCancellable *cancellable,
+					   GError **error)
+{
+	GError *_error = NULL;
+	CamelFolderInfo *fi = NULL;
+	CamelFolder *folder = NULL;
+
+	fi = camel_store_get_folder_info_sync (store, NULL,
+					       CAMEL_STORE_FOLDER_INFO_RECURSIVE |
+					       CAMEL_STORE_FOLDER_INFO_SUBSCRIBED,
+					       cancellable,
+					       &_error);
+
+	if (_error == NULL) {
+		if (camel_store_can_refresh_folder (store, fi, &_error)) {
+			folder = camel_store_get_folder_sync (store,
+							      fi->full_name,
+							      CAMEL_STORE_FOLDER_CREATE |
+							      CAMEL_STORE_FOLDER_BODY_INDEX,
+							      cancellable,
+							      &_error);
+
+		}
+	}
+
+	if (folder && _error == NULL) {
+		if (camel_service_get_connection_status (CAMEL_SERVICE (store)) ==
+		    CAMEL_SERVICE_CONNECTED ||
+		    camel_service_connect_sync (CAMEL_SERVICE (store), &_error)) {
+			camel_folder_refresh_info_sync (folder,
+							cancellable,
+							&_error);
+		}
+	}
+
+	if (folder && _error == NULL) {
+		camel_folder_synchronize_sync (folder, FALSE,
+					       cancellable, &_error);
+	}
+
+	if (folder) g_object_unref (folder);
+
+	if (_error)
+		g_propagate_error (error, _error);
+
+	return fi;
+}
+
+static void
+im_mail_op_synchronize_storage_store_thread (GSimpleAsyncResult *simple,
+					     GObject *object,
+					     GCancellable *cancellable)
+{
+	GError *_error = NULL;
+	CamelFolderInfo *fi;
+
+	fi = im_mail_op_synchronize_storage_store_sync (CAMEL_STORE (object),
+							cancellable,
+							&_error);
+
+	g_simple_async_result_set_op_res_gpointer (simple,
+						   fi,
+						   NULL);
+	
+	if (_error != NULL)
+		g_simple_async_result_take_error (simple, _error);
+}
+
+/**
+ * im_mail_op_synchronize_storage_store_async:
+ * @store: a #CamelStore
+ * @io_priority: the I/O priority of the request
+ * @cancellable: optional #GCancellable object, or %NULL,
+ * @callback: a #GAsyncReadyCallback to call when the request is finished
+ * @userdata: data to pass to callback
+ *
+ * Asynchronously refreshes @store, fetching first the list of folders, and
+ * then refreshing the inbox data.
+ *
+ * When the operation is finished, @callback is called. The you should call
+ * im_mail_op_synchronize_storage_store_finish() to get the result of the operation.
+ */
+void
+im_mail_op_synchronize_storage_store_async (CamelStore *store,
+					    int io_priority,
+					    GCancellable *cancellable,
+					    GAsyncReadyCallback callback,
+					    gpointer userdata)
+{
+	GSimpleAsyncResult *simple;
+
+	simple = g_simple_async_result_new (G_OBJECT (store),
+					    callback, userdata,
+					    im_mail_op_synchronize_storage_store_async);
+
+	g_simple_async_result_run_in_thread (simple,
+					     im_mail_op_synchronize_storage_store_thread,
+					     io_priority, cancellable);
+	g_object_unref (simple);
+}
+
+
+/**
+ * im_mail_op_synchronize_storage_store_finish:
+ * @store: a #CamelStore
+ * @result: a #GAsyncResult
+ * @error: (out) (allow-none): return location for a #GError, or %NULL
+ *
+ * Finishes the operation started with im_mail_op_synchronize_storage_store_async().
+ *
+ * Returns: a #CamelFolderInfo on success which should be freed with
+ * camel_store_free_folder_info(), %NULL otherwise.
+ */
+CamelFolderInfo *
+im_mail_op_synchronize_storage_store_finish (CamelStore *store,
+					     GAsyncResult *result,
+					     GError **error)
+{
+	GSimpleAsyncResult *simple;
+	CamelFolderInfo *fi;
+
+	g_return_val_if_fail (
+		g_simple_async_result_is_valid (
+		result, G_OBJECT (store), im_mail_op_synchronize_storage_store_async), FALSE);
+
+
+	simple = G_SIMPLE_ASYNC_RESULT (result);
+	fi = (CamelFolderInfo *)
+		g_simple_async_result_get_op_res_gpointer (simple);
+
+	return fi;
+}
+
 typedef struct _RefreshFolderInfoAsyncContext {
 	gchar *account_id;
 	gchar *folder_name;
@@ -63,6 +208,7 @@ refresh_folder_info_async_context_free (RefreshFolderInfoAsyncContext *context)
 
 /**
  * im_mail_op_refresh_folder_info_sync:
+ * @mgr: a #ImServiceMgr
  * @account_id: an account id
  * @folder_name: a folder name
  * @folder: (out) (allow-none): the refreshed #CamelFolder

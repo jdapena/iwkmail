@@ -881,87 +881,6 @@ sync_folders_outbox_synchronize_cb (GObject *source_object,
 	}
 }
 
-static void
-sync_folders_folder_synchronize_cb (GObject *source_object,
-				    GAsyncResult *result,
-				    gpointer userdata)
-{
-	SyncFoldersData *data = (SyncFoldersData *) userdata;
-	GError *_error = NULL;
-
-	camel_folder_synchronize_finish (CAMEL_FOLDER (source_object),
-					 result,
-					 &_error);
-	if (_error)
-		g_error_free (_error);
-
-	data->count--;
-	if (data->count == 0) {
-		finish_sync_folders (data);
-	}
-}
-
-static void
-sync_folders_refresh_info_cb (GObject *source_object,
-			      GAsyncResult *result,
-			      gpointer userdata)
-{
-	SyncFoldersData *data = (SyncFoldersData *) userdata;
-	GError *_error = NULL;
-
-	if (camel_folder_refresh_info_finish (CAMEL_FOLDER (source_object),
-					      result,
-					      &_error)) {
-		data->count++;
-		camel_folder_synchronize (CAMEL_FOLDER (source_object), FALSE,
-					  G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-					  sync_folders_folder_synchronize_cb,
-					  data);
-	}
-
-	if (_error)
-		g_error_free (_error);
-
-	data->count--;
-	if (data->count == 0) {
-		finish_sync_folders (data);
-	}
-}
-
-static void
-sync_folders_get_folder_cb (GObject *source_object,
-			    GAsyncResult *result,
-			    gpointer userdata)
-{
-	SyncFoldersData *data = (SyncFoldersData *) userdata;
-	CamelFolder *folder;
-	GError *_error = NULL;
-
-	folder = camel_store_get_folder_finish (CAMEL_STORE (source_object),
-						result, &_error);
-	if (folder) {
-		if (camel_service_get_connection_status (CAMEL_SERVICE (source_object)) ==
-		    CAMEL_SERVICE_CONNECTED ||
-		    camel_service_connect_sync (CAMEL_SERVICE (source_object), &_error)) {
-			data->count++;
-			camel_folder_refresh_info (folder,
-						   G_PRIORITY_DEFAULT_IDLE,
-						   data->cancellable,
-						   sync_folders_refresh_info_cb,
-						   data);
-		}
-		g_object_unref (folder);
-	}
-	if (_error)
-		g_error_free (_error);
-
-	data->count--;
-
-	if (data->count == 0) {
-		finish_sync_folders (data);
-	}
-}
-
 static gboolean
 update_non_storage_uids_sync (CamelFolder *remote_inbox,
 			      CamelFolder *local_inbox,
@@ -1228,9 +1147,9 @@ sync_folders_get_non_storage_inbox_cb (GObject *source_object,
 }
 
 static void
-sync_folders_get_folder_info_cb (GObject *source_object,
-		 GAsyncResult *res,
-		 gpointer userdata)
+sync_folders_synchronize_storage_store_cb (GObject *source_object,
+					   GAsyncResult *res,
+					   gpointer userdata)
 {
 	SyncFoldersData *data = (SyncFoldersData *) userdata;
 	CamelFolderInfo *fi;
@@ -1240,25 +1159,14 @@ sync_folders_get_folder_info_cb (GObject *source_object,
 	account_id = im_account_mgr_get_server_parent_account_name (im_account_mgr_get_instance (),
 								    camel_service_get_uid (CAMEL_SERVICE (source_object)),
 								    IM_ACCOUNT_TYPE_STORE);
-	fi = camel_store_get_folder_info_finish (CAMEL_STORE (source_object),
-						 res, &error);
+	fi = im_mail_op_synchronize_storage_store_finish (CAMEL_STORE (source_object),
+							  res, &error);
 	if (fi) {
 		if (account_id) {
 			g_hash_table_insert (data->folder_infos, g_strdup (account_id), fi);
-		}
-		if (camel_store_can_refresh_folder (CAMEL_STORE (source_object), fi, NULL)) {
-			data->count++;
-			camel_store_get_folder (CAMEL_STORE (source_object),
-						fi->full_name,
-						CAMEL_STORE_FOLDER_CREATE |
-						CAMEL_STORE_FOLDER_BODY_INDEX,
-						G_PRIORITY_DEFAULT_IDLE,
-						data->cancellable,
-						sync_folders_get_folder_cb,
-						data);
-		}
-		if (!account_id)
+		} else {
 			camel_store_free_folder_info (CAMEL_STORE (source_object), fi);
+		}
 	}
 	g_free (account_id);
 	if (error && data->error == NULL) {
@@ -1314,13 +1222,11 @@ sync_folders (GAsyncResult *result, GHashTable *params)
 								sync_folders_get_non_storage_inbox_cb,
 								data);
 			  } else {
-				  camel_store_get_folder_info (store, NULL,
-							       CAMEL_STORE_FOLDER_INFO_RECURSIVE |
-							       CAMEL_STORE_FOLDER_INFO_SUBSCRIBED,
-							       G_PRIORITY_DEFAULT_IDLE,
-							       data->cancellable,
-							       sync_folders_get_folder_info_cb,
-							       data);
+				  im_mail_op_synchronize_storage_store_async (store,
+									      G_PRIORITY_DEFAULT_IDLE,
+									      data->cancellable,
+									      sync_folders_synchronize_storage_store_cb,
+									      data);
 			  }
 		  }
 		  outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
@@ -1343,14 +1249,11 @@ sync_folders (GAsyncResult *result, GHashTable *params)
 	  outbox_store = im_service_mgr_get_outbox_store (im_service_mgr_get_instance ());
 	  if (outbox_store) {
 		  data->count++;
-		  camel_store_get_folder_info (outbox_store, NULL,
-					       CAMEL_STORE_FOLDER_INFO_RECURSIVE |
-					       CAMEL_STORE_FOLDER_INFO_NO_VIRTUAL |
-					       CAMEL_STORE_FOLDER_INFO_SUBSCRIBED,
-					       G_PRIORITY_DEFAULT_IDLE,
-					       data->cancellable,
-					       sync_folders_get_folder_info_cb,
-					       data);
+		  im_mail_op_synchronize_storage_store_async (outbox_store,
+							      G_PRIORITY_DEFAULT_IDLE,
+							      data->cancellable,
+							      sync_folders_synchronize_storage_store_cb,
+							      data);
 	  }
 	  if (data->count == 0)
 		  finish_sync_folders (data);

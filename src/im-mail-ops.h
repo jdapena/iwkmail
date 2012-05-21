@@ -45,6 +45,18 @@
 
 G_BEGIN_DECLS
 
+CamelFolderInfo * im_mail_op_synchronize_storage_store_sync   (CamelStore *store,
+							       GCancellable *cancellable,
+							       GError **error);
+void              im_mail_op_synchronize_storage_store_async  (CamelStore *store,
+							       int io_priority,
+							       GCancellable *cancellable,
+							       GAsyncReadyCallback callback,
+							       gpointer userdata);
+CamelFolderInfo * im_mail_op_synchronize_storage_store_finish (CamelStore *store,
+							       GAsyncResult *result,
+							       GError **error);
+
 gboolean          im_mail_op_refresh_folder_info_sync     (ImServiceMgr *mgr,
 							   const gchar *account_id,
 							   const gchar *folder_name,
