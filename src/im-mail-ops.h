@@ -45,6 +45,18 @@
 
 G_BEGIN_DECLS
 
+gboolean          im_mail_op_run_send_queue_sync          (CamelFolder *outbox,
+							   GCancellable *cancellable,
+							   GError **error);
+void              im_mail_op_run_send_queue_async         (CamelFolder *outbox,
+							   int io_priority,
+							   GCancellable *cancellable,
+							   GAsyncReadyCallback callback,
+							   gpointer userdata);
+gboolean          im_mail_op_run_send_queue_finish        (CamelFolder *outbox,
+							   GAsyncResult *result,
+							   GError **error);
+
 CamelFolderInfo * im_mail_op_synchronize_store_sync       (CamelStore *store,
 							   GCancellable *cancellable,
 							   GError **error);

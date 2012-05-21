@@ -47,6 +47,233 @@
 #include <libsoup/soup.h>
 #include <string.h>
 
+#define IM_OUTBOX_SEND_STATUS "iwk-send-status"
+#define IM_OUTBOX_SEND_STATUS_COPYING_TO_SENTBOX "copying-to-sentbox"
+#define IM_OUTBOX_SEND_STATUS_FAILED "failed"
+#define IM_OUTBOX_SEND_STATUS_RETRY "retry"
+#define IM_OUTBOX_SEND_STATUS_SEND "send"
+#define IM_OUTBOX_SEND_STATUS_SENDING "sending"
+#define IM_OUTBOX_SEND_STATUS_SENT "sent"
+#define IM_OUTBOX_SEND_ATTEMPTS "iwk-send-attempts"
+
+static gboolean
+run_send_queue_message_sync (CamelFolder *outbox,
+			     CamelTransport *transport,
+			     const gchar *uid,
+			     GCancellable *cancellable,
+			     GError **error)
+{
+	GError *_error = NULL;
+	const char *send_status;
+
+	send_status = camel_folder_get_message_user_tag (outbox, uid, IM_OUTBOX_SEND_STATUS);
+	if (g_strcmp0 (send_status, IM_OUTBOX_SEND_STATUS_SENDING) == 0 ||
+	    g_strcmp0 (send_status, IM_OUTBOX_SEND_STATUS_COPYING_TO_SENTBOX) == 0) {
+		/* we ignore it, it's being operated now */
+	} else if (g_strcmp0 (send_status, IM_OUTBOX_SEND_STATUS_SENT) == 0) {
+		/* TODO: it's sent, but transfer to sent folder failed, we reschedule it */
+	} else if (send_status == NULL || g_strcmp0 (send_status, IM_OUTBOX_SEND_STATUS_RETRY) == 0){
+		CamelMimeMessage *message = NULL;
+		camel_folder_set_message_user_tag (outbox, uid,
+						   IM_OUTBOX_SEND_STATUS,
+						   IM_OUTBOX_SEND_STATUS_SENDING);
+		camel_folder_synchronize_sync (outbox, FALSE, cancellable, &_error);
+		if (_error == NULL) {
+			message = camel_folder_get_message_sync (outbox, uid,
+								 cancellable, &_error);
+		}
+		if (_error == NULL)
+			camel_service_connect_sync (CAMEL_SERVICE (transport),
+						    &_error);
+		if (_error) {
+			camel_folder_set_message_user_tag (outbox, uid,
+							   IM_OUTBOX_SEND_STATUS,
+							   IM_OUTBOX_SEND_STATUS_RETRY);
+			camel_folder_synchronize_sync (outbox, FALSE, NULL, NULL);
+		}
+		if (_error == NULL) {
+			CamelInternetAddress *recipients;
+			recipients = camel_internet_address_new ();
+			camel_address_cat (CAMEL_ADDRESS (recipients),
+					   CAMEL_ADDRESS (camel_mime_message_get_recipients (message, CAMEL_RECIPIENT_TYPE_TO)));
+			camel_address_cat (CAMEL_ADDRESS (recipients),
+					   CAMEL_ADDRESS (camel_mime_message_get_recipients (message, CAMEL_RECIPIENT_TYPE_CC)));
+			camel_address_cat (CAMEL_ADDRESS (recipients),
+					   CAMEL_ADDRESS (camel_mime_message_get_recipients (message, CAMEL_RECIPIENT_TYPE_BCC)));
+		
+			if (!camel_transport_send_to_sync (transport,
+							   message, CAMEL_ADDRESS (camel_mime_message_get_from (message)),
+							   CAMEL_ADDRESS (recipients),
+							   cancellable, &_error)) {
+				const char *attempt_str;
+				int attempt;
+				
+				attempt_str = camel_folder_get_message_user_tag (outbox, uid,
+										 IM_OUTBOX_SEND_ATTEMPTS);
+				attempt = attempt_str?atoi (attempt_str):0;
+				if (attempt > 3 || attempt < 0) {
+					camel_folder_set_message_user_tag (outbox, uid,
+									   IM_OUTBOX_SEND_STATUS,
+									   IM_OUTBOX_SEND_STATUS_FAILED);
+				} else {
+					char *new_attempt;
+					camel_folder_set_message_user_tag (outbox, uid,
+									   IM_OUTBOX_SEND_STATUS,
+									   IM_OUTBOX_SEND_STATUS_RETRY);
+					new_attempt = g_strdup_printf ("%d", attempt + 1);
+					camel_folder_set_message_user_tag (outbox, uid,
+									   IM_OUTBOX_SEND_ATTEMPTS,
+									   new_attempt);
+					g_free (new_attempt);
+				}
+			} else {
+				camel_folder_set_message_user_tag (outbox, uid,
+								   IM_OUTBOX_SEND_ATTEMPTS,
+								   "0");
+				camel_folder_set_message_user_tag (outbox, uid,
+								   IM_OUTBOX_SEND_STATUS,
+								   IM_OUTBOX_SEND_STATUS_SENT);
+			}
+			camel_folder_synchronize_sync (outbox, FALSE, NULL, NULL);
+			g_object_unref (recipients);
+		}
+	}
+
+	if (_error)
+		g_propagate_error (error, _error);
+
+	return _error == NULL;
+}
+
+/**
+ * im_mail_op_run_send_queue_sync:
+ * @outbox: an outbox #CamelFolder
+ * @cancellable: optional #GCancellable object, or %NULL,
+ * @error: (out) (allow-none): return location for a #GError, or %NULL.
+ *
+ * Runs send queue for @outbox.
+ *
+ * Returns: %TRUE if successful, %FALSE otherwise.
+ */
+gboolean
+im_mail_op_run_send_queue_sync (CamelFolder *outbox,
+				GCancellable *cancellable,
+				GError **error)
+{
+	GError *_error = NULL;
+
+	camel_folder_synchronize_sync (outbox, TRUE,
+				       cancellable, &_error);
+	if (_error == NULL && camel_folder_get_message_count (outbox) > 0) {
+		CamelTransport *transport;
+
+		/* Get transport */
+		transport = (CamelTransport *)
+			im_service_mgr_get_service (im_service_mgr_get_instance (),
+						    camel_folder_get_full_name (outbox),
+						    IM_ACCOUNT_TYPE_TRANSPORT);
+
+		if (transport == NULL) {
+			g_set_error (&_error, IM_ERROR_DOMAIN,
+				     IM_ERROR_INTERNAL,
+				     _("No transport for an outbox"));
+		}
+
+		if (_error == NULL) {
+			GPtrArray *uids;
+			gint i;
+
+			uids = camel_folder_get_uids (outbox);
+
+			for (i = 0; i < uids->len; i++) {
+				const char *uid = (const char *) uids->pdata[i];
+				if (_error == NULL) {
+					run_send_queue_message_sync (outbox, transport, uid, cancellable, &_error);
+				}
+			}
+			camel_folder_free_uids (outbox, uids);
+		}
+	}
+
+	if (_error) g_propagate_error (error, _error);
+
+	return _error == NULL;
+}
+
+static void
+im_mail_op_run_send_queue_thread (GSimpleAsyncResult *simple,
+				  GObject *object,
+				  GCancellable *cancellable)
+{
+	GError *_error = NULL;
+
+	im_mail_op_run_send_queue_sync (CAMEL_FOLDER (object),
+					cancellable,
+					&_error);
+
+	if (_error != NULL)
+		g_simple_async_result_take_error (simple, _error);
+}
+
+/**
+ * im_mail_op_run_send_queue_async:
+ * @outbox: an outbox #CamelFolder
+ * @io_priority: the I/O priority of the request
+ * @cancellable: optional #GCancellable object, or %NULL,
+ * @callback: a #GAsyncReadyCallback to call when the request is finished
+ * @userdata: data to pass to callback
+ *
+ * Runs send queue for @outbox.
+ *
+ * When the operation is finished, @callback is called. The you should call
+ * im_mail_op_run_send_queue_finish() to get the result of the operation.
+ */
+void
+im_mail_op_run_send_queue_async (CamelFolder *outbox,
+				 int io_priority,
+				 GCancellable *cancellable,
+				 GAsyncReadyCallback callback,
+				 gpointer userdata)
+{
+	GSimpleAsyncResult *simple;
+	
+	simple = g_simple_async_result_new (G_OBJECT (outbox),
+					    callback, userdata,
+					    im_mail_op_run_send_queue_async);
+
+	g_simple_async_result_run_in_thread (simple,
+					     im_mail_op_run_send_queue_thread,
+					     io_priority, cancellable);
+	g_object_unref (simple);
+}
+
+
+/**
+ * im_mail_op_run_send_queue_finish:
+ * @outbox: a #CamelFolder
+ * @result: a #GAsyncResult
+ * @error: (out) (allow-none): return location for a #GError, or %NULL
+ *
+ * Finishes the operation started with im_mail_op_run_send_queue_async().
+ *
+ * Returns: %TRUE if successfull, %FALSE otherwise.
+ */
+gboolean
+im_mail_op_run_send_queue_finish (CamelFolder *outbox,
+				  GAsyncResult *result,
+				  GError **error)
+{
+	GSimpleAsyncResult *simple;
+
+	g_return_val_if_fail (
+		g_simple_async_result_is_valid (
+		result, G_OBJECT (outbox), im_mail_op_run_send_queue_async), FALSE);
+
+
+	simple = G_SIMPLE_ASYNC_RESULT (result);
+	return !g_simple_async_result_propagate_error (simple, error);
+}
+
 static gboolean
 update_non_storage_uids_sync (CamelFolder *remote_inbox,
 			      CamelFolder *local_inbox,
@@ -103,8 +330,8 @@ synchronize_nonstorage_store_sync (CamelStore *store,
 				   GError **error)
 {
 	GError *_error = NULL;
-	CamelFolder *remote_inbox;
-	CamelFolder *local_inbox;
+	CamelFolder *remote_inbox = NULL;
+	CamelFolder *local_inbox = NULL;
 	gchar *account_id;
 	CamelFolderInfo *fi = NULL;
 

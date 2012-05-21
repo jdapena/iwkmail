@@ -522,15 +522,17 @@ authenticate_sync (CamelSession *session,
 		provider = camel_service_get_provider (service);
 		sasl = camel_sasl_new (provider->protocol, mechanism, service);
 		if (sasl != NULL) {
-			camel_sasl_try_empty_password_sync (sasl, cancellable, &sasl_error);
+			gboolean success;
+			success = camel_sasl_try_empty_password_sync (sasl, cancellable, &sasl_error);
 			g_object_unref (sasl);
 			if (g_error_matches (sasl_error, G_IO_ERROR, G_IO_ERROR_CANCELLED)) {
 				g_propagate_error (&_error, sasl_error);
 				goto finish;
-			} else if (sasl_error == NULL) {
+			} else if (success) {
+				auth_result = CAMEL_AUTHENTICATION_ACCEPTED;
 				goto finish;
 			} else {
-				g_error_free (sasl_error);
+				if (sasl_error) g_error_free (sasl_error);
 			}
 		}
 	}

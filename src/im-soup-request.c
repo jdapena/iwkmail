@@ -59,14 +59,6 @@
 #include <libsoup/soup.h>
 #include <libsoup/soup-uri.h>
 
-#define IM_OUTBOX_SEND_STATUS "iwk-send-status"
-#define IM_OUTBOX_SEND_STATUS_COPYING_TO_SENTBOX "copying-to-sentbox"
-#define IM_OUTBOX_SEND_STATUS_FAILED "failed"
-#define IM_OUTBOX_SEND_STATUS_RETRY "retry"
-#define IM_OUTBOX_SEND_STATUS_SEND "send"
-#define IM_OUTBOX_SEND_STATUS_SENDING "sending"
-#define IM_OUTBOX_SEND_STATUS_SENT "sent"
-#define IM_OUTBOX_SEND_ATTEMPTS "iwk-send-attempts"
 #define IM_X_MAILER ("Igalia WebKit Mail " VERSION)
 
 G_DEFINE_TYPE (ImSoupRequest, im_soup_request, SOUP_TYPE_REQUEST)
@@ -691,188 +683,18 @@ finish_sync_folders (SyncFoldersData *data)
 	g_free (data);
 }
 
-typedef struct _OutboxGetMessageData {
-	SyncFoldersData *data;
-	CamelFolder *outbox;
-	char *uid;
-} OutboxGetMessageData;
-
 static void
-sync_folders_outbox_send_to_cb (GObject *source_object,
+sync_folders_run_send_queue_cb (GObject *source_object,
 				GAsyncResult *result,
 				gpointer userdata)
 {
-	OutboxGetMessageData *get_message_data = (OutboxGetMessageData *) userdata;
-	SyncFoldersData *data = get_message_data->data;
-	CamelFolder *outbox = get_message_data->outbox;
+	SyncFoldersData *data = userdata;
+	CamelFolder *outbox = (CamelFolder *) source_object;
 	GError *_error = NULL;
-	char *uid = get_message_data->uid;
 
-	if (!camel_transport_send_to_finish (CAMEL_TRANSPORT (source_object), result, &_error)) {
-		const char *attempt_str;
-		int attempt;
-
-		attempt_str = camel_folder_get_message_user_tag (outbox, uid,
-								 IM_OUTBOX_SEND_ATTEMPTS);
-		attempt = attempt_str?atoi (attempt_str):0;
-		if (attempt > 3 || attempt < 0) {
-			camel_folder_set_message_user_tag (outbox, uid,
-							   IM_OUTBOX_SEND_STATUS,
-							   IM_OUTBOX_SEND_STATUS_FAILED);
-		} else {
-			char *new_attempt;
-			camel_folder_set_message_user_tag (outbox, uid,
-							   IM_OUTBOX_SEND_STATUS,
-							   IM_OUTBOX_SEND_STATUS_RETRY);
-			new_attempt = g_strdup_printf ("%d", attempt + 1);
-			camel_folder_set_message_user_tag (outbox, uid,
-							   IM_OUTBOX_SEND_ATTEMPTS,
-							   new_attempt);
-			g_free (new_attempt);
-		}
-	} else {
-		camel_folder_set_message_user_tag (outbox, uid,
-						   IM_OUTBOX_SEND_ATTEMPTS,
-						   "0");
-		camel_folder_set_message_user_tag (outbox, uid,
-						   IM_OUTBOX_SEND_STATUS,
-						   IM_OUTBOX_SEND_STATUS_SENT);
-	}
-	camel_folder_synchronize_sync (outbox, FALSE, NULL, NULL);
-
-	g_free (get_message_data->uid);
-	g_object_unref (get_message_data->outbox);
-	g_free (get_message_data);
-
+	im_mail_op_run_send_queue_finish (outbox, result, &_error);
 	if (_error) {
 		g_propagate_error (&data->error, _error);
-	}
-
-	data->count--;
-	if (data->count == 0) {
-		finish_sync_folders (data);
-	}
-}
-
-static void
-sync_folders_outbox_get_message_cb (GObject *source_object,
-				    GAsyncResult *result,
-				    gpointer userdata)
-{
-	OutboxGetMessageData *get_message_data = (OutboxGetMessageData *) userdata;
-	SyncFoldersData *data = get_message_data->data;
-	CamelFolder *outbox = (CamelFolder *) source_object;
-	GError *_error = NULL;
-	char *uid = get_message_data->uid;
-
-	CamelMimeMessage *message;
-
-	message = camel_folder_get_message_finish (outbox, result, &_error);
-
-	if (_error || message == NULL) {
-		camel_folder_set_message_user_tag (outbox, uid,
-						   IM_OUTBOX_SEND_STATUS,
-						   IM_OUTBOX_SEND_STATUS_RETRY);
-
-		camel_folder_synchronize_sync (outbox, FALSE, NULL, NULL);
-		g_free (get_message_data->uid);
-		g_object_unref (get_message_data->outbox);
-		g_free (get_message_data);
-
-	} else {
-		CamelTransport *transport;
-		CamelInternetAddress *recipients;
-			
-		transport = (CamelTransport *)
-			im_service_mgr_get_service (im_service_mgr_get_instance (),
-						    camel_folder_get_full_name (outbox),
-						    IM_ACCOUNT_TYPE_TRANSPORT);
-
-		recipients = camel_internet_address_new ();
-		camel_address_cat (CAMEL_ADDRESS (recipients),
-				   CAMEL_ADDRESS (camel_mime_message_get_recipients (message, CAMEL_RECIPIENT_TYPE_TO)));
-		camel_address_cat (CAMEL_ADDRESS (recipients),
-				   CAMEL_ADDRESS (camel_mime_message_get_recipients (message, CAMEL_RECIPIENT_TYPE_CC)));
-		camel_address_cat (CAMEL_ADDRESS (recipients),
-				   CAMEL_ADDRESS (camel_mime_message_get_recipients (message, CAMEL_RECIPIENT_TYPE_BCC)));
-		
-		if (camel_service_connect_sync (CAMEL_SERVICE (transport),
-						&_error)) {
-			data->count++;
-			camel_transport_send_to (transport,
-						 message, CAMEL_ADDRESS (camel_mime_message_get_from (message)),
-						     CAMEL_ADDRESS (recipients),
-						 G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-						 sync_folders_outbox_send_to_cb, get_message_data);
-		}
-		
-		g_object_unref (recipients);
-	}
-	g_object_unref (message);
-
-	if (_error) g_propagate_error (&data->error, _error);
-	data->count--;
-
-	if (data->count == 0) {
-		finish_sync_folders (data);
-	}
-}
-
-static void
-sync_folders_outbox_synchronize_cb (GObject *source_object,
-				    GAsyncResult *result,
-				    gpointer userdata)
-{
-	SyncFoldersData *data = (SyncFoldersData *) userdata;
-	CamelFolder *outbox = (CamelFolder *) source_object;
-	if (camel_folder_synchronize_finish (CAMEL_FOLDER (source_object),
-					     result,
-					     NULL)) {
-
-		if (camel_folder_get_message_count (outbox) > 0) {
-			CamelTransport *transport;
-
-			/* Get transport */
-			transport = (CamelTransport *)
-				im_service_mgr_get_service (im_service_mgr_get_instance (),
-							    camel_folder_get_full_name (outbox),
-							    IM_ACCOUNT_TYPE_TRANSPORT);
-
-			if (transport) {
-				GPtrArray *uids;
-				gint i;
-
-				uids = camel_folder_get_uids (outbox);
-
-				for (i = 0; i < uids->len; i++) {
-					const char *uid = (const char *) uids->pdata[i];
-					const char *send_status;
-					send_status = camel_folder_get_message_user_tag (outbox, uid, IM_OUTBOX_SEND_STATUS);
-					if (g_strcmp0 (send_status, IM_OUTBOX_SEND_STATUS_SENDING) == 0 ||
-					    g_strcmp0 (send_status, IM_OUTBOX_SEND_STATUS_COPYING_TO_SENTBOX) == 0) {
-						/* we ignore it, it's being operated now */
-					} else if (g_strcmp0 (send_status, IM_OUTBOX_SEND_STATUS_SENT) == 0) {
-						/* TODO: it's sent, but transfer to sent folder failed, we reschedule it */
-					} else if (send_status == NULL || g_strcmp0 (send_status, IM_OUTBOX_SEND_STATUS_RETRY) == 0){
-						OutboxGetMessageData *get_message_data = g_new0 (OutboxGetMessageData, 1);
-						camel_folder_set_message_user_tag (outbox, uid,
-										   IM_OUTBOX_SEND_STATUS,
-										   IM_OUTBOX_SEND_STATUS_SENDING);
-						camel_folder_synchronize_sync (outbox, FALSE, NULL, NULL);
-						get_message_data->data = data;
-						get_message_data->uid = g_strdup (uid);
-						get_message_data->outbox = g_object_ref (outbox);
-						data->count++;
-						camel_folder_get_message (outbox, uid,
-									  G_PRIORITY_DEFAULT_IDLE,
-									  data->cancellable,
-									  sync_folders_outbox_get_message_cb,
-									  get_message_data);
-					}
-				}
-				camel_folder_free_uids (outbox, uids);
-			}
-		}
 	}
 
 	data->count--;
@@ -998,11 +820,11 @@ sync_folders (GAsyncResult *result, GHashTable *params)
 						      NULL);
 		  if (outbox) {
 			  data->count++;
-			  camel_folder_synchronize (outbox, TRUE,
-						    G_PRIORITY_DEFAULT_IDLE,
-						    data->cancellable,
-						    sync_folders_outbox_synchronize_cb,
-						    data);
+			  im_mail_op_run_send_queue_async (outbox,
+							   G_PRIORITY_DEFAULT_IDLE,
+							   data->cancellable,
+							   sync_folders_run_send_queue_cb,
+							   data);
 			  g_object_unref (outbox);
 		  }
 		  
