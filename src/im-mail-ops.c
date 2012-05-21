@@ -63,6 +63,21 @@ composer_save_async_context_free (ComposerSaveAsyncContext *context)
 	g_free (context->uid);
 }
 
+/**
+ * im_mail_op_composer_save_sync:
+ * @folder: a #CamelFolder
+ * @message: a #CamelMimeMessage
+ * @body: a string with the plain text body
+ * @attachment_uris: (element-type utf-8): list of attachment URIS
+ * @uid: (out) (allow-none): the UID of the appended message.
+ * @cancellable: optional #GCancellable object, or %NULL,
+ * @error: (out) (allow-none): return location for a #GError, or %NULL
+ *
+ * Appends @message to @folder, creating its parts structure
+ * from @body and @attachment_uris.
+ *
+ * Returns: %TRUE if successful, %FALSE otherwise.
+ */
 gboolean
 im_mail_op_composer_save_sync (CamelFolder *folder,
 			       CamelMimeMessage *message,
@@ -172,6 +187,23 @@ im_mail_op_composer_save_thread (GSimpleAsyncResult *simple,
 				 
 }
 
+/**
+ * im_mail_op_composer_save_async:
+ * @folder: a #CamelFolder
+ * @message: a #CamelMimeMessage
+ * @body: a string with the plain text body
+ * @attachment_uris: (element-type utf-8): list of attachment URIS
+ * @io_priority: the I/O priority of the request
+ * @cancellable: optional #GCancellable object, or %NULL,
+ * @callback: a #GAsyncReadyCallback to call when the request is finished
+ * @userdata: data to pass to callback
+ *
+ * Asynchronously appends @message to @folder, creating its parts structure
+ * from @body and @attachment_uris.
+ *
+ * When the operation is finished, @callback is called. The you should call
+ * im_mail_op_composer_save_finish() to get the result of the operation.
+ */
 void
 im_mail_op_composer_save_async (CamelFolder *folder,
 				CamelMimeMessage *message,
@@ -210,6 +242,17 @@ im_mail_op_composer_save_async (CamelFolder *folder,
 	g_object_unref (simple);
 }
 
+/**
+ * im_mail_op_composer_save_finish:
+ * @folder: a #CamelFolder
+ * @result: a #GAsyncResult
+ * @uid: (out) (allow-none): the uid of the appended message.
+ * @error: (out) (allow-none): return location for a #GError, or %NULL
+ *
+ * Finishes the operation started with im_mail_op_composer_save_async().
+ *
+ * Returns: %TRUE on success, %FALSE otherwise.
+ */
 gboolean
 im_mail_op_composer_save_finish (CamelFolder *folder,
 				 GAsyncResult *result,
