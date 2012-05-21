@@ -1635,25 +1635,17 @@ fetch_messages (GAsyncResult *result, GHashTable *params)
 typedef struct _GetMessageData {
 	GAsyncResult *result;
 	gchar *callback_id;
-	gchar *account_id;
-	gchar *folder_fullname;
-	gchar *message_uid;
-	GCancellable *cancellable;
-	GError *error;
+	CamelURL *url;
 } GetMessageData;
 
 static void
-finish_get_message (GetMessageData *data, JsonNode *result_node)
+finish_get_message (GetMessageData *data, JsonNode *result_node, GError *error)
 {
-	response_finish (data->result, data->callback_id, result_node, data->error);
+	response_finish (data->result, data->callback_id, result_node, error);
 	
 	g_object_unref (data->result);
 	g_free (data->callback_id);
-	g_free (data->account_id);
-	g_free (data->folder_fullname);
-	g_free (data->message_uid);
-	g_object_unref (data->cancellable);
-	if (data->error) g_error_free (data->error);
+	if (data->url) camel_url_free (data->url);
 	g_free (data);
 }
 
@@ -1890,130 +1882,59 @@ build_message_url (const char *account_name,
 }
 
 static void
-get_message_get_message_cb (GObject *source_object,
-			    GAsyncResult *result,
-			    gpointer userdata)
+get_message_mail_op_cb (GObject *source_object,
+			GAsyncResult *result,
+			gpointer userdata)
 {
 	GetMessageData *data = (GetMessageData *) userdata;
 	GError *error = NULL;
-	CamelFolder *folder = (CamelFolder *) source_object;
 	CamelMimeMessage *message;
 	JsonNode *result_node = NULL;
 
-	message = camel_folder_get_message_finish (folder, result, &error);
+	message = im_mail_op_get_message_finish (IM_SERVICE_MGR (source_object),
+						 result, &error);
 
-	if (error && data->error == NULL) {
-		g_cancellable_cancel (data->cancellable);
-		g_propagate_error (&data->error, error);
-	}
-
-	if (message) {
-		CamelURL *url;
+	if (error == NULL) {
 		JsonBuilder *builder;
 
 		builder = json_builder_new ();
-		url = build_message_url (data->account_id,
-					 data->folder_fullname,
-					 data->message_uid);
-		dump_data_wrapper (builder, url, CAMEL_DATA_WRAPPER (message));
-		camel_url_free (url);
-		g_object_unref (message);
-
+		dump_data_wrapper (builder, data->url, CAMEL_DATA_WRAPPER (message));
 		result_node = json_builder_get_root (builder);
 		g_object_unref (builder);
 	}
 
-	finish_get_message (data, result_node);
+	finish_get_message (data, result_node, error);
 	if (result_node) json_node_free (result_node);
+	if (message) g_object_unref (message);
+	if (error) g_error_free (error);
 }
 
 static void
-get_message_get_message (CamelFolder *folder,
-			 GetMessageData *data)
+get_message (GAsyncResult *result, GHashTable *params, GCancellable *cancellable)
 {
-	if (data->error == NULL) {
-		camel_folder_get_message (folder, data->message_uid,
-					   G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-					   get_message_get_message_cb, data);
-	} else {
-		finish_get_message (data, NULL);
-	}
-	g_object_unref (folder);
-}
-
-static void
-get_message_get_folder_cb (GObject *source_object,
-			   GAsyncResult *result,
-			   gpointer userdata)
-{
-	GetMessageData *data = (GetMessageData *) userdata;
-	GError *error = NULL;
-	CamelStore *store = (CamelStore *) source_object;
-	CamelFolder *folder;
-
-	folder = camel_store_get_folder_finish (store, result, &error);
-
-	if (error && data->error == NULL) {
-		g_cancellable_cancel (data->cancellable);
-		g_propagate_error (&data->error, error);
-	}
-
-	get_message_get_message (folder, data);
-}
-
-static void
-get_message (GAsyncResult *result, GHashTable *params)
-{
+	const gchar *account_id;
+	const gchar *folder_fullname;
+	const gchar *message_uid;
 	GetMessageData *data = g_new0 (GetMessageData, 1);
 
 	data->result = g_object_ref (result);
 	data->callback_id = g_strdup (g_hash_table_lookup (params, "callback"));
-	data->cancellable = g_cancellable_new ();
 
-	data->account_id = g_strdup (g_hash_table_lookup (params, "account"));
-	data->folder_fullname = g_strdup (g_hash_table_lookup (params, "folder"));
-	data->message_uid = g_strdup (g_hash_table_lookup (params, "message"));
+	account_id = g_strdup (g_hash_table_lookup (params, "account"));
+	folder_fullname = g_strdup (g_hash_table_lookup (params, "folder"));
+	message_uid = g_strdup (g_hash_table_lookup (params, "message"));
+	data->url = build_message_url (account_id,
+				       folder_fullname,
+				       message_uid);
 
-	if (g_strcmp0 (data->folder_fullname, "INBOX") == 0 && 
-	    im_service_mgr_has_local_inbox (im_service_mgr_get_instance (),
-					    data->account_id)) {
-		CamelFolder *inbox;
-
-		inbox = im_service_mgr_get_local_inbox (im_service_mgr_get_instance (),
-							data->account_id,
-							data->cancellable,
-							&data->error);
-
-		get_message_get_message (inbox, data);
-	} else if (g_strcmp0 (data->folder_fullname, IM_LOCAL_DRAFTS_TAG) == 0) {
-		CamelFolder *drafts;
-
-
-		drafts = im_service_mgr_get_drafts (im_service_mgr_get_instance (),
-						    data->cancellable,
-						    &data->error);
-
-		get_message_get_message (drafts, data);
-	} else if (g_strcmp0 (data->folder_fullname, IM_LOCAL_OUTBOX_TAG) == 0) {
-		CamelFolder *outbox;
-
-		outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
-						    (const char *) data->account_id,
-						    data->cancellable,
-						    &data->error);
-
-		get_message_get_message (outbox, data);
-	} else {
-		CamelStore *store;
-
-		store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
-								   (const char *) data->account_id,
-								   IM_ACCOUNT_TYPE_STORE);
-		camel_store_get_folder (store, data->folder_fullname,
-					CAMEL_STORE_FOLDER_CREATE | CAMEL_STORE_FOLDER_BODY_INDEX, 
-					G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-					get_message_get_folder_cb, data);
-	}
+	im_mail_op_get_message_async (im_service_mgr_get_instance (),
+				      account_id,
+				      folder_fullname,
+				      message_uid,
+				      G_PRIORITY_DEFAULT_IDLE,
+				      cancellable,
+				      get_message_mail_op_cb,
+				      data);
 }
 
 typedef struct _FlagMessageData {
@@ -2340,7 +2261,7 @@ im_soup_request_send_async (SoupRequest          *soup_request,
   } else if (!g_strcmp0 (uri->path, "syncFolders")) {
 	  sync_folders (result, params);
   } else if (!g_strcmp0 (uri->path, "getMessage")) {
-	  get_message (result, params);
+	  get_message (result, params, cancellable);
   } else if (!g_strcmp0 (uri->path, "composerSend")) {
 	  composer_save (result, params, TRUE, cancellable);
   } else if (!g_strcmp0 (uri->path, "composerSaveDraft")) {

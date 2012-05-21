@@ -45,6 +45,24 @@
 
 G_BEGIN_DECLS
 
+CamelMimeMessage *im_mail_op_get_message_sync             (ImServiceMgr *service_mgr,
+							   const gchar *account_id,
+							   const gchar *folder_name,
+							   const gchar *message_uid,
+							   GCancellable *cancellable,
+							   GError **error);
+void              im_mail_op_get_message_async            (ImServiceMgr *mgr,
+							   const gchar *account_id,
+							   const gchar *folder_name,
+							   const gchar *message_uid,
+							   int io_priority,
+							   GCancellable *cancellable,
+							   GAsyncReadyCallback callback,
+							   gpointer userdata);
+CamelMimeMessage *im_mail_op_get_message_finish           (ImServiceMgr *mgr,
+							   GAsyncResult *result,
+							   GError **error);
+
 gboolean          im_mail_op_flag_message_sync            (ImServiceMgr *service_mgr,
 							   const gchar *account_id,
 							   const gchar *folder_name,

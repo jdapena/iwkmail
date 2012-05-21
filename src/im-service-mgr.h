@@ -172,7 +172,7 @@ CamelService* im_service_mgr_get_service (ImServiceMgr *self,
  * with @account_id. It takes into account the special internal names
  * for outbox and drafts.
  *
- * Returns: a #CamelFolder, or %NULL if failed
+ * Returns: (transfer full): a #CamelFolder, or %NULL if failed
  */
 CamelFolder *im_service_mgr_get_folder (ImServiceMgr *self,
 					const gchar *account_id,

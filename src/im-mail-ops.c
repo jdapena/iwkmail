@@ -46,6 +46,163 @@
 #include <libsoup/soup.h>
 #include <string.h>
 
+typedef struct _GetMessageAsyncContext {
+	gchar *account_id;
+	gchar *folder_name;
+	gchar *message_uid;
+	CamelMimeMessage *message;
+} GetMessageAsyncContext;
+
+static void
+get_message_async_context_free (GetMessageAsyncContext *context)
+{
+	g_free (context->account_id);
+	g_free (context->folder_name);
+	g_free (context->message_uid);
+	if (context->message) g_object_unref (context->message);
+	g_free (context);
+}
+
+/**
+ * im_mail_op_get_message_sync:
+ * @account_id: an account id
+ * @folder_name: a folder name
+ * @message_uid: a message uid
+ * @cancellable: optional #GCancellable object, or %NULL.
+ * @error: (out) (allow-none): return location for a #GError, or %NULL.
+ *
+ * Obtains the message with @message_uid from folder @folder_name
+ * in account @account_id.
+ *
+ * Returns: (transfer full): a #CamelMimeMessage if successful, %NULL otherwise.
+ */
+CamelMimeMessage *
+im_mail_op_get_message_sync (ImServiceMgr *service_mgr,
+			     const gchar *account_id,
+			     const gchar *folder_name,
+			     const gchar *message_uid,
+			     GCancellable *cancellable,
+			     GError **error)
+{
+	GError *_error = NULL;
+	CamelFolder *folder;
+	CamelMimeMessage *message = NULL;
+
+	folder = im_service_mgr_get_folder (service_mgr, account_id,
+					    folder_name, cancellable, &_error);
+
+	if (_error == NULL) {
+		message = camel_folder_get_message_sync (folder, message_uid,
+							 cancellable, &_error);
+	}
+
+	if (_error)
+		g_propagate_error (error, _error);
+	if (folder) g_object_unref (folder);
+
+	return message;
+}
+
+static void
+im_mail_op_get_message_thread (GSimpleAsyncResult *simple,
+			       GObject *object,
+			       GCancellable *cancellable)
+{
+	GError *_error = NULL;
+	GetMessageAsyncContext *context;
+
+	context = (GetMessageAsyncContext *)
+		g_simple_async_result_get_op_res_gpointer (simple);
+
+	context->message = im_mail_op_get_message_sync (IM_SERVICE_MGR (object),
+							context->account_id,
+							context->folder_name,
+							context->message_uid,
+							cancellable,
+							&_error);
+	
+	if (_error != NULL)
+		g_simple_async_result_take_error (simple, _error);
+}
+
+/**
+ * im_mail_op_get_message_async:
+ * @mgr: a #ImServiceMgr
+ * @account_id: an account id
+ * @folder_name: a folder name
+ * @message_uid: a message uid
+ * @io_priority: the I/O priority of the request
+ * @cancellable: optional #GCancellable object, or %NULL,
+ * @callback: a #GAsyncReadyCallback to call when the request is finished
+ * @userdata: data to pass to callback
+ *
+ * Asynchronously obtains the message with @message_uid from folder @folder_name
+ * in account @account_id.
+ *
+ * When the operation is finished, @callback is called. The you should call
+ * im_mail_op_get_message_finish() to get the result of the operation.
+ */
+void
+im_mail_op_get_message_async (ImServiceMgr *mgr,
+			       const gchar *account_id,
+			       const gchar *folder_name,
+			       const gchar *message_uid,
+			       int io_priority,
+			       GCancellable *cancellable,
+			       GAsyncReadyCallback callback,
+			       gpointer userdata)
+{
+	GSimpleAsyncResult *simple;
+	GetMessageAsyncContext *context;
+
+	context = g_new0 (GetMessageAsyncContext, 1);
+	context->account_id = g_strdup (account_id);
+	context->folder_name = g_strdup (folder_name);
+	context->message_uid = g_strdup (message_uid);
+
+	simple = g_simple_async_result_new (G_OBJECT (mgr),
+					    callback, userdata,
+					    im_mail_op_get_message_async);
+
+	g_simple_async_result_set_op_res_gpointer (simple, context, 
+						   (GDestroyNotify) get_message_async_context_free);
+
+	g_simple_async_result_run_in_thread (simple,
+					     im_mail_op_get_message_thread,
+					     io_priority, cancellable);
+	g_object_unref (simple);
+}
+
+/**
+ * im_mail_op_get_message_finish:
+ * @folder: a #ImServiceMgr
+ * @result: a #GAsyncResult
+ * @error: (out) (allow-none): return location for a #GError, or %NULL
+ *
+ * Finishes the operation started with im_mail_op_composer_get_message_async().
+ *
+ * Returns: (transfer full): a #CamelMimeMessage on success, %NULL otherwise.
+ */
+CamelMimeMessage *
+im_mail_op_get_message_finish (ImServiceMgr *mgr,
+			       GAsyncResult *result,
+			       GError **error)
+{
+	GSimpleAsyncResult *simple;
+	GetMessageAsyncContext *context;
+
+	g_return_val_if_fail (
+		g_simple_async_result_is_valid (
+		result, G_OBJECT (mgr), im_mail_op_get_message_async), FALSE);
+
+	simple = G_SIMPLE_ASYNC_RESULT (result);
+	context = g_simple_async_result_get_op_res_gpointer (simple);
+
+	g_simple_async_result_propagate_error (simple, error);
+	return context->message?g_object_ref (context->message):NULL;
+}
+
+
 typedef struct _MessageFlagAsyncContext {
 	gchar *account_id;
 	gchar *folder_name;
