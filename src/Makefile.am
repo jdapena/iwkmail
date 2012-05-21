@@ -12,6 +12,7 @@ iwkmail_headers = \
 	im-content-id-request.h \
 	im-error.h \
 	im-file-utils.h \
+	im-mail-ops.h \
 	im-pair.h \
 	im-protocol-registry.h \
 	im-protocol.h \
@@ -31,6 +32,7 @@ iwkmail_SOURCES = \
 	im-content-id-request.c \
 	im-error.c \
 	im-file-utils.c \
+	im-mail-ops.c \
 	im-main.c \
 	im-pair.c \
 	im-protocol.c \

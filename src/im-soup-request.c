@@ -46,6 +46,7 @@
 #include "im-account-settings.h"
 #include "im-content-id-request.h"
 #include "im-error.h"
+#include "im-mail-ops.h"
 #include "im-protocol-registry.h"
 #include "im-server-account-settings.h"
 #include "im-service-mgr.h"
@@ -2179,218 +2180,83 @@ flag_message (GAsyncResult *result, GHashTable *params)
 typedef struct _ComposerSaveData {
 	GAsyncResult *result;
 	gchar *callback_id;
-	GCancellable *cancellable;
 	GError *error;
-	gboolean is_sending;
-	char *uid;
-	GHashTable *form_params;
-	gchar *form_data;
-	gint pending_attachments_count;
-	CamelMimeMessage *message;
-	CamelMessageInfo *mi;
+	gchar *result_uid;
 } ComposerSaveData;
 
 static void
-finish_composer_save_data (ComposerSaveData *data)
+finish_composer_save (ComposerSaveData *data)
 {
 	JsonNode *result_node = NULL;
-	if (data->uid) {
+	if (data->result_uid) {
 		JsonBuilder *builder;
 
 		builder = json_builder_new ();
 		json_builder_begin_object (builder);
 		json_builder_set_member_name (builder, "messageUid");
-		json_builder_add_string_value (builder, data->uid);
+		json_builder_add_string_value (builder, data->result_uid);
 		json_builder_end_object (builder);
 
 		result_node = json_builder_get_root (builder);
 		g_object_unref (builder);
-		g_free (data->uid);
+		g_free (data->result_uid);
 	}
 	response_finish (data->result, data->callback_id, result_node, data->error);
 	if (result_node) json_node_free (result_node);
 
-	if (data->mi) camel_message_info_free (data->mi);
-	if (data->message) g_object_unref (data->message);
 	g_object_unref (data->result);
 	g_free (data->callback_id);
-	g_hash_table_unref (data->form_params);
 	if (data->error) g_error_free (data->error);
-	g_object_unref (data->cancellable);
 	g_free (data);
 }
 
 static void
-composer_save_append_message_cb (GObject *source_object,
-				 GAsyncResult *result,
-				 gpointer userdata)
+composer_save_mail_op_cb (GObject *source_object,
+			  GAsyncResult *result,
+			  gpointer userdata)
 {
 	ComposerSaveData *data = (ComposerSaveData *) userdata;
 	GError *_error = NULL;
 	CamelFolder *folder = (CamelFolder *) source_object;
 
-	if (!camel_folder_append_message_finish (folder, result, &data->uid, &_error) && _error == NULL) {
-		g_set_error (&_error, IM_ERROR_DOMAIN,
-			     data->is_sending?IM_ERROR_SEND_FAILED_TO_ADD_TO_OUTBOX:IM_ERROR_COMPOSER_FAILED_TO_ADD_TO_DRAFTS,
-			     data->is_sending?_("Couldn't add to outbox"):_("Couldn't add to drafts"));
-	}
+	im_mail_op_composer_save_finish (folder, result, &data->result_uid, &_error);
 
 	if (_error)
 		g_propagate_error (&data->error, _error);
 
-	finish_composer_save_data (data);
+	finish_composer_save (data);
 }
 
 static void
-composer_save_append_message (ComposerSaveData *data)
+composer_save (GAsyncResult *result, GHashTable *params, gboolean is_sending, GCancellable *cancellable)
 {
-	CamelFolder *folder;
 	GError *_error = NULL;
-	const char *account_id;
-
-	account_id = g_hash_table_lookup (data->form_params, "composer-from-choice");
-	if (data->is_sending) {
-		folder = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
-						    account_id,
-						    data->cancellable,
-						    &_error);
-	} else {
-		folder = im_service_mgr_get_drafts (im_service_mgr_get_instance (),
-						    data->cancellable,
-						    &_error);
-	}
-
-	if (_error) {
-		g_propagate_error (&data->error, _error);
-	}
-
-	if (_error == NULL && folder) {
-		camel_folder_append_message (folder, data->message, data->mi,
-					     G_PRIORITY_DEFAULT_IDLE,
-					     data->cancellable,
-					     composer_save_append_message_cb, data);
-	} else {
-		finish_composer_save_data (data);
-	}
-	if (folder) g_object_unref (folder);
-}
-
-static void
-on_content_part_constructed (GObject *source_object,
-			     GAsyncResult *result,
-			     gpointer userdata)
-{
-	ComposerSaveData *data = (ComposerSaveData *) userdata;
-	GError *_error = NULL;
-
-	data->pending_attachments_count--;
-	if (camel_data_wrapper_construct_from_stream_finish (CAMEL_DATA_WRAPPER (source_object),
-							     result,
-							     &_error)) {
-		if (data->pending_attachments_count == 0)
-			composer_save_append_message (data);
-	} else {
-		g_propagate_error (&data->error, _error);
-		finish_composer_save_data (data);
-	}
-}
-
-static void
-composer_save (GAsyncResult *result, GHashTable *params, gboolean is_sending)
-{
-	ComposerSaveData *data = g_new0 (ComposerSaveData, 1);
+	const char *form_data;
+	GHashTable *form_params;
 	const char *account_id;
 	const char *to, *cc, *bcc;
 	const char *subject;
 	const char *body;
-	GError *_error = NULL;
-	const char *form_data;
 	const char *attachments;
+	CamelFolder *folder = NULL;
+	CamelMimeMessage *message = NULL;
+	ComposerSaveData *data = NULL;
 
+	data = g_new0 (ComposerSaveData, 1);
 	data->result = g_object_ref (result);
-	data->cancellable = g_cancellable_new ();
 	data->callback_id = g_strdup (g_hash_table_lookup (params, "callback"));
-	data->is_sending = is_sending;
 
 	form_data = g_hash_table_lookup (params, "formData");
-	data->form_params = soup_form_decode (form_data);
+	form_params = soup_form_decode (form_data);
 
-	account_id = g_hash_table_lookup (data->form_params, "composer-from-choice");
-	to = g_hash_table_lookup (data->form_params, "composer-to");
-	cc = g_hash_table_lookup (data->form_params, "composer-cc");
-	bcc = g_hash_table_lookup (data->form_params, "composer-bcc");
-	subject = g_hash_table_lookup (data->form_params, "composer-subject");
-	body = g_hash_table_lookup (data->form_params, "composer-body");
-	attachments = g_hash_table_lookup (data->form_params, "composer-attachments");
+	account_id = g_hash_table_lookup (form_params, "composer-from-choice");
+	to = g_hash_table_lookup (form_params, "composer-to");
+	cc = g_hash_table_lookup (form_params, "composer-cc");
+	bcc = g_hash_table_lookup (form_params, "composer-bcc");
+	subject = g_hash_table_lookup (form_params, "composer-subject");
+	body = g_hash_table_lookup (form_params, "composer-body");
+	attachments = g_hash_table_lookup (form_params, "composer-attachments");
 
-	data->message = camel_mime_message_new ();
-	camel_medium_set_header (CAMEL_MEDIUM (data->message), "X-Mailer", IM_X_MAILER);
-	camel_mime_message_set_subject (data->message, subject);
-	camel_mime_message_set_date (data->message, CAMEL_MESSAGE_DATE_CURRENT, 0);
-
-	if (attachments && *attachments != '\0') {
-		CamelMultipart *multipart;
-		CamelMimePart *body_part;
-		char **uris, **node;
-
-		multipart = camel_multipart_new ();
-		camel_data_wrapper_set_mime_type (CAMEL_DATA_WRAPPER (multipart), "multipart/mixed");
-		camel_multipart_set_boundary (multipart, NULL);
-
-		body_part = camel_mime_part_new ();
-		camel_mime_part_set_content (CAMEL_MIME_PART (body_part), body, strlen (body), "text/plain; charset=utf8");
-		camel_multipart_add_part (multipart, body_part);
-
-		uris = g_strsplit (attachments, ",", 0);
-		for (node = uris; *node != '\0'; node++) {
-			CamelMimePart *part = camel_mime_part_new ();
-			CamelStream *content_stream;
-			SoupURI *uri;
-			const char *path;
-
-			uri = soup_uri_new (*node);
-			path = soup_uri_get_path (uri);
-			camel_mime_part_set_disposition (part, "attachment");
-			if (path) {
-				gchar *filename = g_path_get_basename (path);
-				camel_mime_part_set_filename (part, filename);
-				g_free (filename);
-			}
-			soup_uri_free (uri);
-
-			content_stream = camel_stream_vfs_new_with_uri (*node, CAMEL_STREAM_VFS_READ);
-			if (content_stream) {
-				CamelDataWrapper *content;
-
-				content = camel_data_wrapper_new ();
-				camel_data_wrapper_construct_from_stream (content, content_stream,
-									  G_PRIORITY_DEFAULT_IDLE, data->cancellable,
-									  on_content_part_constructed, data);
-				data->pending_attachments_count++;
-
-				camel_medium_set_content (CAMEL_MEDIUM (part), content);
-				g_object_unref (content);
-			} else {
-				g_set_error (&_error, IM_ERROR_DOMAIN,
-					     IM_ERROR_SEND_INVALID_ATTACHMENT,
-					     _("Failed to get attachment data"));
-				break;
-			}
-
-			camel_multipart_add_part (multipart, part);
-			g_object_unref (part);
-		}
-		g_strfreev (uris);
-
-		camel_medium_set_content (CAMEL_MEDIUM (data->message), CAMEL_DATA_WRAPPER (multipart));
-		g_object_unref (multipart);
-		g_object_unref (body_part);
-	} else if (body && *body) {
-		camel_mime_part_set_content (CAMEL_MIME_PART (data->message), body, strlen (body), "text/plain; charset=utf8");
-	}
-
-	data->mi = camel_message_info_new (NULL);
-	
 	if (_error == NULL && account_id == NULL) {
 		g_set_error (&_error, IM_ERROR_DOMAIN,
 			     IM_ERROR_SEND_INVALID_PARAMETERS,
@@ -2410,6 +2276,12 @@ composer_save (GAsyncResult *result, GHashTable *params, gboolean is_sending)
 		gchar *from_string;
 		gint from_count;
 		CamelInternetAddress *from_cia;
+
+		message = camel_mime_message_new ();
+		camel_medium_set_header (CAMEL_MEDIUM (message), "X-Mailer", IM_X_MAILER);
+		camel_mime_message_set_subject (message, subject);
+		camel_mime_message_set_date (message, CAMEL_MESSAGE_DATE_CURRENT, 0);
+
 		from_string = im_account_mgr_get_from_string (im_account_mgr_get_instance (),
 							      account_id, NULL);
 
@@ -2420,7 +2292,7 @@ composer_save (GAsyncResult *result, GHashTable *params, gboolean is_sending)
 				     IM_ERROR_SEND_INVALID_ACCOUNT_FROM,
 				     _("Account has an invalid from field"));
 		} else {
-			camel_mime_message_set_from (data->message,
+			camel_mime_message_set_from (message,
 						     from_cia);
 		}
 		g_object_unref (from_cia);
@@ -2448,13 +2320,13 @@ composer_save (GAsyncResult *result, GHashTable *params, gboolean is_sending)
 				     IM_ERROR_SEND_NO_RECIPIENTS,
 				     _("User didn't set recipients trying to send"));
 		} else {
-			camel_mime_message_set_recipients (data->message,
+			camel_mime_message_set_recipients (message,
 							   CAMEL_RECIPIENT_TYPE_TO,
 							   to_cia);
-			camel_mime_message_set_recipients (data->message,
+			camel_mime_message_set_recipients (message,
 							   CAMEL_RECIPIENT_TYPE_CC,
 							   cc_cia);
-			camel_mime_message_set_recipients (data->message,
+			camel_mime_message_set_recipients (message,
 							   CAMEL_RECIPIENT_TYPE_BCC,
 							   bcc_cia);
 		}
@@ -2463,17 +2335,45 @@ composer_save (GAsyncResult *result, GHashTable *params, gboolean is_sending)
 		g_object_unref (bcc_cia);
 	}
 
-	if (_error) {
-		g_propagate_error (&data->error, _error);
+	if (_error == NULL) {
+		if (is_sending)
+			folder = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
+							    account_id,
+							    cancellable,
+							    &_error);
+		else
+			folder = im_service_mgr_get_drafts (im_service_mgr_get_instance (),
+							    cancellable,
+							    &_error);
 	}
 
 	if (_error == NULL) {
-		if (data->pending_attachments_count == 0)
-			composer_save_append_message (data);
-	} else {
-		finish_composer_save_data (data);
+		GList *uri_list = NULL;
+		gchar **attachments_v, **node;
+
+		attachments_v = g_strsplit (attachments, ",", 0);
+		for (node = attachments_v; *node != NULL; node++) {
+			uri_list = g_list_prepend (uri_list, g_strdup (*node));
+		}
+		g_strfreev (attachments_v);
+		uri_list = g_list_reverse (uri_list);
+
+		im_mail_op_composer_save_async (folder, message,
+						body, uri_list,
+						G_PRIORITY_DEFAULT_IDLE,
+						cancellable,
+						composer_save_mail_op_cb,
+						data);
 	}
 
+	if (_error) {
+		g_propagate_error (&data->error, _error);
+		finish_composer_save (data);
+	}
+
+	if (message) g_object_unref (message);
+	if (folder) g_object_unref (folder);
+	g_hash_table_destroy (form_params);
 }
 
 static void
@@ -2551,9 +2451,9 @@ im_soup_request_send_async (SoupRequest          *soup_request,
   } else if (!g_strcmp0 (uri->path, "getMessage")) {
 	  get_message (result, params);
   } else if (!g_strcmp0 (uri->path, "composerSend")) {
-	  composer_save (result, params, TRUE);
+	  composer_save (result, params, TRUE, cancellable);
   } else if (!g_strcmp0 (uri->path, "composerSaveDraft")) {
-	  composer_save (result, params, FALSE);
+	  composer_save (result, params, FALSE, cancellable);
   } else if (!g_strcmp0 (uri->path, "flagMessage")) {
 	  flag_message (result, params);
   } else if (!g_strcmp0 (uri->path, "openFileURI")) {
