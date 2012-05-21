@@ -247,6 +247,21 @@ parse_flags (const char *flags_list, GList **user_flags)
 	return result;
 }
 
+/**
+ * im_mail_op_flag_message_sync:
+ * @account_id: an account id
+ * @folder_name: a folder name
+ * @message_uid: a message uid
+ * @set_flags: a string with the list of flags to set
+ * @unset_flags: a string with the list of flags to unset
+ * @cancellable: optional #GCancellable object, or %NULL.
+ * @error: (out) (allow-none): return location for a #GError, or %NULL.
+ *
+ * Modifies the flags and user flags of the message with @message_uid 
+ * from folder @folder_name in account @account_id.
+ *
+ * Returns: %TRUE if successful, %NULL otherwise.
+ */
 gboolean
 im_mail_op_flag_message_sync (ImServiceMgr *service_mgr,
 			      const gchar *account_id,
@@ -325,6 +340,25 @@ im_mail_op_flag_message_thread (GSimpleAsyncResult *simple,
 		g_simple_async_result_take_error (simple, _error);
 }
 
+/**
+ * im_mail_op_flag_message_async:
+ * @mgr: a #ImServiceMgr
+ * @account_id: an account id
+ * @folder_name: a folder name
+ * @message_uid: a message uid
+ * @set_flags: a string with the list of flags to set
+ * @unset_flags: a string with the list of flags to unset
+ * @io_priority: the I/O priority of the request
+ * @cancellable: optional #GCancellable object, or %NULL,
+ * @callback: a #GAsyncReadyCallback to call when the request is finished
+ * @userdata: data to pass to callback
+ *
+ * Asynchronously modifies the flags and user flags of the message with @message_uid 
+ * from folder @folder_name in account @account_id.
+ *
+ * When the operation is finished, @callback is called. The you should call
+ * im_mail_op_flag_message_finish() to get the result of the operation.
+ */
 void
 im_mail_op_flag_message_async (ImServiceMgr *mgr,
 			       const gchar *account_id,
@@ -360,6 +394,16 @@ im_mail_op_flag_message_async (ImServiceMgr *mgr,
 	g_object_unref (simple);
 }
 
+/**
+ * im_mail_op_flag_message_finish:
+ * @mgr: a #ImServiceMgr
+ * @result: a #GAsyncResult
+ * @error: (out) (allow-none): return location for a #GError, or %NULL
+ *
+ * Finishes the operation started with im_mail_op_flag_message_async().
+ *
+ * Returns: %TRUE on success, %FALSE otherwise.
+ */
 gboolean
 im_mail_op_flag_message_finish (ImServiceMgr *mgr,
 				GAsyncResult *result,
