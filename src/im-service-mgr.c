@@ -550,7 +550,7 @@ authenticate_sync (CamelSession *session,
 			camel_service_set_password (service, new_password);
 			g_free (new_password);
 
-			if (password == NULL && _error == NULL) {
+			if (new_password == NULL && _error == NULL) {
 				g_set_error (&_error, IM_ERROR_DOMAIN,
 					     IM_ERROR_AUTH_FAILED,
 					     _("No password provided"));
