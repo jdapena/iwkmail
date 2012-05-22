@@ -601,6 +601,23 @@ dump_folder_info (JsonBuilder *builder,
 }
 
 static void
+free_service_store_folder_info (const gchar *account_id,
+				CamelStore *service_store,
+				CamelFolderInfo *fi)
+{
+	ImServiceMgr *service_mgr;
+	CamelStore *store;
+
+	service_mgr = im_service_mgr_get_instance ();
+
+	if (im_service_mgr_has_local_inbox (service_mgr, account_id))
+		store = im_service_mgr_get_local_store (service_mgr);
+	else
+		store = service_store;
+	camel_store_free_folder_info (store, fi);
+}
+
+static void
 finish_sync_folders (SyncFoldersData *data)
 {
 	GList *account_keys, *node;
@@ -640,17 +657,12 @@ finish_sync_folders (SyncFoldersData *data)
 
 		non_storage = (g_hash_table_lookup (data->non_storage, account_id) != NULL);
 		if (fi) {
-			ImServiceMgr *service_mgr;
-			CamelStore *store;
-
-			service_mgr = im_service_mgr_get_instance ();
-
-			if (im_service_mgr_has_local_inbox (service_mgr, account_id))
-				store = im_service_mgr_get_local_store (service_mgr);
-			else
-				store = g_hash_table_lookup (data->stores, account_id);
 			dump_folder_info (builder, fi, drafts, outbox, non_storage);
-			camel_store_free_folder_info (store, fi);
+			free_service_store_folder_info (account_id,
+							g_hash_table_lookup (data->stores,
+									     account_id),
+							fi);
+
 		}
 		json_builder_end_object (builder);
 		json_builder_end_object (builder);
@@ -842,6 +854,244 @@ sync_folders (GAsyncResult *result, GHashTable *params)
 	  }
 	  if (data->count == 0)
 		  finish_sync_folders (data);
+}
+
+typedef struct _SyncAccountData {
+	GAsyncResult *result;
+	gchar *callback_id;
+} SyncAccountData;
+
+static void
+finish_sync_account (SyncAccountData *data,
+		     const gchar *account_id,
+		     CamelFolderInfo *fi,
+		     GError *error)
+{
+	ImServiceMgr *service_mgr;
+	CamelFolder *drafts;
+	CamelFolder *outbox;
+	JsonBuilder *builder;
+	JsonNode *result_node;
+	char *display_name;
+
+	service_mgr = im_service_mgr_get_instance ();
+
+	drafts = im_service_mgr_get_drafts (service_mgr, NULL, NULL);
+	outbox = im_service_mgr_get_outbox (service_mgr, account_id, NULL, NULL);
+
+	builder = json_builder_new ();
+	json_builder_begin_object (builder);
+
+	json_builder_set_member_name (builder, "accountId");
+	json_builder_add_string_value (builder, account_id);
+
+	json_builder_set_member_name (builder, "accountName");
+	display_name = im_account_mgr_get_display_name (im_account_mgr_get_instance (),
+							account_id);
+	json_builder_add_string_value (builder, display_name);
+	g_free (display_name);
+
+	json_builder_set_member_name (builder, "folders");
+	json_builder_begin_object (builder);
+	if (fi) {
+		gboolean non_storage;
+
+		non_storage = im_service_mgr_has_local_inbox (service_mgr, account_id);
+		dump_folder_info (builder, fi, drafts, outbox, non_storage);
+	}
+	json_builder_end_object (builder); /* folders */
+	json_builder_end_object (builder); /* top */
+
+	if (outbox) g_object_unref (outbox);
+	if (drafts) g_object_unref (drafts);
+
+	result_node = json_builder_get_root (builder);
+	g_object_unref (builder);
+
+	response_finish (data->result,
+			 data->callback_id,
+			 result_node,
+			 error);
+	json_node_free (result_node);
+
+	g_object_unref (data->result);
+	g_free (data->callback_id);
+	g_free (data);
+}
+
+static void
+sync_account_synchronize_store_cb (GObject *source_object,
+				   GAsyncResult *res,
+				   gpointer userdata)
+{
+	CamelStore *service_store = (CamelStore *) source_object;
+	SyncAccountData *data = (SyncAccountData *) userdata;
+	CamelFolderInfo *fi;
+	GError *error = NULL;
+	gchar *account_id;
+
+	account_id = im_account_mgr_get_server_parent_account_name 
+		(im_account_mgr_get_instance (),
+		 camel_service_get_uid (CAMEL_SERVICE (service_store)),
+		 IM_ACCOUNT_TYPE_STORE);
+	fi = im_mail_op_synchronize_store_finish (CAMEL_STORE (service_store),
+						  res, &error);
+	finish_sync_account (data, account_id, fi, error);
+	if (fi) {
+		free_service_store_folder_info (account_id,
+						service_store,
+						fi);
+	}
+	g_free (account_id);
+	if (error) g_error_free (error);
+}
+
+static void
+sync_account (GAsyncResult *result, GHashTable *params, GCancellable *cancellable)
+{
+	  SyncAccountData *data = g_new0(SyncAccountData, 1);
+	  const gchar *account_id;
+	  CamelStore *store;
+
+	  data->result = g_object_ref (result);
+	  data->callback_id = g_strdup ((char *) g_hash_table_lookup (params, "callback"));
+
+	  account_id = g_hash_table_lookup (params, "account");
+	  store = (CamelStore *) im_service_mgr_get_service (im_service_mgr_get_instance (),
+							     account_id,
+							     IM_ACCOUNT_TYPE_STORE);
+
+	  if (CAMEL_IS_STORE (store)) {
+		  im_mail_op_synchronize_store_async (store,
+						      G_PRIORITY_DEFAULT_IDLE,
+						      cancellable,
+						      sync_account_synchronize_store_cb,
+						      data);
+	  } else {
+		  GError *_error = NULL;
+		  g_set_error (&_error, IM_ERROR_DOMAIN,
+			       IM_ERROR_INTERNAL,
+			       _("Account does not exist"));
+		  finish_sync_account (data, NULL, NULL, _error);
+		  g_error_free (_error);
+	  }
+}
+
+typedef struct _RunSendQueueData {
+	GAsyncResult *result;
+	gchar *callback_id;
+} RunSendQueueData;
+
+static void
+finish_run_send_queue (RunSendQueueData *data, GError *error)
+{
+	response_finish (data->result, data->callback_id, NULL, error);
+	g_object_unref (data->result);
+	g_free (data->callback_id);
+	g_free (data);
+}
+
+static void
+run_send_queue_mail_op_cb (GObject *source_object,
+			   GAsyncResult *result,
+			   gpointer userdata)
+{
+	RunSendQueueData *data = userdata;
+	CamelFolder *outbox = (CamelFolder *) source_object;
+	GError *_error = NULL;
+
+	im_mail_op_run_send_queue_finish (outbox, result, &_error);
+	finish_run_send_queue (data, _error);
+	if (_error) g_error_free (_error);
+}
+
+static void
+run_send_queue (GAsyncResult *result, GHashTable *params, GCancellable *cancellable)
+{
+	GError *_error = NULL;
+	RunSendQueueData *data = g_new0(RunSendQueueData, 1);
+	const gchar *account_id = g_hash_table_lookup (params, "account");
+	CamelFolder *outbox;
+
+	data->result = g_object_ref (result);
+	data->callback_id = g_strdup (g_hash_table_lookup (params, "callback"));
+
+	outbox = im_service_mgr_get_outbox (im_service_mgr_get_instance (),
+					    account_id,
+					    cancellable,
+					    &_error);
+	if (outbox) {
+		im_mail_op_run_send_queue_async (outbox,
+						 G_PRIORITY_DEFAULT_IDLE,
+						 cancellable,
+						 run_send_queue_mail_op_cb,
+						 data);
+		g_object_unref (outbox);
+	} else {
+		if (_error == NULL)
+			g_set_error (&_error, IM_ERROR_DOMAIN,
+				     IM_ERROR_INTERNAL,
+				     _("Could not find account %s outbox"), account_id);
+		finish_run_send_queue (data, _error);
+		g_error_free (_error);
+	}
+}
+
+typedef struct _SyncOutboxStoreData {
+	GAsyncResult *result;
+	gchar *callback_id;
+} SyncOutboxStoreData;
+
+static void
+finish_sync_outbox_store (SyncOutboxStoreData *data, GError *error)
+{
+	response_finish (data->result, data->callback_id, NULL, error);
+	g_object_unref (data->result);
+	g_free (data->callback_id);
+	g_free (data);
+}
+
+static void
+sync_outbox_store_synchronize_cb (GObject *source_object,
+				  GAsyncResult *result,
+				  gpointer userdata)
+{
+	SyncOutboxStoreData *data = userdata;
+	CamelStore *outbox_store = (CamelStore *) source_object;
+	GError *_error = NULL;
+	CamelFolderInfo *fi;
+
+	fi = im_mail_op_synchronize_store_finish (outbox_store, result, &_error);
+	if (fi) camel_store_free_folder_info (outbox_store, fi);
+	finish_sync_outbox_store (data, _error);
+	if (_error) g_error_free (_error);
+}
+
+static void
+sync_outbox_store (GAsyncResult *result, GHashTable *params, GCancellable *cancellable)
+{
+	GError *_error = NULL;
+	SyncOutboxStoreData *data = g_new0(SyncOutboxStoreData, 1);
+	CamelStore *outbox_store;
+
+	data->result = g_object_ref (result);
+	data->callback_id = g_strdup (g_hash_table_lookup (params, "callback"));
+
+	outbox_store = im_service_mgr_get_outbox_store (im_service_mgr_get_instance ());
+	if (outbox_store) {
+		im_mail_op_synchronize_store_async (outbox_store,
+						    G_PRIORITY_DEFAULT_IDLE,
+						    cancellable,
+						    sync_outbox_store_synchronize_cb,
+						    data);
+	} else {
+		if (_error == NULL)
+			g_set_error (&_error, IM_ERROR_DOMAIN,
+				     IM_ERROR_INTERNAL,
+				     _("Could not find outbox store"));
+		finish_sync_outbox_store (data, _error);
+		g_error_free (_error);
+	}
 }
 
 typedef struct _FetchMessagesData {
@@ -1683,6 +1933,12 @@ im_soup_request_send_async (SoupRequest          *soup_request,
 	  fetch_messages (result, params, cancellable);
   } else if (!g_strcmp0 (uri->path, "syncFolders")) {
 	  sync_folders (result, params);
+  } else if (!g_strcmp0 (uri->path, "syncAccount")) {
+	  sync_account (result, params, cancellable);
+  } else if (!g_strcmp0 (uri->path, "runSendQueue")) {
+	  run_send_queue (result, params, cancellable);
+  } else if (!g_strcmp0 (uri->path, "syncOutboxStore")) {
+	  sync_outbox_store (result, params, cancellable);
   } else if (!g_strcmp0 (uri->path, "getMessage")) {
 	  get_message (result, params, cancellable);
   } else if (!g_strcmp0 (uri->path, "composerSend")) {

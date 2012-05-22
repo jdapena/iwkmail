@@ -320,20 +320,51 @@ function refreshAccounts ()
 {
     iwkRequest ("getAccounts", "Updating accounts", {
     }).done(function (msg) {
+	globalStatus.accounts = msg.result;
 	fillComposerFrom (msg.result);
 	fillAccountsList (msg.result);
 	syncFolders();
     });
 }
 
+function syncAllAccounts ()
+{
+    for (i in globalStatus.accounts) {
+	var account = globalStatus.accounts[i];
+	iwkRequest("syncAccount", "Synchronizing account "+account.id, {
+	    account: account.id
+	}).done(function (msg) {
+	    globalSetAccountFolders (msg.result.accountId, msg.result);
+	    fillAccountsListCounts ();
+	    fillFoldersList(globalStatus.currentAccount);
+	});
+    }
+}
+
+function runSendQueues ()
+{
+    for (i in globalStatus.accounts) {
+	var account = globalStatus.accounts[i];
+	iwkRequest("runSendQueue", "Running account "+account.id+" send queue", {
+	    account: account.id
+	}).done(function (msg) {
+	});
+    }
+}
+
 function syncFolders ()
 {
-    iwkRequest("syncFolders", "Updating accounts and folders", {
-    }).done(function (msg) {
-	globalSetFolders (msg.result);
-	fillAccountsListCounts ();
-	fillFoldersList(globalStatus.currentAccount);
+    iwkRequest("syncOutboxStore", "Syncing local outbox store", {
+    }).complete(function (msg) {
+	syncAllAccounts ();
+	runSendQueues ();
     });
+    // iwkRequest("syncFolders", "Updating accounts and folders", {
+    // }).done(function (msg) {
+    // 	globalSetFolders (msg.result);
+    // 	fillAccountsListCounts ();
+    // 	fillFoldersList(globalStatus.currentAccount);
+    // });
 }
 
 function deleteAccount ()

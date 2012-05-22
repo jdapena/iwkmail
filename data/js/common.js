@@ -16,7 +16,7 @@ var globalStatus = {
     currentAccount: null,
     currentFolder: null,
     currentMessage: null,
-    folders: [],
+    folders: { },
     newestUid: null,
     oldestUid: null,
     requests: { },
@@ -59,6 +59,15 @@ function updateFoldersDisplayNames ()
 function globalSetFolders (foldersData)
 {
     globalStatus.folders = foldersData;
+    updateFoldersDisplayNames();
+}
+
+function globalSetAccountFolders (accountId, foldersData)
+{
+    console.log("Setting account "+accountId+" folders");
+    console.log(JSON.stringify(globalStatus.folders));
+    globalStatus.folders[accountId] = foldersData;
+    console.log(JSON.stringify(globalStatus.folders));
     updateFoldersDisplayNames();
 }
 

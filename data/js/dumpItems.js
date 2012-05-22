@@ -14,6 +14,7 @@
 
 function getAccountInbox (accountId)
 {
+    console.log(JSON.stringify(globalStatus.folders));
     for (i in globalStatus.folders) {
 	account = globalStatus.folders[i];
 	if (accountId == account.accountId) {
@@ -37,6 +38,7 @@ function dumpAccountInAccountsList (account, parent)
     a.setAttribute('href', '#page-messages');
     a.accountId = account.id;
     $(a).click(function () {
+	console.log("clicking on account "+this.accountId);
 	globalStatus.currentMessage = null;
 	fillFoldersList(this.accountId);
 	newFolder = getAccountInbox (this.accountId);
