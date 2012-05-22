@@ -332,9 +332,10 @@ synchronize_nonstorage_store_sync (CamelStore *store,
 	GError *_error = NULL;
 	CamelFolder *remote_inbox = NULL;
 	CamelFolder *local_inbox = NULL;
-	gchar *account_id;
+	gchar *account_id = NULL;
 	CamelFolderInfo *fi = NULL;
 
+	camel_store_lock (CAMEL_STORE (store), CAMEL_STORE_FOLDER_LOCK);
 	remote_inbox = camel_store_get_inbox_folder_sync (store,
 							  cancellable,
 							  &_error);
@@ -373,6 +374,8 @@ synchronize_nonstorage_store_sync (CamelStore *store,
 		update_non_storage_uids_sync (remote_inbox, local_inbox,
 					      cancellable, &_error);
 	}
+
+	camel_store_unlock (store, CAMEL_STORE_FOLDER_LOCK);
 
 	if (_error == NULL) {
 		CamelStore *local_store;
