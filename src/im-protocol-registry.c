@@ -433,7 +433,7 @@ im_protocol_registry_set_to_default (ImProtocolRegistry *self)
 {
 	ImProtocol *protocol;
 
-	protocol = im_account_protocol_new ("sendmail", N_("Sendmail"),
+	protocol = im_account_protocol_new ("sendmail", _("Sendmail"),
 					    0, 0);
 	sendmail_protocol_type_id = im_protocol_get_type_id (protocol);
 	im_protocol_registry_add (self, protocol, 1,
@@ -442,7 +442,7 @@ im_protocol_registry_set_to_default (ImProtocolRegistry *self)
 				      0);
 	g_object_unref (protocol);
 
-	protocol = im_account_protocol_new ("smtp", N_("SMTP Server"),
+	protocol = im_account_protocol_new ("smtp", _("SMTP Server"),
 					    25, 465);
 	smtp_protocol_type_id = im_protocol_get_type_id (protocol);
 	im_protocol_set_translation (protocol, IM_PROTOCOL_TRANSLATION_CONNECT_ERROR, translation_is_userdata, N_("Error connecting to SMTP server"), NULL);
@@ -481,7 +481,7 @@ im_protocol_registry_set_to_default (ImProtocolRegistry *self)
 	im_protocol_set_translation (protocol, IM_PROTOCOL_TRANSLATION_ACCOUNT_CONNECTION_ERROR, translation_is_userdata, N_("Couldn't connect to server"), NULL);
 	im_protocol_set_translation (protocol, IM_PROTOCOL_TRANSLATION_MSG_NOT_AVAILABLE, translation_is_userdata, N_("Couldn't fetch message"), NULL);
 	im_protocol_set_translation (protocol, IM_PROTOCOL_TRANSLATION_MSG_NOT_AVAILABLE_LOST_HEADER, translation_is_userdata, N_("Couldn't fetch message header"), NULL);
-	im_protocol_set_translation (protocol, IM_PROTOCOL_TRANSLATION_SSL_PROTO_NAME, translation_is_userdata_no_param, _("imap4s"), NULL);
+	im_protocol_set_translation (protocol, IM_PROTOCOL_TRANSLATION_SSL_PROTO_NAME, translation_is_userdata_no_param, N_("imap4s"), NULL);
 	im_account_protocol_set_account_option (IM_ACCOUNT_PROTOCOL (protocol),
 						IM_ACCOUNT_OPTION_USE_LSUB, "");
 	im_account_protocol_set_account_option (IM_ACCOUNT_PROTOCOL (protocol),
@@ -547,7 +547,7 @@ im_protocol_registry_set_to_default (ImProtocolRegistry *self)
 				      NULL);
 	g_object_unref (protocol);
 
-	protocol = im_protocol_new ("tls-op", N_("TLS when possible"));
+	protocol = im_protocol_new ("tls-op", _("TLS when possible"));
 	im_protocol_set (protocol, IM_PROTOCOL_SECURITY_ACCOUNT_OPTION, IM_ACCOUNT_OPTION_SSL_WHEN_POSSIBLE);
 	tlsop_connection_protocol_type_id = im_protocol_get_type_id (protocol);
 	im_protocol_registry_add (self, protocol, 10,

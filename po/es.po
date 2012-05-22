@@ -1,0 +1,803 @@
+# Spanish translations for Igalia WebKit Mail package
+# Traducciones al español para el paquete Igalia WebKit Mail.
+# Copyright (C) 2012 THE Igalia WebKit Mail'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the Igalia WebKit Mail package.
+# Jose Dapena Paz <jdapena@igalia.com>, 2012.
+# José Dapena Paz <jdapena@igalia.com>, 2012.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Igalia WebKit Mail 0.0.2\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-05-22 12:35+0200\n"
+"PO-Revision-Date: 2012-05-22 12:24+0200\n"
+"Last-Translator: José Dapena Paz <jdapena@igalia.com>\n"
+"Language-Team: Español; Castellano <>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n!=1);\n"
+
+#: ../src/im-account-mgr.c:330
+msgid "Account"
+msgstr "Cuenta"
+
+#: ../src/im-account-mgr.c:370
+msgid "im_account_mgr_get_account_ids() returned NULL after adding an account."
+msgstr ""
+"im_account_mgr_get_account_ids() devolvió NULL después de añadir una cuenta."
+
+#: ../src/im-account-mgr.c:425
+#, c-format
+msgid "im: account already exists\n"
+msgstr "im: la cuenta ya existe\n"
+
+#: ../src/im-account-mgr.c:431
+#, c-format
+msgid "im: cannot set display name\n"
+msgstr "im: no se pudo establecer el nombre visible\n"
+
+#: ../src/im-account-mgr.c:433
+#, c-format
+msgid "im: Error adding account conf: %s\n"
+msgstr "im: Error añadiendo la configuración de cuenta: %s\n"
+
+#: ../src/im-account-mgr.c:444
+#, c-format
+msgid "im: failed to set store account '%s'\n"
+msgstr "im: fall estableciendo el almacén de la cuenta '%s'\n"
+
+#: ../src/im-account-mgr.c:447
+#, c-format
+msgid "im: Error adding store account conf: %s\n"
+msgstr "im: Error añadiendo la configuración del almacén de la cuenta: %s\n"
+
+#: ../src/im-account-mgr.c:460
+#, c-format
+msgid "im: failed to set transport account '%s'\n"
+msgstr "im: falló estableciendo el transport de la cuenta '%s'\n"
+
+#: ../src/im-account-mgr.c:463
+#, c-format
+msgid "im: Error adding transport account conf: %s\n"
+msgstr "im: Error añadiendo la configuración del transport de la cuenta: %s\n"
+
+#: ../src/im-account-mgr.c:534
+#, c-format
+msgid "im: server account '%s' already exists\n"
+msgstr "im: ya existe la cuenta de servidor '%s'\n"
+
+#: ../src/im-account-mgr.c:542 ../src/im-account-mgr.c:553
+#: ../src/im-account-mgr.c:567 ../src/im-account-mgr.c:579
+#: ../src/im-account-mgr.c:593
+#, c-format
+msgid "im: failed to set %s: %s\n"
+msgstr "im: fallo estableciendo %s: %s\n"
+
+#: ../src/im-account-mgr.c:605
+#, c-format
+msgid "im: failed to add server account\n"
+msgstr "im: fallo al añadir la cuenta de servidor\n"
+
+#: ../src/im-account-mgr.c:641
+#, c-format
+msgid "im: failed to set proto\n"
+msgstr "im: fallo al establecer el protocolo\n"
+
+#: ../src/im-account-mgr.c:650
+#, c-format
+msgid "im: failed to set uri\n"
+msgstr "im: fallo al establecer la uri\n"
+
+#: ../src/im-account-mgr.c:671
+#, c-format
+msgid "im: error removing key: %s\n"
+msgstr "im: error eliminando la clave: %s\n"
+
+#: ../src/im-account-mgr.c:690
+#, c-format
+msgid "im: %s: account '%s' does not exist\n"
+msgstr "im: %s: la cuenta '%s' no existe\n"
+
+#: ../src/im-account-mgr.c:759
+#, c-format
+msgid "im: %s: server account '%s' does not exist\n"
+msgstr "im: '%s: la cuenta de servidor '%s' no existe\n"
+
+#: ../src/im-account-mgr.c:808
+#, c-format
+msgid "im: failed to get subkeys (%s): %s\n"
+msgstr "im: fallo obteniendo las subclaves (%s): %s\n"
+
+#: ../src/im-account-mgr.c:918
+#, c-format
+msgid "im: error getting string '%s': %s\n"
+msgstr "im: error obteniendo cadena '%s': %s\n"
+
+#: ../src/im-account-mgr.c:947
+#, c-format
+msgid "im: error getting int '%s': %s\n"
+msgstr "im: error obteniendo entero '%s': %s\n"
+
+#: ../src/im-account-mgr.c:978
+#, c-format
+msgid "im: error getting bool '%s': %s\n"
+msgstr "im: error obteniendo booleano '%s': %s\n"
+
+#: ../src/im-account-mgr.c:1010
+#, c-format
+msgid "im: error getting list '%s': %s\n"
+msgstr "im: error obteniendo lista '%s': %s\n"
+
+#: ../src/im-account-mgr.c:1042
+#, c-format
+msgid "im: error setting string '%s': %s\n"
+msgstr "im: error estableciendo cadena '%s': %s\n"
+
+#: ../src/im-account-mgr.c:1068
+#, c-format
+msgid "im: error setting int '%s': %s\n"
+msgstr "im: error estableciendo entero '%s': %s\n"
+
+#: ../src/im-account-mgr.c:1103
+#, c-format
+msgid "im: error setting bool '%s': %s\n"
+msgstr "im: error estableciendo booleano '%s': %s\n"
+
+#: ../src/im-account-mgr.c:1142
+#, c-format
+msgid "im: error setting list '%s': %s\n"
+msgstr "im: error estableciendo lista '%s': %s\n"
+
+#: ../src/im-account-mgr.c:1167
+#, c-format
+msgid "im: error determining existance of '%s': %s\n"
+msgstr "im: error determinando si existe '%s': %s\n"
+
+#: ../src/im-account-mgr.c:1194 ../src/im-account-mgr.c:1272
+#, c-format
+msgid "im: failed to get account data for %s\n"
+msgstr "im: fallo obteniendo datos de la cuenta %s\n"
+
+#: ../src/im-account-mgr.c:1258
+#, c-format
+msgid "im: couldn't get store settings from settings"
+msgstr ""
+"im: no se pudo obtener la configuración del almacén de la configuración"
+
+#: ../src/im-account-mgr.c:1284
+#, c-format
+msgid "im: couldn't get store settings from account %s"
+msgstr "im: no se pudo obtener la configuración del almacén de la cuenta %s"
+
+#: ../src/im-account-mgr.c:1319
+#, c-format
+msgid "im: error unsetting'%s': %s\n"
+msgstr "im: error borrando clave '%s': %s\n"
+
+#: ../src/im-account-mgr.c:1440
+#, c-format
+msgid "%s: Generated conf key was invalid: %s"
+msgstr "%s: La clave de configuración generada es inválida: %s"
+
+#: ../src/im-account-mgr.c:1441
+msgid "<empty>"
+msgstr "<vacío>"
+
+#: ../src/im-account-mgr.c:1658
+#, c-format
+msgid "im: failed to get '%s': %s\n"
+msgstr "im: fallo obteniendo '%s': %s\n"
+
+#: ../src/im-account-mgr.c:1666
+#, c-format
+msgid "im: default account does not exist\n"
+msgstr "im: no existe cuenta por defecto\n"
+
+#: ../src/im-account-mgr-helpers.c:440
+#, c-format
+msgid "%s account %s does not exist"
+msgstr "%s la cuenta %s no existe"
+
+#. For instance, maybe you are mistakenly checking for a server account name?
+#: ../src/im-account-mgr-helpers.c:634
+#, c-format
+msgid "%s: Account %s does not exist."
+msgstr "%s: La cuenta %s no existe."
+
+#: ../src/im-account-mgr-helpers.c:693 ../src/im-account-mgr-helpers.c:712
+#, c-format
+msgid "%s can not load server settings. Account corrupted?"
+msgstr "%s no puede cargar la configuración de servidor. ¿Cuenta corrupta?"
+
+#: ../src/im-account-protocol.c:118
+msgid "Standard port"
+msgstr "Puerto estándar"
+
+#: ../src/im-account-protocol.c:119
+msgid "The standard port for the protocol"
+msgstr "El puerto estándar para el protocolo"
+
+#: ../src/im-account-protocol.c:126
+msgid "Alternate port"
+msgstr "Puerto alternativo"
+
+#: ../src/im-account-protocol.c:127
+msgid "The alternate port for the protocol (usually used in SSL)"
+msgstr "El puerto alternativo para el protocolo (normalmente usado en SSL)"
+
+#: ../src/im-account-settings.c:144
+msgid "Account Id"
+msgstr "Id de cuenta"
+
+#: ../src/im-account-settings.c:145
+msgid "Unique identifier of the account"
+msgstr "Identificador único de la cuenta"
+
+#: ../src/im-account-settings.c:151 ../src/im-protocol.c:139
+msgid "Display name"
+msgstr "Nombre visible"
+
+#: ../src/im-account-settings.c:152
+msgid "Visible name of the account"
+msgstr "Nombre visible de la cuenta"
+
+#: ../src/im-account-settings.c:158
+msgid "Enabled"
+msgstr "Activado"
+
+#: ../src/im-account-settings.c:159
+msgid "Is account enabled"
+msgstr "¿Está la cuenta activada?"
+
+#: ../src/im-account-settings.c:165
+msgid "Is default"
+msgstr "Por defecto"
+
+#: ../src/im-account-settings.c:166
+msgid "Is the default account"
+msgstr "¿Es la cuenta por defecto?"
+
+#: ../src/im-account-settings.c:172
+msgid "Full name"
+msgstr "Nombre completo"
+
+#: ../src/im-account-settings.c:173
+msgid "Full name of the account user"
+msgstr "Nombre completo del usuario de la cuenta"
+
+#: ../src/im-account-settings.c:179
+msgid "Email address"
+msgstr "Dirección de correo"
+
+#: ../src/im-account-settings.c:180
+msgid "Email address of the account user"
+msgstr "Dirección de correo del usuario de la cuenta"
+
+#: ../src/im-account-settings.c:186
+msgid "Use signature"
+msgstr "Usar firma"
+
+#: ../src/im-account-settings.c:187
+msgid "Should use signature on composing mails"
+msgstr "¿Debería usarse la firma al escribir correos?"
+
+#: ../src/im-account-settings.c:193 ../src/im-account-settings.c:194
+msgid "Signature"
+msgstr "Firma"
+
+#: ../src/im-account-settings.c:200
+msgid "Mode of retrieval"
+msgstr "Modo de descarga"
+
+#: ../src/im-account-settings.c:201
+msgid "What will get retrieved"
+msgstr "¿Qué se descargará del almacén remoto?"
+
+#: ../src/im-account-settings.c:208
+msgid "Limit of messages to retrieve"
+msgstr "Límite de mensajes a descargar"
+
+#: ../src/im-account-settings.c:217
+msgid "Leave messages on server"
+msgstr "Dejar los mensajes en el servidor"
+
+#: ../src/im-account-settings.c:218
+msgid "Should leave messages on server (only for POP3)"
+msgstr "¿Debería dejar los mensajes en el servidor? (sólo para POP3)"
+
+#: ../src/im-account-settings.c:224
+msgid "Store settings"
+msgstr "Configuración del almacén"
+
+#: ../src/im-account-settings.c:225
+msgid "Storage service settings"
+msgstr "Configuración del servicio de almacén"
+
+#: ../src/im-account-settings.c:231
+msgid "Transport settings"
+msgstr "Configuración de transporte"
+
+#: ../src/im-account-settings.c:232
+msgid "Transport service settings"
+msgstr "Configuración del servicio de transporte"
+
+#: ../src/im-conf.c:141
+#, c-format
+msgid "im: could not get gconf client\n"
+msgstr "im: no se pudo obtener el cliente gconf\n"
+
+#: ../src/im-conf.c:189
+#, c-format
+msgid "im: failed to init ImConf (GConf)\n"
+msgstr "im: falló al iniciar ImConf (GConf)\n"
+
+#: ../src/im-conf.c:195
+#, c-format
+msgid "im: failed to init gconf\n"
+msgstr "im: falló al iniciar gconf\n"
+
+#: ../src/im-conf.c:302 ../src/im-conf.c:321 ../src/im-conf.c:342
+#: ../src/im-conf.c:362
+#, c-format
+msgid "im: '%s' is not writable\n"
+msgstr "im: no se puede escribir '%s'\n"
+
+#: ../src/im-conf.c:507
+#, c-format
+msgid "im: invalid list value type %d\n"
+msgstr "im: tipo de valor de lista %d inválido\n"
+
+#: ../src/im-conf.c:510
+msgid "invalid list value type"
+msgstr "tipo de valor de lista inválido"
+
+#: ../src/im-content-id-request.c:163
+#, c-format
+msgid "Invalid CID URI hostname"
+msgstr "Servidor del CID URI inválido"
+
+#: ../src/im-content-id-request.c:167
+#, c-format
+msgid "Invalid CID URI message uid"
+msgstr "UID del mensaje del CID URI inválido"
+
+#: ../src/im-content-id-request.c:317 ../src/im-content-id-request.c:385
+#, c-format
+msgid "Message not available"
+msgstr "Mensaje no disponible"
+
+#: ../src/im-content-id-request.c:363
+#, c-format
+msgid "Part not available"
+msgstr "Parte no disponible"
+
+#: ../src/im-content-id-request.c:492 ../src/im-content-id-request.c:570
+#: ../src/im-content-id-request.c:651 ../src/im-soup-request.c:408
+#: ../src/im-soup-request.c:735
+#, c-format
+msgid "Account does not exist"
+msgstr "La cuenta no existe"
+
+#: ../src/im-content-id-request.c:596 ../src/im-content-id-request.c:677
+#, c-format
+msgid "Folder does not exist"
+msgstr "La carpeta no existe"
+
+#: ../src/im-content-id-request.c:604
+#, c-format
+msgid "Message does not exist"
+msgstr "El mensaje no existe"
+
+#: ../src/im-content-id-request.c:614
+#, c-format
+msgid "Part does not exist"
+msgstr "La parte no existe"
+
+#: ../src/im-file-utils.c:155
+#, c-format
+msgid "%s: filename too long ('%s')"
+msgstr "%s: el nombre del fichero es muy largo ('%s')"
+
+#: ../src/im-file-utils.c:161
+#, c-format
+msgid "%s: filename contains '/' character(s) (%s)"
+msgstr "%s: el nombre de fichero contiene el caracter '/' (%s)"
+
+#: ../src/im-file-utils.c:174
+#, c-format
+msgid "%s: failed to create dir '%s': %s"
+msgstr "%s: falló creando el directorio '%s': %s"
+
+#: ../src/im-file-utils.c:193
+#, c-format
+msgid "%s: failed to create '%s': %s"
+msgstr "%s: falló creando '%s': %s"
+
+#: ../src/im-mail-ops.c:179
+#, c-format
+msgid "No transport for an outbox"
+msgstr "Sin transporte para la bandeja de salida"
+
+#: ../src/im-mail-ops.c:362
+#, c-format
+msgid "Could not find account of store"
+msgstr "No se pudo encontrar la cuenta del almacén"
+
+#: ../src/im-mail-ops.c:1177
+#, c-format
+msgid "Failed to get attachment data"
+msgstr "Falló obteniendo los datos del adjunto"
+
+#: ../src/im-protocol.c:131
+msgid "Protocol name"
+msgstr "Nombre de protocolo"
+
+#: ../src/im-protocol.c:132
+msgid "The unique name of the protocol"
+msgstr "Nombre único del protocolo"
+
+#: ../src/im-protocol.c:140
+msgid "The name of the protocol that user will see"
+msgstr "El nombre de protocolo que verá el usuario"
+
+#: ../src/im-protocol.c:147
+msgid "Protocol id"
+msgstr "Id de protocolo"
+
+#: ../src/im-protocol.c:148
+msgid "Protocol type unique id"
+msgstr "Id único del tipo de protocolo"
+
+#: ../src/im-protocol-registry.c:436
+msgid "Sendmail"
+msgstr "Sendmail"
+
+#: ../src/im-protocol-registry.c:445
+msgid "SMTP Server"
+msgstr "Servidor SMTP"
+
+#: ../src/im-protocol-registry.c:448 ../src/im-protocol-registry.c:449
+msgid "Error connecting to SMTP server"
+msgstr "Error conectando al servidor SMTP"
+
+#: ../src/im-protocol-registry.c:450
+msgid "SMTP authentication error"
+msgstr "Error de autenticación en SMTP"
+
+#: ../src/im-protocol-registry.c:457
+msgid "POP3"
+msgstr "POP3"
+
+#: ../src/im-protocol-registry.c:460 ../src/im-protocol-registry.c:462
+msgid "Error connecting to POP3 server"
+msgstr "Error conectando al servidor POP3"
+
+#: ../src/im-protocol-registry.c:461
+msgid "POP3 authentication error"
+msgstr "Error de autenticación POP3"
+
+#: ../src/im-protocol-registry.c:463
+msgid "Error fetching message"
+msgstr "Error obteniendo mensaje"
+
+#: ../src/im-protocol-registry.c:464
+msgid "Error fetching message header"
+msgstr "Error obteniendo la cabecera del mensaje"
+
+#: ../src/im-protocol-registry.c:465
+msgid "pop3s"
+msgstr "pop3s"
+
+#: ../src/im-protocol-registry.c:475
+msgid "IMAP"
+msgstr "IMAP"
+
+#: ../src/im-protocol-registry.c:478
+msgid "Delete mailbox"
+msgstr "Borrar almacén"
+
+#: ../src/im-protocol-registry.c:479
+msgid "IMAP connection error"
+msgstr "Error de conexión IMAP"
+
+#: ../src/im-protocol-registry.c:480
+msgid "IMAP authentication error"
+msgstr "Error de autenticación IMAP"
+
+#: ../src/im-protocol-registry.c:481
+msgid "Couldn't connect to server"
+msgstr "No se pudo conectar con el servidor"
+
+#: ../src/im-protocol-registry.c:482
+msgid "Couldn't fetch message"
+msgstr "No se pudo obtener mensaje"
+
+#: ../src/im-protocol-registry.c:483
+msgid "Couldn't fetch message header"
+msgstr "No se pudo obtener cabecera de mensaje"
+
+#: ../src/im-protocol-registry.c:484
+msgid "imap4s"
+msgstr "imap4s"
+
+#: ../src/im-protocol-registry.c:497
+msgid "Maildir"
+msgstr "Maildir"
+
+#: ../src/im-protocol-registry.c:501 ../src/im-protocol-registry.c:514
+msgid "Mailbox not available"
+msgstr "Almacén no disponible"
+
+#: ../src/im-protocol-registry.c:510
+msgid "MBox"
+msgstr "MBox"
+
+#: ../src/im-protocol-registry.c:523 ../src/im-protocol-registry.c:559
+msgid "None"
+msgstr "Ninguno"
+
+#: ../src/im-protocol-registry.c:531
+msgid "SSL"
+msgstr "SSL"
+
+#: ../src/im-protocol-registry.c:541
+msgid "TLS"
+msgstr "TLS"
+
+#: ../src/im-protocol-registry.c:550
+msgid "TLS when possible"
+msgstr "TLS si es posible"
+
+#: ../src/im-protocol-registry.c:567
+msgid "Login"
+msgstr "Login"
+
+#: ../src/im-protocol-registry.c:576
+msgid "CRAM-MD5"
+msgstr "CRAM-MD5"
+
+#: ../src/im-server-account-settings.c:141
+msgid "Host name"
+msgstr "Nombre del servidor"
+
+#: ../src/im-server-account-settings.c:142
+msgid "Name of the host to connect"
+msgstr "Nombre del servidor al que conectar"
+
+#: ../src/im-server-account-settings.c:148
+msgid "Port"
+msgstr "Puerto"
+
+#: ../src/im-server-account-settings.c:149
+msgid "Port used for connection to hostname"
+msgstr "Puerto usado para conectar con el servidor"
+
+#: ../src/im-server-account-settings.c:157
+msgid "Protocol"
+msgstr "Protocolo"
+
+#: ../src/im-server-account-settings.c:158
+msgid "Protocol for this service"
+msgstr "Protocolo de este servicio"
+
+#: ../src/im-server-account-settings.c:166
+msgid "Security Protocol"
+msgstr "Protocolo de seguridad"
+
+#: ../src/im-server-account-settings.c:167
+msgid "Security transport protocol used for connecting"
+msgstr "Protocolo de seguridad de transporte usado para conectar"
+
+#: ../src/im-server-account-settings.c:175
+msgid "Auth Protocol"
+msgstr "Protocolo de autenticación"
+
+#: ../src/im-server-account-settings.c:176
+msgid "Authentication protocol used for connecting"
+msgstr "Protocolo de autenticación usado para conectar"
+
+#: ../src/im-server-account-settings.c:184
+msgid "User name"
+msgstr "Nombre de usuario"
+
+#: ../src/im-server-account-settings.c:185
+msgid "Username used on service authentication"
+msgstr "Nombre de usuario usado en la autenticación del servicio"
+
+#: ../src/im-server-account-settings.c:191
+msgid "Password"
+msgstr "Contraseña"
+
+#: ../src/im-server-account-settings.c:192
+msgid "Password for service authentication"
+msgstr "Contraseña para la autenticación del servicio"
+
+#: ../src/im-server-account-settings.c:198
+msgid "Account name"
+msgstr "Nombre de cuenta"
+
+#: ../src/im-server-account-settings.c:199
+msgid "Name of the server account in persistent storage"
+msgstr "Nombre persistente de la cuenta de servidor"
+
+#: ../src/im-server-account-settings.c:205
+msgid "URI"
+msgstr "URI"
+
+#: ../src/im-server-account-settings.c:206
+msgid "URI of the service"
+msgstr "URI del servicio"
+
+#: ../src/im-service-mgr.c:339
+#, c-format
+msgid ""
+"<b>Need password</b>\n"
+"Password needed for %s server at %s"
+msgstr ""
+"<b>Se requiere contraseña</b>\n"
+"Contraseña necesaria para el servidor %s en %s"
+
+#: ../src/im-service-mgr.c:498
+#, c-format
+msgid "Unknown authentication mechanism %s"
+msgstr "Mecanismo de autenticación desconocido %s"
+
+#: ../src/im-service-mgr.c:511
+#, c-format
+msgid "Failed to authenticate using %s without password"
+msgstr "Falló autenticando usando %s sin contraseña"
+
+#: ../src/im-service-mgr.c:556
+#, c-format
+msgid "No password provided"
+msgstr "No se proporcionó contraseña"
+
+#: ../src/im-service-mgr.c:754
+#, c-format
+msgid "%s: No server accounts of type %s\n"
+msgstr "%s: no hay cuentas de servidor del tipo %s\n"
+
+#: ../src/im-service-mgr.c:762
+#, c-format
+msgid ""
+"%s: could not get %s service for %s\n"
+"."
+msgstr "%s: no se pudo obtener el servidio %s para %s"
+
+#: ../src/im-service-mgr.c:1280
+#, c-format
+msgid "%s: failed to create store account"
+msgstr "%s: falló al crear la cuenta de almacén"
+
+#: ../src/im-service-mgr.c:1286
+#, c-format
+msgid "%s: failed to create transport account"
+msgstr "%s: falló al crear la cuenta de transporte"
+
+#: ../src/im-service-mgr.c:1329
+#, c-format
+msgid "%s: no store account for account %s\n"
+msgstr "%s: no se encontró almacén para la cuenta %s\n"
+
+#: ../src/im-service-mgr.c:1337
+#, c-format
+msgid "%s: no transport account for account %s\n"
+msgstr "%s: no se encontró transporte para la cuenta %s\n"
+
+#: ../src/im-soup-request.c:110
+#, c-format
+msgid "Missing incoming server host"
+msgstr "Falta el nombre del servidor de almacén"
+
+#: ../src/im-soup-request.c:118
+#, c-format
+msgid "Missing incoming server username"
+msgstr "Falta el usuario del servidor de almacén"
+
+#: ../src/im-soup-request.c:127
+#, c-format
+msgid "Invalid incoming server protocol"
+msgstr "Protocolo del servidor de almacén inválido"
+
+#: ../src/im-soup-request.c:136
+#, c-format
+msgid "Invalid incoming server security protocol"
+msgstr "Protocolo de seguridad del servidor de almacén inválido"
+
+#: ../src/im-soup-request.c:187
+#, c-format
+msgid "Missing outgoing server host"
+msgstr "Falta el servidor de transporte"
+
+#: ../src/im-soup-request.c:195
+#, c-format
+msgid "Missing outgoing server username"
+msgstr "Falta el usuario del servidor de transporte"
+
+#: ../src/im-soup-request.c:209
+#, c-format
+msgid "Invalid outgoing server security protocol"
+msgstr "Protocolo de seguridad del servidor de transporte inválido"
+
+#: ../src/im-soup-request.c:218
+#, c-format
+msgid "Invalid outgoing server authentication protocol"
+msgstr "Protocolo de autenticación del servidor de transporte inválido"
+
+#: ../src/im-soup-request.c:266
+#, c-format
+msgid "Invalid email address"
+msgstr "Dirección de correo inválida"
+
+#: ../src/im-soup-request.c:271
+#, c-format
+msgid "Missing account name"
+msgstr "Falta el nombre de la cuenta"
+
+#: ../src/im-soup-request.c:378
+#, c-format
+msgid "Failed to create account"
+msgstr "Falló creando la cuenta"
+
+#: ../src/im-soup-request.c:416
+#, c-format
+msgid "Failed to remove account"
+msgstr "Falló eliminando la cuenta"
+
+#: ../src/im-soup-request.c:521
+msgid "Outbox"
+msgstr "Bandeja de salida"
+
+#: ../src/im-soup-request.c:564
+msgid "Inbox"
+msgstr "Bandeja de entrada"
+
+#: ../src/im-soup-request.c:795
+#, c-format
+msgid "Could not find account %s outbox"
+msgstr "No se pudo encontrar la bandeja de salida de la cuenta %s"
+
+#: ../src/im-soup-request.c:852
+#, c-format
+msgid "Could not find outbox store"
+msgstr "No se pudo encontrar el almacén de las cuentas de salida"
+
+#: ../src/im-soup-request.c:1509
+#, c-format
+msgid "No transport account specified trying to send the message"
+msgstr "No se especificó la cuenta de transport intentando enviar el mensaje"
+
+#: ../src/im-soup-request.c:1517
+#, c-format
+msgid "Invalid transport account specified trying to send the message"
+msgstr "Cuenta de transporte inválida intentando enviar el mensaje"
+
+#: ../src/im-soup-request.c:1539
+#, c-format
+msgid "Account has an invalid from field"
+msgstr "La cuenta tiene un From: inválido"
+
+#: ../src/im-soup-request.c:1563
+#, c-format
+msgid "Failed to parse recipients"
+msgstr "Fallo parseando los recipientes"
+
+#: ../src/im-soup-request.c:1567
+#, c-format
+msgid "User didn't set recipients trying to send"
+msgstr "No se han establecido recipientes al intentar enviar"
+
+#: ../src/im-soup-request.c:1716
+#, c-format
+msgid "Non supported method"
+msgstr "Método no soportado"
+
+#: ../src/im-window.c:254
+msgid "Save attachment..."
+msgstr "Guardar adjunto..."
+
+#: ../data/js/common.js:124
+msgid "Adding operation to queue"
+msgstr ""

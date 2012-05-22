@@ -437,7 +437,7 @@ im_account_mgr_load_server_settings (ImAccountMgr *self,
 	gchar *hostname, *username, *uri, *proto, *auth, *sec;
 
 	if (!im_account_mgr_account_exists (self, name, TRUE)) {
-		g_warning ("%s account %s does not exist", __FUNCTION__, name);
+		g_warning (_("%s account %s does not exist"), __FUNCTION__, name);
 		return NULL;
 	}
 
@@ -631,7 +631,7 @@ im_account_mgr_load_account_settings (ImAccountMgr *self,
 	
 	if (!im_account_mgr_account_exists (self, name, FALSE)) {
 		/* For instance, maybe you are mistakenly checking for a server account name? */
-		g_warning ("%s: Account %s does not exist.", __FUNCTION__, name);
+		g_warning (_("%s: Account %s does not exist."), __FUNCTION__, name);
 		return NULL;
 	}
 	
@@ -690,7 +690,7 @@ im_account_mgr_load_account_settings (ImAccountMgr *self,
 								    store_settings);
 			g_object_unref (store_settings);
 		} else {
-			g_warning ("%s can not load server settings. Account corrupted?", __FUNCTION__);
+			g_warning (_("%s can not load server settings. Account corrupted?"), __FUNCTION__);
 			g_object_unref (settings);
 			return NULL;
 		}
@@ -709,7 +709,7 @@ im_account_mgr_load_account_settings (ImAccountMgr *self,
 			im_account_settings_set_transport_settings (settings, transport_settings);
 			g_object_unref (transport_settings);
 		} else {
-			g_warning ("%s can not load server settings. Account corrupted?", __FUNCTION__);
+			g_warning (_("%s can not load server settings. Account corrupted?"), __FUNCTION__);
 			g_object_unref (settings);
 			return NULL;
 		}

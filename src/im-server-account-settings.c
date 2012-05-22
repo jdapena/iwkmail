@@ -138,15 +138,15 @@ im_server_account_settings_class_init (ImServerAccountSettingsClass *klass)
 	g_object_class_install_property (
 		gobject_class, PROP_HOSTNAME,
 		g_param_spec_string ("hostname",
-				     "Host name",
-				     "Name of the host to connect",
+				     _("Host name"),
+				     _("Name of the host to connect"),
 				     NULL /* default value */,
 				     G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property (
 		gobject_class, PROP_PORT,
 		g_param_spec_uint ("port",
-				   "Port",
-				   "Port used for connection to hostname",
+				   _("Port"),
+				   _("Port used for connection to hostname"),
 				   0, /* minimum value */
 				   65535, /* maximum value */
 				   0, /* default value */
@@ -154,8 +154,8 @@ im_server_account_settings_class_init (ImServerAccountSettingsClass *klass)
 	g_object_class_install_property (
 		gobject_class, PROP_PROTOCOL,
 		g_param_spec_uint ("protocol",
-				   "Protocol",
-				   "Protocol for this service",
+				   _("Protocol"),
+				   _("Protocol for this service"),
 				   0, /* minimum value */
 				   IM_PROTOCOL_TYPE_INVALID, /* maximum value */
 				   IM_PROTOCOL_TYPE_INVALID, /* default value */
@@ -163,8 +163,8 @@ im_server_account_settings_class_init (ImServerAccountSettingsClass *klass)
 	g_object_class_install_property (
 		gobject_class, PROP_PROTOCOL,
 		g_param_spec_uint ("security-protocol",
-				   "Security Protocol",
-				   "Security transport protocol used for connecting",
+				   _("Security Protocol"),
+				   _("Security transport protocol used for connecting"),
 				   0, /* minimum value */
 				   IM_PROTOCOL_TYPE_INVALID, /* maximum value */
 				   IM_PROTOCOL_TYPE_INVALID, /* default value */
@@ -172,8 +172,8 @@ im_server_account_settings_class_init (ImServerAccountSettingsClass *klass)
 	g_object_class_install_property (
 		gobject_class, PROP_PROTOCOL,
 		g_param_spec_uint ("auth-protocol",
-				   "Auth Protocol",
-				   "Authentication protocol used for connecting",
+				   _("Auth Protocol"),
+				   _("Authentication protocol used for connecting"),
 				   0, /* minimum value */
 				   IM_PROTOCOL_TYPE_INVALID, /* maximum value */
 				   IM_PROTOCOL_TYPE_INVALID, /* default value */
@@ -181,29 +181,29 @@ im_server_account_settings_class_init (ImServerAccountSettingsClass *klass)
 	g_object_class_install_property (
 		gobject_class, PROP_USERNAME,
 		g_param_spec_string ("username",
-				     "User name",
-				     "Username used on service authentication",
+				     _("User name"),
+				     _("Username used on service authentication"),
 				     NULL /* default value */,
 				     G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property (
 		gobject_class, PROP_PASSWORD,
 		g_param_spec_string ("password",
-				     "Password",
-				     "Password for service authentication",
+				     _("Password"),
+				     _("Password for service authentication"),
 				     NULL /* default value */,
 				     G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property (
 		gobject_class, PROP_ACCOUNT_NAME,
 		g_param_spec_string ("account-name",
-				     "Account name",
-				     "Name of the server account in persistent storage",
+				     _("Account name"),
+				     _("Name of the server account in persistent storage"),
 				     NULL /* default value */,
 				     G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property (
 		gobject_class, PROP_URI,
 		g_param_spec_string ("uri",
-				     "URI",
-				     "URI of the service",
+				     _("URI"),
+				     _("URI of the service"),
 				     NULL /* default value */,
 				     G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_type_class_add_private (gobject_class,

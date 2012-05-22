@@ -751,7 +751,7 @@ im_service_mgr_get_service (ImServiceMgr *self,
 		priv->transport_services;
 
 	if (!account_hash) {
-		g_printerr ("%s: No server accounts of type %s\n", __FUNCTION__, 
+		g_printerr (_("%s: No server accounts of type %s\n"), __FUNCTION__, 
 			(type == IM_ACCOUNT_TYPE_STORE) ? "store" : "transport");
 		return NULL;
 	}
@@ -759,7 +759,7 @@ im_service_mgr_get_service (ImServiceMgr *self,
 	retval = g_hash_table_lookup (account_hash, account_id);
 
 	if (retval == NULL) {
-		g_printerr ("%s: could not get %s service for %s\n.", __FUNCTION__,
+		g_printerr (_("%s: could not get %s service for %s\n."), __FUNCTION__,
 			    (type == IM_ACCOUNT_TYPE_STORE) ? "store" : "transport",
 			    account_id);
 	}
@@ -1277,13 +1277,13 @@ insert_account (ImServiceMgr *self,
 	/* Get the server and the transport account */
 	store_service = create_service (self, account, IM_ACCOUNT_TYPE_STORE, is_new);
 	if (!store_service || !CAMEL_IS_STORE(store_service)) {
-		g_warning ("%s: failed to create store account", __FUNCTION__);
+		g_warning (_("%s: failed to create store account"), __FUNCTION__);
 		return;
 	}
 
 	transport_service = create_service (self, account, IM_ACCOUNT_TYPE_TRANSPORT, is_new);
 	if (!transport_service || !CAMEL_IS_TRANSPORT(transport_service)) {
-		g_warning ("%s: failed to create transport account", __FUNCTION__);
+		g_warning (_("%s: failed to create transport account"), __FUNCTION__);
 		g_object_unref (store_service);
 		return;
 	}
@@ -1326,7 +1326,7 @@ on_account_removed (ImAccountMgr *acc_mgr,
 		camel_service_disconnect_sync (store_service, TRUE, NULL);
 		g_hash_table_remove (priv->store_services, store_service);
 	} else {
-		g_warning ("%s: no store account for account %s\n", 
+		g_warning (_("%s: no store account for account %s\n"), 
 			   __FUNCTION__, account);
 	}
 
@@ -1334,7 +1334,7 @@ on_account_removed (ImAccountMgr *acc_mgr,
 		camel_service_disconnect_sync (transport_service, TRUE, NULL);
 		g_hash_table_remove (priv->transport_services, transport_service);
 	} else {
-		g_warning ("%s: no transport account for account %s\n", 
+		g_warning (_("%s: no transport account for account %s\n"),
 			   __FUNCTION__, account);
 	}
 

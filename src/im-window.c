@@ -42,6 +42,7 @@
 #include "im-window.h"
 
 #include <camel/camel.h>
+#include <glib/gi18n.h>
 #include <gtk/gtk.h>
 #include <JavaScriptCore/JavaScript.h>
 #include <webkit/webkit.h>
@@ -251,7 +252,7 @@ on_download_requested (WebKitWebView*web_view,
 		if (g_strcmp0 (g_hash_table_lookup (params, "mode"), "save") == 0) {
 			GtkWidget *dialog;
 
-			dialog = gtk_file_chooser_dialog_new ("Save attachment...", GTK_WINDOW (user_data),
+			dialog = gtk_file_chooser_dialog_new (_("Save attachment..."), GTK_WINDOW (user_data),
 							      GTK_FILE_CHOOSER_ACTION_SAVE,
 							      GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
 							      GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT,

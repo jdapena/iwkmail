@@ -141,71 +141,71 @@ im_account_settings_class_init (ImAccountSettingsClass *klass)
 	g_object_class_install_property
 		(gobject_class, PROP_ID,
 		 g_param_spec_string ("id",
-				      "Account Id",
-				      "Unique identifier of the account",
+				      _("Account Id"),
+				      _("Unique identifier of the account"),
 				      NULL, /* default value */
 				      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property
 		(gobject_class, PROP_DISPLAY_NAME,
 		 g_param_spec_string ("display-name",
-				      "Display name",
-				      "Visible name of the account",
+				      _("Display name"),
+				      _("Visible name of the account"),
 				      NULL, /* default value */
 				      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property
 		(gobject_class, PROP_ENABLED,
 		 g_param_spec_boolean ("enabled",
-				       "Enabled",
-				       "Is account enabled",
+				       _("Enabled"),
+				       _("Is account enabled"),
 				       FALSE, /* default value */
 				       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property
 		(gobject_class, PROP_IS_DEFAULT,
 		 g_param_spec_boolean ("is-default",
-				       "Is default",
-				       "Is the default account",
+				       _("Is default"),
+				       _("Is the default account"),
 				       FALSE, /* default value */
 				       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property
 		(gobject_class, PROP_FULLNAME,
 		 g_param_spec_string ("fullname",
-				      "Full name",
-				      "Full name of the account user",
+				      _("Full name"),
+				      _("Full name of the account user"),
 				      NULL, /* default value */
 				      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property
 		(gobject_class, PROP_EMAIL_ADDRESS,
 		 g_param_spec_string ("email-address",
-				      "Email address",
-				      "Email address of the account user",
+				      _("Email address"),
+				      _("Email address of the account user"),
 				      NULL, /* default value */
 				      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property
 		(gobject_class, PROP_USE_SIGNATURE,
 		 g_param_spec_boolean ("use-signature",
-				       "Use signature",
-				       "Should use signature on composing mails",
+				       _("Use signature"),
+				       _("Should use signature on composing mails"),
 				       FALSE, /* default value */
 				       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property
 		(gobject_class, PROP_SIGNATURE,
 		 g_param_spec_string ("signature",
-				      "Signature",
-				      "Signature",
+				      _("Signature"),
+				      _("Signature"),
 				      NULL, /* default value */
 				      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property
 		(gobject_class, PROP_RETRIEVE_TYPE,
 		 g_param_spec_enum ("retrieve-type",
-				    "Mode of retrieval",
-				    "What will get retrieved",
+				    _("Mode of retrieval"),
+				    _("What will get retrieved"),
 				    IM_TYPE_ACCOUNT_RETRIEVE_TYPE,
 				    IM_ACCOUNT_RETRIEVE_HEADERS_ONLY,
 				    G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property
 		(gobject_class, PROP_RETRIEVE_LIMIT,
 		 g_param_spec_uint ("retrieve-limit",
-				    "Limit of messages to retrieve",
+				    _("Limit of messages to retrieve"),
 				    "Max  number of messages to be retrieved",
 				    0,
 				    (guint) -1,
@@ -214,22 +214,22 @@ im_account_settings_class_init (ImAccountSettingsClass *klass)
 	g_object_class_install_property
 		(gobject_class, PROP_LEAVE_MESSAGES_ON_SERVER,
 		 g_param_spec_boolean ("leave-messages-on-server",
-				       "Leave messages on server",
-				       "Should leave messages on server (only for POP3)",
+				       _("Leave messages on server"),
+				       _("Should leave messages on server (only for POP3)"),
 				       FALSE, /* default value */
 				       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property
 		(gobject_class, PROP_STORE_SETTINGS,
 		 g_param_spec_object ("store-settings",
-				      "Store settings",
-				      "Storage service settings",
+				      _("Store settings"),
+				      _("Storage service settings"),
 				      IM_TYPE_SERVER_ACCOUNT_SETTINGS,
 				      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property
 		(gobject_class, PROP_TRANSPORT_SETTINGS,
 		 g_param_spec_object ("transport-settings",
-				      "Transport settings",
-				      "Transport service settings",
+				      _("Transport settings"),
+				      _("Transport service settings"),
 				      IM_TYPE_SERVER_ACCOUNT_SETTINGS,
 				      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 

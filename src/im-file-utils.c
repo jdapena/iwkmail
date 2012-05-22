@@ -53,6 +53,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <glib/gi18n.h>
 #include <glib/gstdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -152,13 +153,13 @@ im_file_utils_create_temp_uri (const gchar *orig_name,
 	/* hmmm... maybe we need a modest_text_utils_validate_file_name? */
 	g_return_val_if_fail (orig_name && strlen(orig_name) != 0, NULL);
 	if (strlen(orig_name) > 254) {
-		g_warning ("%s: filename too long ('%s')",
+		g_warning (_("%s: filename too long ('%s')"),
 			   __FUNCTION__, orig_name);
 		return NULL;
 	}
 
 	if (g_strstr_len (orig_name, strlen (orig_name), "/") != NULL) {
-		g_warning ("%s: filename contains '/' character(s) (%s)",
+		g_warning (_("%s: filename contains '/' character(s) (%s)"),
 			   __FUNCTION__, orig_name);
 		return NULL;
 	}
@@ -171,7 +172,7 @@ im_file_utils_create_temp_uri (const gchar *orig_name,
 	}
 	tmpdir = g_strdup_printf ("%s/%u", g_get_tmp_dir (), hash_number);
 	if ((g_access (tmpdir, R_OK) == -1) && (g_mkdir (tmpdir, 0755) == -1)) {
-		g_warning ("%s: failed to create dir '%s': %s",
+		g_warning (_("%s: failed to create dir '%s': %s"),
 			   __FUNCTION__, tmpdir, g_strerror(errno));
 		g_free (tmpdir);
 		return NULL;
@@ -190,8 +191,8 @@ im_file_utils_create_temp_uri (const gchar *orig_name,
 		/* try to write the file there */
 		fd = g_open (filepath, O_CREAT|O_WRONLY|O_TRUNC, 0644);
 		if (fd == -1) {
-			g_warning ("%s: failed to create '%s': %s",
-					__FUNCTION__, filepath, g_strerror(errno));
+			g_warning (_("%s: failed to create '%s': %s"),
+				   __FUNCTION__, filepath, g_strerror(errno));
 			g_free (filepath);
 			return NULL;
 		} else {

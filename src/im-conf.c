@@ -138,7 +138,7 @@ im_conf_init (ImConf *obj)
 	
 	conf = gconf_client_get_default ();
 	if (!conf) {
-		g_printerr ("im: could not get gconf client\n");
+		g_printerr (_("im: could not get gconf client\n"));
 		return;
 	}
 
@@ -186,13 +186,13 @@ im_conf_new (void)
 	
 	conf = IM_CONF(g_object_new(IM_TYPE_CONF, NULL));
 	if (!conf) {
-		g_printerr ("im: failed to init ImConf (GConf)\n");
+		g_printerr (_("im: failed to init ImConf (GConf)\n"));
 		return NULL;
 	}
 
 	priv = IM_CONF_GET_PRIVATE(conf);
 	if (!priv->gconf_client) {
-		g_printerr ("im: failed to init gconf\n");
+		g_printerr (_("im: failed to init gconf\n"));
 		g_object_unref (conf);
 		return NULL;
 	}
@@ -299,7 +299,7 @@ im_conf_set_string (ImConf* self, const gchar* key, const gchar* val,
 	priv = IM_CONF_GET_PRIVATE(self);
 
 	if (!gconf_client_key_is_writable(priv->gconf_client,key,err)) {
-		g_printerr ("im: '%s' is not writable\n", key);
+		g_printerr (_("im: '%s' is not writable\n"), key);
 		return FALSE;
 	}
 			
@@ -318,7 +318,7 @@ im_conf_set_int  (ImConf* self, const gchar* key, gint val,
 	priv = IM_CONF_GET_PRIVATE(self);
 
 	if (!gconf_client_key_is_writable(priv->gconf_client,key,err)) {
-		g_printerr ("im: '%s' is not writable\n", key);
+		g_printerr (_("im: '%s' is not writable\n"), key);
 		return FALSE;
 	}
 			
@@ -339,7 +339,7 @@ im_conf_set_float (ImConf* self,
 	priv = IM_CONF_GET_PRIVATE(self);
 
 	if (!gconf_client_key_is_writable(priv->gconf_client,key,err)) {
-		g_printerr ("im: '%s' is not writable\n", key);
+		g_printerr (_("im: '%s' is not writable\n"), key);
 		return FALSE;
 	}
 			
@@ -359,7 +359,7 @@ im_conf_set_bool (ImConf* self, const gchar* key, gboolean val,
 	priv = IM_CONF_GET_PRIVATE(self);
 
 	if (!gconf_client_key_is_writable(priv->gconf_client,key, err)) {
-		g_warning ("im: '%s' is not writable\n", key);
+		g_warning (_("im: '%s' is not writable\n"), key);
 		return FALSE;
 	}
 
@@ -504,10 +504,10 @@ im_conf_type_to_gconf_type (ImConfValueType value_type, GError **err)
 		break;
 	default:
 		gconf_type = GCONF_VALUE_INVALID;
-		g_printerr ("im: invalid list value type %d\n", value_type);
+		g_printerr (_("im: invalid list value type %d\n"), value_type);
 		*err = g_error_new_literal (IM_ERROR_DOMAIN, 
 					    IM_ERROR_CONF_INVALID_VALUE, 
-					    "invalid list value type");
+					    _("invalid list value type"));
 	}
 	return gconf_type;
 }

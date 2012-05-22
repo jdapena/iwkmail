@@ -327,7 +327,7 @@ im_account_mgr_add_account_from_settings (ImAccountMgr *self,
 	 * but let's check again just in case */
 	if (!display_name || 
 	    im_account_mgr_account_with_display_name_exists (self, display_name)) {
-		display_name = _("mcen_ia_emailsetup_defaultname");
+		display_name = _("Account");
 	}
 
 	/* Increment the non-user visible name if necessary, 
@@ -367,7 +367,7 @@ im_account_mgr_add_account_from_settings (ImAccountMgr *self,
 	/* Note, when this fails is is caused by a Maemo gconf bug that has been 
 	 * fixed in versions after 3.1. */
 	if(!im_account_mgr_has_accounts (self, FALSE))
-		g_warning ("im_account_mgr_get_account_ids() returned NULL after adding an account.");
+		g_warning (_("im_account_mgr_get_account_ids() returned NULL after adding an account."));
 				
 	/* Notify the observers */
 	g_signal_emit (self, signals[ACCOUNT_INSERTED_SIGNAL], 0, account_name);
@@ -422,15 +422,15 @@ im_account_mgr_add_account (ImAccountMgr *self,
 	key = _im_account_mgr_get_account_keyname_cached (priv, name, IM_ACCOUNT_DISPLAY_NAME,
 							      FALSE);
 	if (im_account_mgr_account_exists (self, key, FALSE)) {
-		g_printerr ("im: account already exists\n");
+		g_printerr (_("im: account already exists\n"));
 		return FALSE;
 	}
 	
 	ok = im_conf_set_string (priv->im_conf, key, name, &err);
 	if (!ok) {
-		g_printerr ("im: cannot set display name\n");
+		g_printerr (_("im: cannot set display name\n"));
 		if (err) {
-			g_printerr ("im: Error adding account conf: %s\n", err->message);
+			g_printerr (_("im: Error adding account conf: %s\n"), err->message);
 			g_error_free (err);
 		}
 		return FALSE;
@@ -441,10 +441,10 @@ im_account_mgr_add_account (ImAccountMgr *self,
 								      FALSE);
 		ok = im_conf_set_string (priv->im_conf, key, store_account, &err);
 		if (!ok) {
-			g_printerr ("im: failed to set store account '%s'\n",
+			g_printerr (_("im: failed to set store account '%s'\n"),
 				    store_account);
 			if (err) {
-				g_printerr ("im: Error adding store account conf: %s\n", err->message);
+				g_printerr (_("im: Error adding store account conf: %s\n"), err->message);
 				g_error_free (err);
 			}
 			return FALSE;
@@ -457,10 +457,10 @@ im_account_mgr_add_account (ImAccountMgr *self,
 								      FALSE);
 		ok = im_conf_set_string (priv->im_conf, key, transport_account, &err);
 		if (!ok) {
-			g_printerr ("im: failed to set transport account '%s'\n",
+			g_printerr (_("im: failed to set transport account '%s'\n"),
 				    transport_account);
 			if (err) {
-				g_printerr ("im: Error adding transport account conf: %s\n", err->message);
+				g_printerr (_("im: Error adding transport account conf: %s\n"), err->message);
 				g_error_free (err);
 			}	
 			return FALSE;
@@ -531,7 +531,7 @@ im_account_mgr_add_server_account (ImAccountMgr * self,
 	/* hostname */
 	key = _im_account_mgr_get_account_keyname_cached (priv, name, IM_ACCOUNT_HOSTNAME, TRUE);
 	if (im_conf_key_exists (priv->im_conf, key, &err)) {
-		g_printerr ("im: server account '%s' already exists\n", name);
+		g_printerr (_("im: server account '%s' already exists\n"), name);
 		ok =  FALSE;
 	}
 	if (!ok)
@@ -539,7 +539,7 @@ im_account_mgr_add_server_account (ImAccountMgr * self,
 	
 	im_conf_set_string (priv->im_conf, key, null_means_empty(hostname), &err);
 	if (err) {
-		g_printerr ("im: failed to set %s: %s\n", key, err->message);
+		g_printerr (_("im: failed to set %s: %s\n"), key, err->message);
 		g_error_free (err);
 		ok = FALSE;
 	}
@@ -550,7 +550,7 @@ im_account_mgr_add_server_account (ImAccountMgr * self,
 	key = _im_account_mgr_get_account_keyname_cached (priv, name, IM_ACCOUNT_USERNAME, TRUE);
 	ok = im_conf_set_string (priv->im_conf, key, null_means_empty (username), &err);
 	if (err) {
-		g_printerr ("im: failed to set %s: %s\n", key, err->message);
+		g_printerr (_("im: failed to set %s: %s\n"), key, err->message);
 		g_error_free (err);
 		ok = FALSE;
 	}
@@ -564,7 +564,7 @@ im_account_mgr_add_server_account (ImAccountMgr * self,
 				     im_protocol_get_name (im_protocol_registry_get_protocol_by_type (protocol_registry, proto)),
 				     &err);
 	if (err) {
-		g_printerr ("im: failed to set %s: %s\n", key, err->message);
+		g_printerr (_("im: failed to set %s: %s\n"), key, err->message);
 		g_error_free (err);
 		ok = FALSE;
 	}
@@ -576,7 +576,7 @@ im_account_mgr_add_server_account (ImAccountMgr * self,
 	key = _im_account_mgr_get_account_keyname_cached (priv, name, IM_ACCOUNT_PORT, TRUE);
 	ok = im_conf_set_int (priv->im_conf, key, portnumber, &err);
 	if (err) {
-		g_printerr ("im: failed to set %s: %s\n", key, err->message);
+		g_printerr (_("im: failed to set %s: %s\n"), key, err->message);
 		g_error_free (err);
 		ok = FALSE;
 	}
@@ -590,7 +590,7 @@ im_account_mgr_add_server_account (ImAccountMgr * self,
 				     im_protocol_get_name (im_protocol_registry_get_protocol_by_type (protocol_registry, auth)),
 				     &err);
 	if (err) {
-		g_printerr ("im: failed to set %s: %s\n", key, err->message);
+		g_printerr (_("im: failed to set %s: %s\n"), key, err->message);
 		g_error_free (err);
 		ok = FALSE;
 	}
@@ -602,7 +602,7 @@ im_account_mgr_add_server_account (ImAccountMgr * self,
 
 cleanup:
 	if (!ok) {
-		g_printerr ("im: failed to add server account\n");
+		g_printerr (_("im: failed to add server account\n"));
 		return FALSE;
 	}
 
@@ -638,7 +638,7 @@ im_account_mgr_add_server_account_uri (ImAccountMgr * self,
 				     NULL);
 
 	if (!ok) {
-		g_printerr ("im: failed to set proto\n");
+		g_printerr (_("im: failed to set proto\n"));
 		return FALSE;
 	}
 	
@@ -647,7 +647,7 @@ im_account_mgr_add_server_account_uri (ImAccountMgr * self,
 	ok = im_conf_set_string (priv->im_conf, key, uri, NULL);
 
 	if (!ok) {
-		g_printerr ("im: failed to set uri\n");
+		g_printerr (_("im: failed to set uri\n"));
 		return FALSE;
 	}
 	return TRUE;
@@ -668,7 +668,7 @@ real_remove_account (ImConf *conf,
 	im_conf_remove_key (conf, key, &err);
 
 	if (err) {
-		g_printerr ("im: error removing key: %s\n", err->message);
+		g_printerr (_("im: error removing key: %s\n"), err->message);
 		g_error_free (err);
 	}
 	g_free (key);
@@ -687,7 +687,7 @@ im_account_mgr_remove_account (ImAccountMgr * self,
 	g_return_val_if_fail (name, FALSE);
 
 	if (!im_account_mgr_account_exists (self, name, FALSE)) {
-		g_printerr ("im: %s: account '%s' does not exist\n", __FUNCTION__, name);
+		g_printerr (_("im: %s: account '%s' does not exist\n"), __FUNCTION__, name);
 		return FALSE;
 	}
 
@@ -756,7 +756,7 @@ im_account_mgr_remove_server_account (ImAccountMgr * self,
 	g_return_val_if_fail (name, FALSE);
 
 	if (!im_account_mgr_account_exists (self, name, TRUE)) {
-		g_printerr ("im: %s: server account '%s' does not exist\n", __FUNCTION__, name);
+		g_printerr (_("im: %s: server account '%s' does not exist\n"), __FUNCTION__, name);
 		return FALSE;
 	}
 
@@ -805,7 +805,7 @@ im_account_mgr_get_account_ids (ImAccountMgr * self, gboolean only_enabled)
                                              IM_ACCOUNT_NAMESPACE, &err);
 
 	if (err) {
-		g_printerr ("im: failed to get subkeys (%s): %s\n",
+		g_printerr (_("im: failed to get subkeys (%s): %s\n"),
 			    IM_ACCOUNT_NAMESPACE, err->message);
 		g_error_free (err);
 		return NULL; /* assume accounts did not get value when err is set...*/
@@ -915,7 +915,7 @@ im_account_mgr_get_string (ImAccountMgr *self, const gchar *name,
 	priv = IM_ACCOUNT_MGR_GET_PRIVATE (self);
 	retval = im_conf_get_string (priv->im_conf, keyname, &err);	
 	if (err) {
-		g_printerr ("im: error getting string '%s': %s\n", keyname, err->message);
+		g_printerr (_("im: error getting string '%s': %s\n"), keyname, err->message);
 		g_error_free (err);
 		retval = NULL;
 	}
@@ -944,7 +944,7 @@ im_account_mgr_get_int (ImAccountMgr *self, const gchar *name, const gchar *key,
 	
 	retval = im_conf_get_int (priv->im_conf, keyname, &err);
 	if (err) {
-		g_printerr ("im: error getting int '%s': %s\n", keyname, err->message);
+		g_printerr (_("im: error getting int '%s': %s\n"), keyname, err->message);
 		g_error_free (err);
 		retval = -1;
 	}
@@ -975,7 +975,7 @@ im_account_mgr_get_bool (ImAccountMgr * self, const gchar *account,
 		
 	retval = im_conf_get_bool (priv->im_conf, keyname, &err);		
 	if (err) {
-		g_printerr ("im: error getting bool '%s': %s\n", keyname, err->message);
+		g_printerr (_("im: error getting bool '%s': %s\n"), keyname, err->message);
 		g_error_free (err);
 		retval = FALSE;
 	}
@@ -1007,7 +1007,7 @@ im_account_mgr_get_list (ImAccountMgr *self, const gchar *name,
 	
 	retval = im_conf_get_list (priv->im_conf, keyname, list_type, &err);
 	if (err) {
-		g_printerr ("im: error getting list '%s': %s\n", keyname,
+		g_printerr (_("im: error getting list '%s': %s\n"), keyname,
 			    err->message);
 		g_error_free (err);
 		retval = NULL;
@@ -1039,7 +1039,7 @@ im_account_mgr_set_string (ImAccountMgr * self,
 	
 	retval = im_conf_set_string (priv->im_conf, keyname, val, &err);
 	if (err) {
-		g_printerr ("im: error setting string '%s': %s\n", keyname, err->message);
+		g_printerr (_("im: error setting string '%s': %s\n"), keyname, err->message);
 		g_error_free (err);
 		retval = FALSE;
 	}
@@ -1065,7 +1065,7 @@ im_account_mgr_set_int (ImAccountMgr * self, const gchar * name,
 	
 	retval = im_conf_set_int (priv->im_conf, keyname, val, &err);
 	if (err) {
-		g_printerr ("im: error setting int '%s': %s\n", keyname, err->message);
+		g_printerr (_("im: error setting int '%s': %s\n"), keyname, err->message);
 		g_error_free (err);
 		retval = FALSE;
 	} else {
@@ -1100,7 +1100,7 @@ im_account_mgr_set_bool (ImAccountMgr * self, const gchar * name,
 	
 	retval = im_conf_set_bool (priv->im_conf, keyname, val, &err);
 	if (err) {
-		g_printerr ("im: error setting bool '%s': %s\n", keyname, err->message);
+		g_printerr (_("im: error setting bool '%s': %s\n"), keyname, err->message);
 		g_error_free (err);
 		retval = FALSE;
 	} else {
@@ -1139,7 +1139,7 @@ im_account_mgr_set_list (ImAccountMgr *self,
 	
 	retval = im_conf_set_list (priv->im_conf, keyname, val, list_type, &err);
 	if (err) {
-		g_printerr ("im: error setting list '%s': %s\n", keyname, err->message);
+		g_printerr (_("im: error setting list '%s': %s\n"), keyname, err->message);
 		g_error_free (err);
 		retval = FALSE;
 	}
@@ -1164,7 +1164,7 @@ im_account_mgr_account_exists (ImAccountMgr * self, const gchar* name,
 	keyname = _im_account_mgr_get_account_keyname_cached (priv, name, NULL, server_account);
 	retval = im_conf_key_exists (priv->im_conf, keyname, &err);
 	if (err) {
-		g_printerr ("im: error determining existance of '%s': %s\n", keyname,
+		g_printerr (_("im: error determining existance of '%s': %s\n"), keyname,
 			    err->message);
 		g_error_free (err);
 		retval = FALSE;
@@ -1191,7 +1191,7 @@ im_account_mgr_account_with_display_name_exists  (ImAccountMgr *self,
 		
 		ImAccountSettings *settings = im_account_mgr_load_account_settings (self, account_id);
 		if (!settings) {
-			g_printerr ("im: failed to get account data for %s\n", account_id);
+			g_printerr (_("im: failed to get account data for %s\n"), account_id);
 			cursor = cursor->next;
 			continue;
 		}
@@ -1255,7 +1255,7 @@ im_account_mgr_check_already_configured_account  (ImAccountMgr *self,
 
 	server_settings = im_account_settings_get_store_settings (settings);
 	if (!server_settings) {
-		g_printerr ("im: couldn't get store settings from settings");
+		g_printerr (_("im: couldn't get store settings from settings"));
 		im_account_mgr_free_account_ids (account_ids);
 		return FALSE;
 	}
@@ -1269,7 +1269,7 @@ im_account_mgr_check_already_configured_account  (ImAccountMgr *self,
 		account_id = (gchar*)cursor->data;		
 		from_mgr_settings = im_account_mgr_load_account_settings (self, account_id);
 		if (!settings) {
-			g_printerr ("im: failed to get account data for %s\n", account_id);
+			g_printerr (_("im: failed to get account data for %s\n"), account_id);
 			cursor = cursor->next;
 			continue;
 		}
@@ -1281,7 +1281,7 @@ im_account_mgr_check_already_configured_account  (ImAccountMgr *self,
 			}
 			g_object_unref (from_mgr_server_settings);
 		} else {
-			g_printerr ("im: couldn't get store settings from account %s", account_id);
+			g_printerr (_("im: couldn't get store settings from account %s"), account_id);
 		}
 		g_object_unref (from_mgr_settings);
 		cursor = cursor->next;
@@ -1316,7 +1316,7 @@ im_account_mgr_unset (ImAccountMgr *self, const gchar *name,
 
 	retval = im_conf_remove_key (priv->im_conf, keyname, &err);
 	if (err) {
-		g_printerr ("im: error unsetting'%s': %s\n", keyname,
+		g_printerr (_("im: error unsetting'%s': %s\n"), keyname,
 			    err->message);
 		g_error_free (err);
 		retval = FALSE;
@@ -1437,8 +1437,8 @@ _im_account_mgr_get_account_keyname (const gchar *account_name, const gchar* nam
 
 	/* Sanity check: */
 	if (!retval || !im_conf_key_is_valid (retval)) {
-		g_warning ("%s: Generated conf key was invalid: %s", __FUNCTION__,
-			   retval ? retval: "<empty>");
+		g_warning (_("%s: Generated conf key was invalid: %s"), __FUNCTION__,
+			   retval ? retval: _("<empty>"));
 		g_free (retval);
 		retval = NULL;
 	}
@@ -1655,7 +1655,7 @@ im_account_mgr_get_default_account  (ImAccountMgr *self)
 	account = im_conf_get_string (conf, IM_CONF_DEFAULT_ACCOUNT, &err);
 	
 	if (err) {
-		g_printerr ("im: failed to get '%s': %s\n",
+		g_printerr (_("im: failed to get '%s': %s\n"),
 			    IM_CONF_DEFAULT_ACCOUNT, err->message);
 		g_error_free (err);
 		return  NULL;
@@ -1663,7 +1663,7 @@ im_account_mgr_get_default_account  (ImAccountMgr *self)
 	
 	/* sanity check */
 	if (account && !im_account_mgr_account_exists (self, account, FALSE)) {
-		g_printerr ("im: default account does not exist\n");
+		g_printerr (_("im: default account does not exist\n"));
 		g_free (account);
 		return NULL;
 	}

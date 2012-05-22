@@ -1,2 +1,16 @@
 [encoding: UTF-8]
+src/im-account-mgr.c
+src/im-account-mgr-helpers.c
+src/im-account-protocol.c
+src/im-account-settings.c
+src/im-conf.c
+src/im-content-id-request.c
+src/im-file-utils.c
+src/im-mail-ops.c
 src/im-main.c
+src/im-protocol.c
+src/im-protocol-registry.c
+src/im-server-account-settings.c
+src/im-service-mgr.c
+src/im-soup-request.c
+src/im-window.c
