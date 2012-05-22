@@ -75,7 +75,7 @@ function dumpDataWrapper (dataWrapper, parent)
 	dumpMultipart (dataWrapper, parent);
     } else if (dataWrapper.isMedium) {
 	if (dataWrapper.isMessage) {
-	    console.log("Is message, see content (should also add headers)");
+	    // Is message, see content (should also add headers)
 	}
 	if (dataWrapper.content.isMultipart) {
 	    dumpDataWrapper (dataWrapper.content, parent);
@@ -92,7 +92,6 @@ function dumpDataWrapper (dataWrapper, parent)
 		iframe.setAttribute ("width", "100%");
 		$(parent).append(iframe);
 	    } else {
-		console.log(JSON.stringify(dataWrapper));
 		div = document.createElement ("div");
 		div.setAttribute("data-role", "controlgroup");
 		div.setAttribute("data-type", "horizontal");

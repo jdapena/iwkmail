@@ -64,10 +64,7 @@ function globalSetFolders (foldersData)
 
 function globalSetAccountFolders (accountId, foldersData)
 {
-    console.log("Setting account "+accountId+" folders");
-    console.log(JSON.stringify(globalStatus.folders));
     globalStatus.folders[accountId] = foldersData;
-    console.log(JSON.stringify(globalStatus.folders));
     updateFoldersDisplayNames();
 }
 

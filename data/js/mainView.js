@@ -359,12 +359,6 @@ function syncFolders ()
 	syncAllAccounts ();
 	runSendQueues ();
     });
-    // iwkRequest("syncFolders", "Updating accounts and folders", {
-    // }).done(function (msg) {
-    // 	globalSetFolders (msg.result);
-    // 	fillAccountsListCounts ();
-    // 	fillFoldersList(globalStatus.currentAccount);
-    // });
 }
 
 function deleteAccount ()

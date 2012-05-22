@@ -14,7 +14,6 @@
 
 function getAccountInbox (accountId)
 {
-    console.log(JSON.stringify(globalStatus.folders));
     for (i in globalStatus.folders) {
 	account = globalStatus.folders[i];
 	if (accountId == account.accountId) {
@@ -38,7 +37,6 @@ function dumpAccountInAccountsList (account, parent)
     a.setAttribute('href', '#page-messages');
     a.accountId = account.id;
     $(a).click(function () {
-	console.log("clicking on account "+this.accountId);
 	globalStatus.currentMessage = null;
 	fillFoldersList(this.accountId);
 	newFolder = getAccountInbox (this.accountId);
@@ -123,7 +121,6 @@ function dumpMessageAsViewHeader (message, parent)
 
 function dumpAddressDetail(display, email, parent)
 {
-    console.log("Dumping address [display:"+display+"] [email:"+email+"]");
     newLi = document.createElement('li');
     newLi.setAttribute('data-role', 'fieldcontain');
     newHeader = document.createElement('h3');
@@ -186,7 +183,6 @@ function dumpMessageAsDetails (message, parent)
     dumpDetail ('Subject:', message.subject, parent);
     if (message.mlist)
 	dumpDetail ('Mailing list:', message.mlist, parent);
-    console.log($("#page-message-details").html());
 
     if ($(parent).hasClass("ui-listview")) {
 	$(parent).listview("refresh");
