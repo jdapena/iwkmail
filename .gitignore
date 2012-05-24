@@ -34,6 +34,9 @@ gnome-doc-utils.make
 data/js/iwk.js
 
 src/iwkmail
+src/im-enum-types.[ch]
 
 po/POTFILES
 po/Makefile.in.in
+po/*.gmo
+po/iwkmail.pot
