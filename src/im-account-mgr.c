@@ -53,6 +53,7 @@
 #include <im-account-mgr-priv.h>
 
 #include <im-account-mgr-helpers.h>
+#include <im-error.h>
 
 #include <string.h>
 
@@ -676,7 +677,8 @@ real_remove_account (ImConf *conf,
 
 gboolean
 im_account_mgr_remove_account (ImAccountMgr * self,
-				   const gchar* name)
+			       const gchar* name,
+			       GError **error)
 {
 	ImAccountMgrPrivate *priv;
 	gchar *default_account_name, *store_acc_name, *transport_acc_name;
@@ -687,7 +689,9 @@ im_account_mgr_remove_account (ImAccountMgr * self,
 	g_return_val_if_fail (name, FALSE);
 
 	if (!im_account_mgr_account_exists (self, name, FALSE)) {
-		g_printerr (_("im: %s: account '%s' does not exist\n"), __FUNCTION__, name);
+		g_set_error (error, IM_ERROR_DOMAIN,
+			     IM_ERROR_ACCOUNT_MGR_DELETE_ACCOUNT_FAILED,
+			     _("Account '%s' does not exist\n"), name);
 		return FALSE;
 	}
 

@@ -39,6 +39,7 @@
 
 #include "im-content-id-request.h"
 #include "im-file-utils.h"
+#include "im-js-backend.h"
 #include "im-window.h"
 
 #include <camel/camel.h>
@@ -305,6 +306,19 @@ on_inspect_web_view (WebKitWebInspector *web_inspector,
 }
 
 static void
+on_window_object_cleared (WebKitWebView  *web_view,
+			  WebKitWebFrame *frame,
+			  gpointer        context,
+			  gpointer        window_object,
+			  gpointer        user_data)
+{
+	if (frame != webkit_web_view_get_main_frame (web_view))
+		return;
+
+	im_js_backend_setup_context (context);
+}
+
+static void
 im_window_dispose (GObject *object)
 {
 }
@@ -367,6 +381,8 @@ im_window_init (ImWindow *window)
 		    G_CALLBACK (on_resource_request_starting), window);
   g_signal_connect (G_OBJECT (priv->webview), "download-requested",
 		    G_CALLBACK (on_download_requested), window);
+  g_signal_connect (G_OBJECT (priv->webview), "window-object-cleared",
+		    G_CALLBACK (on_window_object_cleared), window);
   inspector = webkit_web_view_get_inspector (WEBKIT_WEB_VIEW (priv->webview));
   g_signal_connect (G_OBJECT (inspector), "inspect-web-view",
 		    G_CALLBACK (on_inspect_web_view), window);

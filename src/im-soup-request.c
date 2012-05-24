@@ -389,38 +389,6 @@ finish:
 }
 
 static void
-delete_account (GAsyncResult *result,
-		GHashTable *request_params)
-{
-	GError *_error = NULL;
-	ImAccountMgr *account_mgr;
-	const char *account_id;
-	const char *callback_id;
-
-	account_mgr = im_account_mgr_get_instance ();
-
-	account_id = g_hash_table_lookup (request_params, "accountId");
-	callback_id = g_hash_table_lookup (request_params, "callback");
-
-	if (!im_account_mgr_account_exists (account_mgr, account_id, FALSE)) {
-		g_set_error (&_error, IM_ERROR_DOMAIN,
-			     IM_ERROR_ACCOUNT_MGR_DELETE_ACCOUNT_FAILED,
-			     _("Account does not exist"));
-		goto finish;
-	}
-
-	if (!im_account_mgr_remove_account (im_account_mgr_get_instance (),
-					    account_id)) {
-		g_set_error (&_error, IM_ERROR_DOMAIN,
-			     IM_ERROR_ACCOUNT_MGR_DELETE_ACCOUNT_FAILED,
-			     _("Failed to remove account"));
-	}
-finish:
-	response_finish (result, callback_id, NULL, _error);
-	if (_error) g_error_free (_error);
-}
-
-static void
 get_accounts (GAsyncResult *result,
 	      GHashTable *request_params)
 {
@@ -1686,8 +1654,6 @@ im_soup_request_send_async (SoupRequest          *soup_request,
 
   if (!g_strcmp0 (uri->path, "addAccount")) {
 	  add_account (result, params);
-  } else if (!g_strcmp0 (uri->path, "deleteAccount")) {
-	  delete_account (result, params);
   } else if (!g_strcmp0 (uri->path, "getAccounts")) {
 	  get_accounts (result, params);
   } else if (!g_strcmp0 (uri->path, "getMessages")) {

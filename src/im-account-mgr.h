@@ -214,7 +214,8 @@ gboolean im_account_mgr_add_server_account_uri    (ImAccountMgr *self,
  * @err gives details in case of error
  */
 gboolean        im_account_mgr_remove_account         (ImAccountMgr *self,
-						       const gchar* name);
+						       const gchar* name,
+						       GError **error);
 
 /**
  * im_account_mgr_remove_account:
@@ -404,6 +405,7 @@ gboolean im_account_mgr_set_list (ImAccountMgr *self,
 				  GSList *val,
 				  ImConfValueType list_type,
 				  gboolean server_account);
+
 G_END_DECLS
 
 #endif /* __IM_ACCOUNT_MGR_H__ */
