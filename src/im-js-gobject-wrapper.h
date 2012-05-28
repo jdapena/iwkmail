@@ -1,6 +1,6 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*- */
 
-/* im-error.h : Error handling */
+/* im-js-gobject-wrapper.h : factory to wrap GObjects to a JSC context */
 
 /*
  * Authors:
@@ -35,43 +35,42 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __IM_ERROR_H__
-#define __IM_ERROR_H__
 
-#include <glib.h>
-#include <stdarg.h>
+#ifndef __IM_JS_GOBJECT_WRAPPER_H__
+#define __IM_JS_GOBJECT_WRAPPER_H__
+
+#include <glib-object.h>
+#include <JavaScriptCore/JavaScript.h>
 
 G_BEGIN_DECLS
 
-#define IM_ERROR_DOMAIN (im_get_error_quark ())
+/* convenience macros */
+#define IM_TYPE_JS_GOBJECT_WRAPPER             (im_js_gobject_wrapper_get_type())
+#define IM_JS_GOBJECT_WRAPPER(obj)             (G_TYPE_CHECK_INSTANCE_CAST((obj),IM_TYPE_JS_GOBJECT_WRAPPER,ImJSGObjectWrapper))
+#define IM_JS_GOBJECT_WRAPPER_CLASS(klass)     (G_TYPE_CHECK_CLASS_CAST((klass),IM_TYPE_JS_GOBJECT_WRAPPER,ImJSGObjectWrapperClass))
+#define IM_IS_JS_GOBJECT_WRAPPER(obj)          (G_TYPE_CHECK_INSTANCE_TYPE((obj),IM_TYPE_JS_GOBJECT_WRAPPER))
+#define IM_IS_JS_GOBJECT_WRAPPER_CLASS(klass)  (G_TYPE_CHECK_CLASS_TYPE((klass),IM_TYPE_JS_GOBJECT_WRAPPER))
+#define IM_JS_GOBJECT_WRAPPER_GET_CLASS(obj)   (G_TYPE_INSTANCE_GET_CLASS((obj),IM_TYPE_JS_GOBJECT_WRAPPER,ImJSGObjectWrapperClass))
 
-typedef enum {
-	IM_ERROR_INTERNAL,
-	IM_ERROR_CONF_INVALID_VALUE,
-	IM_ERROR_SOUP_INVALID_URI,
-	IM_ERROR_ACCOUNT_MGR_ADD_ACCOUNT_FAILED,
-	IM_ERROR_ACCOUNT_MGR_DELETE_ACCOUNT_FAILED,
-	IM_ERROR_ACCOUNT_MGR_GET_ACCOUNTS_FAILED,
-	IM_ERROR_SETTINGS_INVALID_ACCOUNT_NAME,
-	IM_ERROR_SETTINGS_INVALID_AUTH_PROTOCOL,
-	IM_ERROR_SETTINGS_INVALID_CONNECTION_PROTOCOL,
-	IM_ERROR_SETTINGS_INVALID_EMAIL_ADDRESS,
-	IM_ERROR_SETTINGS_INVALID_HOST,
-	IM_ERROR_SETTINGS_INVALID_PROTOCOL,
-	IM_ERROR_SETTINGS_INVALID_USERNAME,
-	IM_ERROR_SEND_INVALID_PARAMETERS,
-	IM_ERROR_SEND_NO_RECIPIENTS,
-	IM_ERROR_SEND_PARSING_RECIPIENTS,
-	IM_ERROR_SEND_INVALID_ACCOUNT_FROM,
-	IM_ERROR_SEND_FAILED_TO_ADD_TO_OUTBOX,
-	IM_ERROR_SEND_INVALID_ATTACHMENT,
-	IM_ERROR_COMPOSER_FAILED_TO_ADD_TO_DRAFTS,
-	IM_ERROR_AUTH_FAILED
-} ImErrorCode;
+typedef struct _ImJSGObjectWrapper      ImJSGObjectWrapper;
+typedef struct _ImJSGObjectWrapperClass ImJSGObjectWrapperClass;
 
-GQuark im_get_error_quark (void);
+struct _ImJSGObjectWrapper {
+	GObject parent;
+};
 
+struct _ImJSGObjectWrapperClass {
+	GObjectClass parent_class;
+};
+
+GType  im_js_gobject_wrapper_get_type   (void) G_GNUC_CONST;
+
+ImJSGObjectWrapper*    im_js_gobject_wrapper_get_instance (void);
+
+JSValueRef im_js_gobject_wrapper_wrap (ImJSGObjectWrapper *wrapper,
+				       JSContextRef context,
+				       GObject *obj);
 
 G_END_DECLS
 
-#endif /* __IM_ERROR_H__ */
+#endif /* __IM_JS_GOBJECT_WRAPPER_H__ */

@@ -13,6 +13,8 @@ iwkmail_headers = \
 	im-error.h \
 	im-file-utils.h \
 	im-js-backend.h \
+	im-js-gobject-wrapper.h \
+	im-js-utils.h \
 	im-mail-ops.h \
 	im-pair.h \
 	im-protocol-registry.h \
@@ -34,6 +36,8 @@ iwkmail_SOURCES = \
 	im-error.c \
 	im-file-utils.c \
 	im-js-backend.c \
+	im-js-gobject-wrapper.c \
+	im-js-utils.c \
 	im-mail-ops.c \
 	im-main.c \
 	im-pair.c \

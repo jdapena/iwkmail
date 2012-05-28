@@ -1,6 +1,6 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*- */
 
-/* im-error.h : Error handling */
+/* im-js-utils.h : helpers between JSC and Glib */
 
 /*
  * Authors:
@@ -35,43 +35,31 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __IM_ERROR_H__
-#define __IM_ERROR_H__
+#ifndef __IM_JS_UTILS_H__
+#define __IM_JS_UTILS_H__
 
 #include <glib.h>
-#include <stdarg.h>
+#include <JavaScriptCore/JavaScript.h>
 
 G_BEGIN_DECLS
 
-#define IM_ERROR_DOMAIN (im_get_error_quark ())
+char *                 im_js_string_to_utf8                   (JSStringRef js_string);
 
-typedef enum {
-	IM_ERROR_INTERNAL,
-	IM_ERROR_CONF_INVALID_VALUE,
-	IM_ERROR_SOUP_INVALID_URI,
-	IM_ERROR_ACCOUNT_MGR_ADD_ACCOUNT_FAILED,
-	IM_ERROR_ACCOUNT_MGR_DELETE_ACCOUNT_FAILED,
-	IM_ERROR_ACCOUNT_MGR_GET_ACCOUNTS_FAILED,
-	IM_ERROR_SETTINGS_INVALID_ACCOUNT_NAME,
-	IM_ERROR_SETTINGS_INVALID_AUTH_PROTOCOL,
-	IM_ERROR_SETTINGS_INVALID_CONNECTION_PROTOCOL,
-	IM_ERROR_SETTINGS_INVALID_EMAIL_ADDRESS,
-	IM_ERROR_SETTINGS_INVALID_HOST,
-	IM_ERROR_SETTINGS_INVALID_PROTOCOL,
-	IM_ERROR_SETTINGS_INVALID_USERNAME,
-	IM_ERROR_SEND_INVALID_PARAMETERS,
-	IM_ERROR_SEND_NO_RECIPIENTS,
-	IM_ERROR_SEND_PARSING_RECIPIENTS,
-	IM_ERROR_SEND_INVALID_ACCOUNT_FROM,
-	IM_ERROR_SEND_FAILED_TO_ADD_TO_OUTBOX,
-	IM_ERROR_SEND_INVALID_ATTACHMENT,
-	IM_ERROR_COMPOSER_FAILED_TO_ADD_TO_DRAFTS,
-	IM_ERROR_AUTH_FAILED
-} ImErrorCode;
-
-GQuark im_get_error_quark (void);
-
+JSValueRef             im_js_object_get_property              (JSContextRef context,
+							       JSObjectRef obj,
+							       const char *name,
+							       JSValueRef *exception);
+void                   im_js_object_set_property_from_string  (JSContextRef context,
+							       JSObjectRef obj,
+							       const char *name,
+							       const char *value,
+							       JSValueRef *exception);
+void                   im_js_object_set_property_from_value   (JSContextRef context,
+							       JSObjectRef obj,
+							       const char *name,
+							       JSValueRef value,
+							       JSValueRef *exception);
 
 G_END_DECLS
 
-#endif /* __IM_ERROR_H__ */
+#endif /* __IM_JS_UTILS_H__ */

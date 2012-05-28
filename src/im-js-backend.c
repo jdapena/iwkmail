@@ -38,81 +38,19 @@
 #include "im-js-backend.h"
 
 #include "im-account-mgr.h"
+#include "im-account-mgr-helpers.h"
 #include "im-enum-types.h"
 #include "im-error.h"
+#include "im-js-gobject-wrapper.h"
+#include "im-js-utils.h"
 
 #include <glib/gi18n.h>
-
-static char *
-im_js_string_to_utf8 (JSStringRef js_string)
-{
-  int length;
-  char *result;
-
-  length = JSStringGetMaximumUTF8CStringSize (js_string);
-  if (length == 0)
-    return NULL;
-  result = g_malloc0 (length);
-  JSStringGetUTF8CString (js_string, result, length);
-  return result;
-}
-
-static JSValueRef
-im_js_object_get_property (JSContextRef context,
-			   JSObjectRef obj,
-			   const char *name,
-			   JSValueRef *exception)
-{
-  JSStringRef name_string;
-  JSValueRef result;
-
-  name_string = JSStringCreateWithUTF8CString (name);
-  result = JSObjectGetProperty (context, obj, name_string, exception);
-  JSStringRelease (name_string);
-
-  return result;
-}
-
-static void
-im_js_object_set_property_from_string (JSContextRef context,
-				       JSObjectRef obj,
-				       const char *name,
-				       const char *value,
-				       JSValueRef *exception)
-{
-  JSStringRef name_string;
-  JSStringRef value_string;
-  
-  name_string = JSStringCreateWithUTF8CString (name);
-  value_string = JSStringCreateWithUTF8CString (value);
-  JSObjectSetProperty (context, obj, 
-                       name_string, JSValueMakeString (context, value_string),
-                       kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete,
-                       exception);
-  JSStringRelease (name_string);
-  JSStringRelease (value_string);
-}
-
-static void
-im_js_object_set_property_from_value (JSContextRef context,
-				      JSObjectRef obj,
-				      const char *name,
-				      JSValueRef value,
-				      JSValueRef *exception)
-{
-  JSStringRef name_string;
-
-  name_string = JSStringCreateWithUTF8CString (name);
-  JSObjectSetProperty (context, obj, 
-                       name_string, value,
-                       kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete,
-                       exception);
-  JSStringRelease (name_string);
-}
 
 typedef struct {
 	JSGlobalContextRef context;
 	JSObjectRef result_obj;
+	JSValueRef result;
+	gboolean has_result;
 	GError *error;
 } ImJSCallContext;
 
@@ -181,6 +119,19 @@ im_js_call_context_dump_error (ImJSCallContext *call_context, JSValueRef *except
 	call_context->error = NULL;
 }
 
+static void
+im_js_call_context_dump_result (ImJSCallContext *call_context, JSValueRef result)
+{
+	JSContextRef context = call_context->context;
+
+	if (call_context->has_result && call_context->result != NULL)
+		JSValueUnprotect (context, call_context->result);
+	call_context->result = result;
+	if (call_context->result != NULL)
+		JSValueProtect (context, call_context->result);
+	call_context->has_result = TRUE;
+}
+
 static gboolean
 finish_im_js_call_context_idle (gpointer userdata)
 {
@@ -200,12 +151,17 @@ finish_im_js_call_context_idle (gpointer userdata)
 
 	if (exception == NULL && JSValueIsObject (context, callback)) {
 		JSObjectRef callback_obj;
+		size_t result_count;
+		JSValueRef result_v[1];
+
+		result_count = call_context->has_result && call_context->error == NULL;
+		result_v[0] = call_context->result;
 		callback_obj = JSValueToObject (context, callback, &exception);
 		if (exception == NULL && JSObjectIsFunction (context, callback_obj)) {
 			JSObjectCallAsFunction (context,
 						callback_obj,
 						call_context->result_obj,
-						0, NULL, &exception);
+						result_count, result_v, &exception);
 		}
 	}
 
@@ -274,9 +230,64 @@ finish:
 	return call_context->result_obj;
 }
 
+static JSValueRef
+im_account_mgr_js_get_accounts (JSContextRef context,
+				JSObjectRef function,
+				JSObjectRef this_object,
+				size_t argument_count,
+				const JSValueRef arguments[],
+				JSValueRef *exception)
+{
+	ImJSCallContext *call_context;
+	GSList *account_ids, *node;
+	JSValueRef *args;
+	size_t args_count;
+	JSObjectRef array;
+	int i;
+	ImAccountMgr *account_mgr;
+
+	call_context = im_js_call_context_new (context);
+
+	if (argument_count != 0) {
+		g_set_error (&(call_context->error),
+			     IM_ERROR_DOMAIN,
+			     IM_ERROR_ACCOUNT_MGR_GET_ACCOUNTS_FAILED,
+			     _("Invalid arguments"));
+		goto finish;
+	}
+
+	account_mgr = im_account_mgr_get_instance ();
+	account_ids = im_account_mgr_get_account_ids (account_mgr, TRUE);
+	args_count = g_slist_length (account_ids);
+	args = g_new0 (JSValueRef, args_count);
+	i = 0;
+	for (node = account_ids; node != NULL; node = g_slist_next (node)) {
+		  char *id = (char *) node->data;
+		  ImAccountSettings *settings;
+
+		  settings = im_account_mgr_load_account_settings (account_mgr, id);
+		  args[i] = im_js_gobject_wrapper_wrap (im_js_gobject_wrapper_get_instance (),
+							context,
+							(GObject *) settings);
+
+		  g_object_unref (settings);
+		  i++;
+	}
+	array = JSObjectMakeArray (context, args_count,
+				   (args_count > 0)?args:NULL,
+				   exception);
+	g_free (args);
+	im_js_call_context_dump_result (call_context, array);
+
+finish:
+	finish_im_js_call_context (call_context);
+	return call_context->result_obj;
+}
+
 static const JSStaticFunction im_account_mgr_class_staticfuncs[] =
 {
 { "deleteAccount", im_account_mgr_js_delete_account, kJSPropertyAttributeNone },
+{ "getAccounts", im_account_mgr_js_get_accounts, kJSPropertyAttributeNone },
 { NULL, NULL, 0 }
 };
 

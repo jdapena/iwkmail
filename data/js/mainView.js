@@ -318,13 +318,15 @@ function fetchNewMessages ()
 
 function refreshAccounts ()
 {
-    iwkRequest ("getAccounts", "Updating accounts", {
-    }).done(function (msg) {
-	globalStatus.accounts = msg.result;
-	fillComposerFrom (msg.result);
-	fillAccountsList (msg.result);
+    
+    result = imAccountMgr.getAccounts ();
+    result.onSuccess = function (result) {
+	globalStatus.accounts = result;
+	fillComposerFrom (result);
+	fillAccountsList (result);
 	syncFolders();
-    });
+	console.log (JSON.stringify(result));
+    }
 }
 
 function syncAllAccounts ()
@@ -363,18 +365,16 @@ function syncFolders ()
 
 function deleteAccount ()
 {
-    iwkRequest ("deleteAccount", "Deleting account", {
-	accountId: globalStatus.currentAccount
-    }).done(function(msg) {
-	if (!msg.is_ok)
-	    showError (msg.error);
-	else {
-	    globalStatus.currentFolder = null;
-	    globalStatus.currentMessage = null;
-	    refreshAccounts ();
-	    history.go(-2);
-	}
-    });
+    result = imAccountMgr.deleteAccount (globalStatus.currentAccount);
+    result.onSuccess = function (result) {
+	globalStatus.currentFolder = null;
+	globalStatus.currentMessage = null;
+	refreshAccounts ();
+	history.go(-2);
+    }
+    result.onError = function (result) {
+	showError (result.message);
+    }
 }
 
 $(function () {

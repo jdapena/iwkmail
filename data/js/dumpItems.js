@@ -62,12 +62,12 @@ function dumpAccountInAccountsList (account, parent)
     });
 	    
     h3 = document.createElement("h3");
-    $(h3).text(account['display-name']);
+    $(h3).text(account.display_name);
     p = document.createElement("p");
-    if (account.isDefault)
-	$(p).text(account['emailAddress'] + " (default)")
+    if (account.is_default)
+	$(p).text(account.email_address + " (default)")
     else
-	$(p).text(account['emailAddress']);
+	$(p).text(account.email_address);
     countSpan = document.createElement("span");
     countSpan.className += " ui-li-count account-count";
     $(countSpan).hide();
@@ -103,7 +103,7 @@ function dumpAccountOptionInComposerFrom (account, parent)
     composerFromOption.account = account.id;
     if (account.isDefault)
 	composerFromOption.setAttribute("selected", "true");
-    $(composerFromOption).text(account['email-address']);
+    $(composerFromOption).text(account.email_address);
     $(parent).append(composerFromOption);
 }
 
