@@ -70,6 +70,12 @@ ImJSGObjectWrapper*    im_js_gobject_wrapper_get_instance (void);
 JSValueRef im_js_gobject_wrapper_wrap (ImJSGObjectWrapper *wrapper,
 				       JSContextRef context,
 				       GObject *obj);
+JSObjectRef im_js_gobject_wrapper_init_constructor (ImJSGObjectWrapper *wrapper,
+						    JSContextRef context,
+						    GType constructor_type);
+
+GObject *im_js_gobject_wrapper_get_wrapped (ImJSGObjectWrapper *wrapper,
+					    JSObjectRef js_object);
 
 G_END_DECLS
 

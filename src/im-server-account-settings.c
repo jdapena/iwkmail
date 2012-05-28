@@ -52,8 +52,11 @@ enum {
 	PROP_HOSTNAME,
 	PROP_PORT,
 	PROP_PROTOCOL,
+	PROP_PROTOCOL_NAME,
 	PROP_SECURITY_PROTOCOL,
+	PROP_SECURITY_PROTOCOL_NAME,
 	PROP_AUTH_PROTOCOL,
+	PROP_AUTH_PROTOCOL_NAME,
 	PROP_USERNAME,
 	PROP_PASSWORD,
 	PROP_ACCOUNT_NAME,
@@ -161,6 +164,13 @@ im_server_account_settings_class_init (ImServerAccountSettingsClass *klass)
 				   IM_PROTOCOL_TYPE_INVALID, /* default value */
 				   G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property (
+		gobject_class, PROP_PROTOCOL_NAME,
+		g_param_spec_string ("protocol-name",
+				   _("Protocol name"),
+				   _("Protocol name for this service"),
+				   NULL,
+				   G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+	g_object_class_install_property (
 		gobject_class, PROP_PROTOCOL,
 		g_param_spec_uint ("security-protocol",
 				   _("Security Protocol"),
@@ -170,6 +180,13 @@ im_server_account_settings_class_init (ImServerAccountSettingsClass *klass)
 				   IM_PROTOCOL_TYPE_INVALID, /* default value */
 				   G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property (
+		gobject_class, PROP_SECURITY_PROTOCOL_NAME,
+		g_param_spec_string ("security-protocol-name",
+				   _("Security protocol name"),
+				   _("Security transport protocol name"),
+				   NULL,
+				   G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+	g_object_class_install_property (
 		gobject_class, PROP_PROTOCOL,
 		g_param_spec_uint ("auth-protocol",
 				   _("Auth Protocol"),
@@ -177,6 +194,13 @@ im_server_account_settings_class_init (ImServerAccountSettingsClass *klass)
 				   0, /* minimum value */
 				   IM_PROTOCOL_TYPE_INVALID, /* maximum value */
 				   IM_PROTOCOL_TYPE_INVALID, /* default value */
+				   G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+	g_object_class_install_property (
+		gobject_class, PROP_AUTH_PROTOCOL_NAME,
+		g_param_spec_string ("auth-protocol-name",
+				   _("Auth protocol name"),
+				   _("Authentication protocol name"),
+				   NULL,
 				   G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property (
 		gobject_class, PROP_USERNAME,
@@ -277,13 +301,43 @@ im_server_account_settings_get_property (GObject *obj,
 		g_value_set_uint (value,
 				  im_server_account_settings_get_protocol (self));
 		break;
+	case PROP_PROTOCOL_NAME:
+		{
+			ImProtocol *protocol;
+			protocol = im_protocol_registry_get_protocol_by_type
+				(im_protocol_registry_get_instance (),
+				 im_server_account_settings_get_protocol (self));
+			g_value_set_string (value, 
+					    protocol?im_protocol_get_name (protocol):NULL);
+		}
+		break;
 	case PROP_SECURITY_PROTOCOL:
 		g_value_set_uint (value,
 				  im_server_account_settings_get_security_protocol (self));
 		break;
+	case PROP_SECURITY_PROTOCOL_NAME:
+		{
+			ImProtocol *protocol;
+			protocol = im_protocol_registry_get_protocol_by_type
+				(im_protocol_registry_get_instance (),
+				 im_server_account_settings_get_security_protocol (self));
+			g_value_set_string (value, 
+					    protocol?im_protocol_get_name (protocol):NULL);
+		}
+		break;
 	case PROP_AUTH_PROTOCOL:
 		g_value_set_uint (value,
 				  im_server_account_settings_get_auth_protocol (self));
+		break;
+	case PROP_AUTH_PROTOCOL_NAME:
+		{
+			ImProtocol *protocol;
+			protocol = im_protocol_registry_get_protocol_by_type
+				(im_protocol_registry_get_instance (),
+				 im_server_account_settings_get_auth_protocol (self));
+			g_value_set_string (value, 
+					    protocol?im_protocol_get_name (protocol):NULL);
+		}
 		break;
 	case PROP_USERNAME:
 		g_value_set_string (value,
@@ -328,13 +382,49 @@ im_server_account_settings_set_property (GObject *obj,
 		im_server_account_settings_set_protocol (self,
 							 g_value_get_uint (value));
 		break;
+	case PROP_PROTOCOL_NAME:
+		{
+			ImProtocol *protocol;
+			protocol = im_protocol_registry_get_protocol_by_name
+				(im_protocol_registry_get_instance (),
+				 IM_PROTOCOL_REGISTRY_TRANSPORT_STORE_PROTOCOLS,
+				 g_value_get_string (value));
+			im_server_account_settings_set_protocol
+				(self,
+				 protocol?im_protocol_get_type_id (protocol):IM_PROTOCOL_TYPE_INVALID);
+		}
+		break;
 	case PROP_SECURITY_PROTOCOL:
 		im_server_account_settings_set_security_protocol (self,
 								  g_value_get_uint (value));
 		break;
+	case PROP_SECURITY_PROTOCOL_NAME:
+		{
+			ImProtocol *protocol;
+			protocol = im_protocol_registry_get_protocol_by_name
+				(im_protocol_registry_get_instance (),
+				 IM_PROTOCOL_REGISTRY_CONNECTION_PROTOCOLS,
+				 g_value_get_string (value));
+			im_server_account_settings_set_security_protocol
+				(self,
+				 protocol?im_protocol_get_type_id (protocol):IM_PROTOCOL_TYPE_INVALID);
+		}
+		break;
 	case PROP_AUTH_PROTOCOL:
 		im_server_account_settings_set_auth_protocol (self,
 							      g_value_get_uint (value));
+		break;
+	case PROP_AUTH_PROTOCOL_NAME:
+		{
+			ImProtocol *protocol;
+			protocol = im_protocol_registry_get_protocol_by_name
+				(im_protocol_registry_get_instance (),
+				 IM_PROTOCOL_REGISTRY_AUTH_PROTOCOLS,
+				 g_value_get_string (value));
+			im_server_account_settings_set_auth_protocol
+				(self,
+				 protocol?im_protocol_get_type_id (protocol):IM_PROTOCOL_TYPE_INVALID);
+		}
 		break;
 	case PROP_USERNAME:
 		im_server_account_settings_set_username (self, 
@@ -623,6 +713,7 @@ im_server_account_settings_set_protocol (ImServerAccountSettings *settings,
 	priv->protocol = protocol;
 	
 	g_object_notify (G_OBJECT (settings), "protocol");
+	g_object_notify (G_OBJECT (settings), "protocol-name");
 }
 
 /**
@@ -703,6 +794,7 @@ im_server_account_settings_set_security_protocol (ImServerAccountSettings *setti
 	priv->security_protocol = security_protocol;
 
 	g_object_notify (G_OBJECT (settings), "security-protocol");
+	g_object_notify (G_OBJECT (settings), "security-protocol-name");
 }
 
 /**
@@ -743,5 +835,6 @@ im_server_account_settings_set_auth_protocol (ImServerAccountSettings *settings,
 	priv->auth_protocol = auth_protocol;
 
 	g_object_notify (G_OBJECT (settings), "auth-protocol");
+	g_object_notify (G_OBJECT (settings), "auth-protocol-name");
 }
 

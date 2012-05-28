@@ -284,8 +284,51 @@ finish:
 	return call_context->result_obj;
 }
 
+static JSValueRef
+im_account_mgr_js_add_account (JSContextRef context,
+			       JSObjectRef function,
+			       JSObjectRef this_object,
+			       size_t argument_count,
+			       const JSValueRef arguments[],
+			       JSValueRef *exception)
+{
+	ImJSCallContext *call_context;
+	ImAccountSettings *account;
+	GError *_error = NULL;
+	JSObjectRef js_object;
+
+	call_context = im_js_call_context_new (context);
+
+	if (argument_count != 1 ||
+	    !JSValueIsObject (context, arguments[0])) {
+		g_set_error (&(call_context->error),
+			     IM_ERROR_DOMAIN,
+			     IM_ERROR_ACCOUNT_MGR_GET_ACCOUNTS_FAILED,
+			     _("Invalid arguments"));
+		goto finish;
+	}
+
+	js_object = JSValueToObject (context, arguments[0], exception);
+	account = IM_ACCOUNT_SETTINGS (im_js_gobject_wrapper_get_wrapped (im_js_gobject_wrapper_get_instance (),
+									  js_object));
+
+	if (!im_account_mgr_add_account_from_settings (im_account_mgr_get_instance (),
+						       account)) {
+		g_set_error (&_error, IM_ERROR_DOMAIN, IM_ERROR_ACCOUNT_MGR_ADD_ACCOUNT_FAILED,
+			     _("Failed to create account"));
+	}
+
+	if (_error)
+		g_propagate_error (&(call_context->error), _error);
+
+finish:
+	finish_im_js_call_context (call_context);
+	return call_context->result_obj;
+}
+
 static const JSStaticFunction im_account_mgr_class_staticfuncs[] =
 {
+{ "addAccount", im_account_mgr_js_add_account, kJSPropertyAttributeNone },
 { "deleteAccount", im_account_mgr_js_delete_account, kJSPropertyAttributeNone },
 { "getAccounts", im_account_mgr_js_get_accounts, kJSPropertyAttributeNone },
 { NULL, NULL, 0 }
@@ -321,14 +364,24 @@ im_account_mgr_setup_js_class (JSGlobalContextRef context)
 {
 	JSClassRef account_mgr_class;
 	JSObjectRef account_mgr_obj;
+	JSObjectRef iwk_obj;
 	JSObjectRef global_obj;
 
 	account_mgr_class = JSClassCreate (&im_account_mgr_class_def);
 	account_mgr_obj = JSObjectMake (context, account_mgr_class, NULL);
 
-	global_obj = JSContextGetGlobalObject (context);
-	im_js_object_set_property_from_value (context, global_obj, "imAccountMgr",
+	iwk_obj = JSObjectMake (context, NULL, NULL);
+	im_js_object_set_property_from_value (context, iwk_obj, "AccountMgr",
 					      account_mgr_obj, NULL);
+	im_js_object_set_property_from_value (context, iwk_obj, "AccountSettings",
+					      (JSValueRef) im_js_gobject_wrapper_init_constructor (im_js_gobject_wrapper_get_instance (),
+										      context,
+										      IM_TYPE_ACCOUNT_SETTINGS),
+					      NULL);
+	global_obj = JSContextGetGlobalObject (context);
+	im_js_object_set_property_from_value (context, global_obj, "iwk",
+					      iwk_obj, NULL);
+
 }
 
 

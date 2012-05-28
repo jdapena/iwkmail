@@ -128,16 +128,39 @@ function fillFromAddress ()
 
 function addAccount (data)
 {
-    iwkRequest ("addAccount", "Adding new account", {
-	formData: data
-    }).done(function (msg) {
-	if (msg.is_ok) {
+    settings = new iwk.AccountSettings ();
+    settings.email_address = $("#form-add-account input[name='emailaddress']").val();
+    settings.display_name = $("#form-add-account input[name='accountname']").val();
+    settings.enabled = true;
+    settings.fullname = $("#form-add-account input[name='fullname']").val();
+
+    settings.store_settings.hostname=$("#form-add-account input[name='incoming-server-host']").val();
+    settings.store_settings.username=$("#form-add-account input[name='incoming-server-username']").val();
+    port = $("#form-add-account input[name='incoming-server-port']").val();
+    if (port.length > 0)
+	settings.store_settings.port = port;
+    settings.store_settings.protocol_name = $("#form-add-account input[name='incoming-protocol-choice']:checked").val();
+    settings.store_settings.security_protocol_name = $("#form-add-account input[name='incoming-security-choice']:checked").val();
+
+    settings.transport_settings.hostname=$("#form-add-account input[name='outgoing-server-host']").val();
+    settings.transport_settings.username=$("#form-add-account input[name='outgoing-server-username']").val();
+    port = $("#form-add-account input[name='outgoing-server-port']").val();
+    if (port.length > 0)
+	settings.transport_settings.port = port;
+    settings.transport_settings.protocol_name = 'smtp';
+    settings.transport_settings.security_protocol_name = $("#form-add-account input[name='outgoing-security-choice']:checked").val();
+    settings.transport_settings.auth_protocol_name = $("#form-add-account input[name='outgoing-auth-choice']:checked").val();
+
+    console.log (JSON.stringify (settings));
+    console.log (data);
+    result = iwk.AccountMgr.addAccount(settings);
+    result.onSuccess = function (result) {
 	    $.mobile.changePage("#page-accounts");
 	    refreshAccounts();
-	} else {
-	    showError (msg.error);
-	}
-    });
+    };
+    result.onFailed = function (result) {
+	showError (result.message);
+    };
 }
 
 $(function () {

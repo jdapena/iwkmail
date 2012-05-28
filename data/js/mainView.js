@@ -318,14 +318,12 @@ function fetchNewMessages ()
 
 function refreshAccounts ()
 {
-    
-    result = imAccountMgr.getAccounts ();
+    result = iwk.AccountMgr.getAccounts ();
     result.onSuccess = function (result) {
 	globalStatus.accounts = result;
 	fillComposerFrom (result);
 	fillAccountsList (result);
 	syncFolders();
-	console.log (JSON.stringify(result));
     }
 }
 
@@ -365,7 +363,7 @@ function syncFolders ()
 
 function deleteAccount ()
 {
-    result = imAccountMgr.deleteAccount (globalStatus.currentAccount);
+    result = iwk.AccountMgr.deleteAccount (globalStatus.currentAccount);
     result.onSuccess = function (result) {
 	globalStatus.currentFolder = null;
 	globalStatus.currentMessage = null;

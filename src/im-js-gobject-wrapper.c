@@ -333,6 +333,38 @@ js_value_to_number (JSContextRef context,
 }
 
 static void
+js_value_to_string (JSContextRef context,
+		    JSValueRef js_value,
+		    GValue *value,
+		    JSValueRef *exception)
+{
+	gchar *s = NULL;
+
+	switch (JSValueGetType (context, js_value)) {
+	case kJSTypeUndefined:
+	case kJSTypeNull:
+	case kJSTypeObject:
+		s = NULL;
+		break;
+	case kJSTypeBoolean:
+		s = g_strdup(JSValueToBoolean (context, js_value)?"true":"false");
+		break;
+	case kJSTypeNumber:
+		s = g_strdup_printf("%f", JSValueToNumber (context, js_value, exception));
+		break;
+	case kJSTypeString:
+		{
+			JSStringRef string;
+			string = JSValueToStringCopy (context, js_value, exception);
+			s = im_js_string_to_utf8 (string);
+			JSStringRelease (string);
+		}
+		break;
+	}
+	g_value_take_string (value, s);
+}
+
+static void
 js_value_to_gvalue (JSContextRef context,
 		    JSValueRef js_value,
 		    GValue *value,
@@ -352,6 +384,8 @@ js_value_to_gvalue (JSContextRef context,
 		   value_type == G_TYPE_FLOAT ||
 		   value_type == G_TYPE_DOUBLE) {
 		js_value_to_number (context, js_value, value, value_type, exception);
+	} else if (value_type == G_TYPE_STRING) {
+		js_value_to_string (context, js_value, value, exception);
 	} else if (G_TYPE_IS_OBJECT (value_type)) {
 		GObject *obj = NULL;
 
@@ -368,22 +402,32 @@ js_value_to_gvalue (JSContextRef context,
 	}
 }
 
+typedef struct {
+	GObject *object;
+	GType object_type;
+} WrapperData;
 
 static void
 wrapper_initialize (JSContextRef context, JSObjectRef jsobj)
 {
+	WrapperData *data;
+	data = (WrapperData *) JSObjectGetPrivate (jsobj);
+	if (data == NULL)
+		data = g_slice_new0 (WrapperData);
 }
 
 static void
 wrapper_finalize (JSObjectRef jsobj)
 {
-	GObject *obj;
+	WrapperData *data;
 
-	obj = (GObject *) JSObjectGetPrivate (jsobj);
+	data = (WrapperData *) JSObjectGetPrivate (jsobj);
 
-	if (obj != NULL) {
-		g_object_unref (obj);
+	if (data != NULL) {
+		if (data->object)
+			g_object_unref (data->object);
 		JSObjectSetPrivate (jsobj, NULL);
+		g_slice_free (WrapperData, data);
 	}
 }
 
@@ -392,15 +436,16 @@ wrapper_has_property (JSContextRef context,
 		      JSObjectRef js_object,
 		      JSStringRef property_name)
 {
-	GObject *obj;
+	WrapperData *data;
 	char *property_utf8;
 	bool result;
 
-	obj = (GObject *) JSObjectGetPrivate (js_object);
+	data = (WrapperData *) JSObjectGetPrivate (js_object);
+	g_return_val_if_fail (data->object, FALSE);
 	property_utf8 = im_js_string_to_utf8 (property_name);
 	g_strdelimit (property_utf8, "_", '-');
 
-	result = g_object_class_find_property (G_OBJECT_GET_CLASS (obj),
+	result = g_object_class_find_property (G_OBJECT_GET_CLASS (data->object),
 					       property_utf8) != NULL;
 
 	g_free (property_utf8);
@@ -413,12 +458,13 @@ wrapper_get_property_names (JSContextRef context,
 			    JSObjectRef js_object,
 			    JSPropertyNameAccumulatorRef property_names)
 {
-	GObject *obj;
+	WrapperData *data;
 	GParamSpec **param_specs;
 	guint n_properties, i;
 
-	obj = (GObject *) JSObjectGetPrivate (js_object);
-	param_specs = g_object_class_list_properties (G_OBJECT_GET_CLASS (obj),
+	data = (WrapperData *) JSObjectGetPrivate (js_object);
+	g_return_if_fail (data->object);
+	param_specs = g_object_class_list_properties (G_OBJECT_GET_CLASS (data->object),
 						      &n_properties);
 
 	for (i = 0; i < n_properties; i++) {
@@ -442,18 +488,19 @@ wrapper_get_property (JSContextRef context,
 		      JSStringRef property_name,
 		      JSValueRef *exception)
 {
-	GObject *obj;
+	WrapperData *data;
 	char *property_utf8;
 	JSValueRef result;
 	GParamSpec *param_spec;
 	JSValueRef _exception = NULL;
 	GValue value = G_VALUE_INIT;
 
-	obj = (GObject *) JSObjectGetPrivate (js_object);
+	data = (WrapperData *) JSObjectGetPrivate (js_object);
+	g_return_val_if_fail (data->object, NULL);
 	property_utf8 = im_js_string_to_utf8 (property_name);
 	g_strdelimit (property_utf8, "_", '-');
 
-	param_spec = g_object_class_find_property (G_OBJECT_GET_CLASS (obj),
+	param_spec = g_object_class_find_property (G_OBJECT_GET_CLASS (data->object),
 						   property_utf8);
 	if (param_spec == NULL) {
 		_exception = JSObjectMakeError (context, 0, NULL, &_exception);
@@ -461,7 +508,7 @@ wrapper_get_property (JSContextRef context,
 	if (_exception == NULL) {
 		GType value_type = G_PARAM_SPEC_VALUE_TYPE (param_spec);
 		g_value_init (&value, value_type);
-		g_object_get_property (obj, property_utf8, &value);
+		g_object_get_property (data->object, property_utf8, &value);
 
 		result = gvalue_to_js_value (context, &value, value_type, &_exception);
 	}
@@ -481,17 +528,18 @@ wrapper_set_property (JSContextRef context,
 		      JSValueRef js_value,
 		      JSValueRef *exception)
 {
-	GObject *obj;
+	WrapperData *data;
 	char *property_utf8;
 	GParamSpec *param_spec;
 	JSValueRef _exception = NULL;
-	GValue value;
+	GValue value = G_VALUE_INIT;
 
-	obj = (GObject *) JSObjectGetPrivate (js_object);
+	data = (WrapperData *) JSObjectGetPrivate (js_object);
+	g_return_val_if_fail (data->object, FALSE);
 	property_utf8 = im_js_string_to_utf8 (property_name);
 	g_strdelimit (property_utf8, "_", '-');
 
-	param_spec = g_object_class_find_property (G_OBJECT_GET_CLASS (obj),
+	param_spec = g_object_class_find_property (G_OBJECT_GET_CLASS (data->object),
 						   property_utf8);
 	if (param_spec == NULL) {
 		_exception = JSObjectMakeError (context, 0, NULL, &_exception);
@@ -500,7 +548,7 @@ wrapper_set_property (JSContextRef context,
 		GType value_type = G_PARAM_SPEC_VALUE_TYPE (param_spec);
 		g_value_init (&value, value_type);
 		js_value_to_gvalue (context, js_value, &value, value_type, &_exception);
-		g_object_set_property (obj, property_utf8, &value);
+		g_object_set_property (data->object, property_utf8, &value);
 	}
 
 	g_free (property_utf8);
@@ -509,6 +557,36 @@ wrapper_set_property (JSContextRef context,
 		*exception = _exception;
 
 	return _exception != NULL;
+}
+
+static JSObjectRef
+wrapper_call_as_constructor (JSContextRef context,
+			     JSObjectRef constructor,
+			     size_t argument_count,
+			     const JSValueRef arguments[],
+			     JSValueRef *exception)
+{
+	JSValueRef _exception = NULL;
+	JSValueRef result = NULL;
+
+	if (argument_count != 0)
+		_exception = JSObjectMakeError (context, 0, NULL, &_exception);
+
+	if (_exception == NULL) {
+		WrapperData *data;	
+		GObject *object;
+
+		data = JSObjectGetPrivate (constructor);
+		object = g_object_new (data->object_type, NULL);
+		result = im_js_gobject_wrapper_wrap (im_js_gobject_wrapper_get_instance (),
+						     context, object);
+		g_object_unref (object);
+	}
+
+	if (exception != NULL)
+		*exception = _exception;
+
+	return (JSObjectRef) result;
 }
 
 static JSClassRef
@@ -541,6 +619,7 @@ get_js_class (ImJSGObjectWrapper *wrapper,
 		definition.getProperty = wrapper_get_property;
 		definition.setProperty = wrapper_set_property;
 		definition.getPropertyNames = wrapper_get_property_names;
+		definition.callAsConstructor = wrapper_call_as_constructor;
 
 		js_class = JSClassCreate (&definition);
 	}
@@ -556,11 +635,49 @@ im_js_gobject_wrapper_wrap (ImJSGObjectWrapper *wrapper,
 	GType obj_type;
 	JSClassRef js_class;
 	JSValueRef result;
+	WrapperData *data;
 	
 	obj_type = G_OBJECT_TYPE (obj);
 	js_class = get_js_class (wrapper, obj_type);
 
-	result = JSObjectMake (context, js_class, g_object_ref (obj));
+	data = g_slice_new0 (WrapperData);
+	data->object = g_object_ref (obj);
+	data->object_type = obj_type;
+	result = JSObjectMake (context, js_class, data);
 
 	return result;
+}
+
+JSObjectRef
+im_js_gobject_wrapper_init_constructor (ImJSGObjectWrapper *wrapper,
+					JSContextRef context,
+					GType constructor_type)
+{
+	JSClassRef js_class;
+	JSObjectRef result;
+	WrapperData *data;
+
+	g_return_val_if_fail (g_type_is_a (constructor_type, G_TYPE_OBJECT), NULL);
+
+	js_class = get_js_class (wrapper, constructor_type);
+	data = g_slice_new0 (WrapperData);
+	data->object = NULL;
+	data->object_type = constructor_type;
+	result = JSObjectMake (context, js_class, data);
+
+	return result;
+}
+
+GObject *
+im_js_gobject_wrapper_get_wrapped (ImJSGObjectWrapper *wrapper,
+				   JSObjectRef js_object)
+{
+	WrapperData *data;
+
+	data = JSObjectGetPrivate (js_object);
+	if (data && data->object && G_IS_OBJECT (data->object))
+		return data->object;
+	else
+		return NULL;
+
 }
