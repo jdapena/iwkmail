@@ -43,6 +43,8 @@
 #include "im-error.h"
 #include "im-js-gobject-wrapper.h"
 #include "im-js-utils.h"
+#include "im-mail-ops.h"
+#include "im-service-mgr.h"
 
 #include <glib/gi18n.h>
 
@@ -358,21 +360,133 @@ NULL,
 NULL
 };
 
+static void
+flag_message_mail_op_cb (GObject *object,
+			 GAsyncResult *result,
+			 gpointer userdata)
+{
+	GError *_error = NULL;
+	ImJSCallContext *call_context = (ImJSCallContext *) userdata;
+
+	im_mail_op_flag_message_finish (IM_SERVICE_MGR (object),
+					result, &_error);
+	if (_error)
+		g_propagate_error (&(call_context->error), _error);
+	finish_im_js_call_context (call_context);
+}
+
+static JSValueRef
+im_service_mgr_js_flag_message (JSContextRef context,
+				JSObjectRef function,
+				JSObjectRef this_object,
+				size_t argument_count,
+				const JSValueRef arguments[],
+				JSValueRef *exception)
+{
+	ImJSCallContext *call_context;
+	GError *_error = NULL;
+	char *account_id, *folder_name, *message_uid;
+	char *set_flags, *unset_flags;
+	JSValueRef _exception = NULL;
+
+	call_context = im_js_call_context_new (context);
+
+	if (argument_count != 5 ||
+	    !JSValueIsString (context, arguments[0]) ||
+	    !JSValueIsString (context, arguments[1]) ||
+	    !JSValueIsString (context, arguments[2]) ||
+	    !JSValueIsString (context, arguments[3]) ||
+	    !JSValueIsString (context, arguments[4])) {
+		g_set_error (&(call_context->error),
+			     IM_ERROR_DOMAIN,
+			     IM_ERROR_SERVICE_MGR_FLAG_MESSAGE_FAILED,
+			     _("Invalid arguments"));
+		goto finish;
+	}
+
+	if (_exception == NULL)
+		account_id = im_js_value_to_utf8 (context, arguments[0], &_exception);
+	if (_exception == NULL)
+		folder_name = im_js_value_to_utf8 (context, arguments[1], &_exception);
+	if (_exception == NULL)
+		message_uid = im_js_value_to_utf8 (context, arguments[2], &_exception);
+	if (_exception == NULL)
+		set_flags = im_js_value_to_utf8 (context, arguments[3], &_exception);
+	if (_exception == NULL)
+		unset_flags = im_js_value_to_utf8 (context, arguments[4], &_exception);
+
+	if (_error)
+		g_propagate_error (&(call_context->error), _error);
+
+	if (_exception == NULL)
+		im_mail_op_flag_message_async (im_service_mgr_get_instance (),
+					       account_id, folder_name, message_uid,
+					       set_flags, unset_flags,
+					       G_PRIORITY_DEFAULT_IDLE,
+					       NULL,
+					       flag_message_mail_op_cb,
+					       call_context);
+	else
+		finish_im_js_call_context (call_context);
+
+finish:
+	return call_context->result_obj;
+}
+
+
+
+static const JSStaticFunction im_service_mgr_class_staticfuncs[] =
+{
+{ "flagMessage", im_service_mgr_js_flag_message, kJSPropertyAttributeNone },
+{ NULL, NULL, 0 }
+};
+
+static const JSClassDefinition im_service_mgr_class_def =
+{
+0,
+kJSClassAttributeNone,
+"ImServiceMgrClass",
+NULL,
+
+NULL,
+im_service_mgr_class_staticfuncs,
+
+NULL,
+NULL,
+
+NULL,
+NULL,
+NULL,
+NULL,
+NULL,
+NULL,
+NULL,
+NULL,
+NULL
+};
+
 
 static void
 im_account_mgr_setup_js_class (JSGlobalContextRef context)
 {
 	JSClassRef account_mgr_class;
 	JSObjectRef account_mgr_obj;
+	JSClassRef service_mgr_class;
+	JSObjectRef service_mgr_obj;
 	JSObjectRef iwk_obj;
 	JSObjectRef global_obj;
 
 	account_mgr_class = JSClassCreate (&im_account_mgr_class_def);
 	account_mgr_obj = JSObjectMake (context, account_mgr_class, NULL);
 
+	service_mgr_class = JSClassCreate (&im_service_mgr_class_def);
+	service_mgr_obj = JSObjectMake (context, service_mgr_class, NULL);
+
 	iwk_obj = JSObjectMake (context, NULL, NULL);
 	im_js_object_set_property_from_value (context, iwk_obj, "AccountMgr",
 					      account_mgr_obj, NULL);
+	im_js_object_set_property_from_value (context, iwk_obj, "ServiceMgr",
+					      service_mgr_obj, NULL);
 	im_js_object_set_property_from_value (context, iwk_obj, "AccountSettings",
 					      (JSValueRef) im_js_gobject_wrapper_init_constructor (im_js_gobject_wrapper_get_instance (),
 										      context,

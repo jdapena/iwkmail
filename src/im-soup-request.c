@@ -1057,58 +1057,6 @@ get_message (GAsyncResult *result, GHashTable *params, GCancellable *cancellable
 				      data);
 }
 
-typedef struct _FlagMessageData {
-	GAsyncResult *result;
-	gchar *callback_id;
-} FlagMessageData;
-
-static void
-flag_message_mail_op_cb (GObject *object,
-			 GAsyncResult *result,
-			 gpointer userdata)
-{
-	GError *_error = NULL;
-	FlagMessageData *data = (FlagMessageData *) userdata;
-
-	im_mail_op_flag_message_finish (IM_SERVICE_MGR (object),
-					result, &_error);
-	response_finish (data->result, data->callback_id, NULL, _error);
-	if (_error) g_error_free (_error);
-	g_object_unref (data->result);
-	g_free (data->callback_id);
-	g_free (data);
-}
-
-static void
-flag_message (GAsyncResult *result, GHashTable *params, GCancellable *cancellable)
-{
-	const gchar *account_id;
-	const gchar *folder_name;
-	const gchar *message_uid;
-	const gchar *set_flags, *unset_flags;
-	FlagMessageData *data = g_new0 (FlagMessageData, 1);
-
-	data->result = g_object_ref (result);
-	data->callback_id = g_strdup (g_hash_table_lookup (params, "callback"));
-
-	account_id = g_hash_table_lookup (params, "account");
-	folder_name = g_hash_table_lookup (params, "folder");
-	message_uid = g_hash_table_lookup (params, "message");
-	set_flags = g_strdup (g_hash_table_lookup (params, "setFlags"));
-	unset_flags = g_strdup (g_hash_table_lookup (params, "unsetFlags"));
-
-	im_mail_op_flag_message_async (im_service_mgr_get_instance (),
-				       account_id,
-				       folder_name,
-				       message_uid,
-				       set_flags,
-				       unset_flags,
-				       G_PRIORITY_DEFAULT_IDLE,
-				       cancellable,
-				       flag_message_mail_op_cb,
-				       data);
-}
-
 typedef struct _ComposerSaveData {
 	GAsyncResult *result;
 	gchar *callback_id;
@@ -1384,8 +1332,6 @@ im_soup_request_send_async (SoupRequest          *soup_request,
 	  composer_save (result, params, TRUE, cancellable);
   } else if (!g_strcmp0 (uri->path, "composerSaveDraft")) {
 	  composer_save (result, params, FALSE, cancellable);
-  } else if (!g_strcmp0 (uri->path, "flagMessage")) {
-	  flag_message (result, params, cancellable);
   } else if (!g_strcmp0 (uri->path, "openFileURI")) {
 	  open_file_uri (result, params);
   } else {

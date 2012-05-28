@@ -117,32 +117,32 @@ function abortShowMessages ()
 
 function markMessageAsRead(uid)
 {
-    iwkRequest ("flagMessage", "Marking message as read", {
-	account: globalStatus.currentAccount,
-	folder: globalStatus.currentFolder,
-	message: uid,
-	setFlags: "seen"
-    }).done(function (msg) {
+    result = iwk.ServiceMgr.flagMessage(globalStatus.currentAccount,
+					globalStatus.currentFolder,
+					uid,
+					"seen",
+					"");
+    result.onSuccess = function (result) {
 	$("#message-item-"+uid).removeClass("iwk-unread-item");
 	$("#message-item-"+uid).addClass("iwk-read-item");
 	$("#message-view-mark-as-read").hide();
 	$("#message-view-mark-as-unread").show()
-    });
+    };
 }
 
 function markMessageAsUnread(uid)
 {
-    iwkRequest ("flagMessage", "Marking message as unread", {
-	account: globalStatus.currentAccount,
-	folder: globalStatus.currentFolder,
-	message: uid,
-	unsetFlags: "seen"
-    }).done(function (msg) {
+    result = iwk.ServiceMgr.flagMessage(globalStatus.currentAccount,
+					globalStatus.currentFolder,
+					uid,
+					"",
+					"seen");
+    result.onSuccess = function (result) {
 	$("#message-item-"+uid).removeClass("iwk-read-item");
 	$("#message-item-"+uid).addClass("iwk-unread-item");
 	$("#message-view-mark-as-unread").hide();
 	$("#message-view-mark-as-read").show();
-    });
+    };
 }
 
 function markAsRead ()
@@ -157,14 +157,12 @@ function markAsUnread ()
 
 function markMessageAsDeleted(uid)
 {
+    result = iwk.ServiceMgr.flagMessage(globalStatus.currentAccount,
+					globalStatus.currentFolder,
+					uid,
+					"deleted",
+					"");
     $(".iwk-message-item[data-iwk-message-id='"+uid+"']").hide ();
-    iwkRequest ("flagMessage", "Marking message as deleted", {
-	account: globalStatus.currentAccount,
-	folder: globalStatus.currentFolder,
-	message: uid,
-	setFlags: "deleted",
-    }).done(function (msg) {
-    });
 }
 
 function deleteMessage ()
@@ -181,17 +179,16 @@ function hasBlockedImages()
 
 function unblockImages ()
 {
-    iwkRequest ("flagMessage", "Marking message as unblockImages", {
-	account: globalStatus.currentAccount,
-	folder: globalStatus.currentFolder,
-	message: globalStatus.currentMessage,
-	setFlags: "unblockImages"
-    }).done(function (msg) {
+    result = iwk.ServiceMgr.flagMessage(globalStatus.currentAccount,
+					globalStatus.currentFolder,
+					globalStatus.currentMessage,
+					"unblockImages",
+					"");
+    result.onSuccess = function (result) {
 	$("#page-message-blocked-images-banner").hide();
 	clearMessageViewBody ();
 	fillMessageViewBody (globalStatus.messageStructure);
-    });
-    
+    };
 }
 
 function showMessage(message)

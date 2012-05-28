@@ -44,6 +44,9 @@
 G_BEGIN_DECLS
 
 char *                 im_js_string_to_utf8                   (JSStringRef js_string);
+char *                 im_js_value_to_utf8                    (JSContextRef context,
+							       JSValueRef js_string,
+							       JSValueRef *exception);
 
 JSValueRef             im_js_object_get_property              (JSContextRef context,
 							       JSObjectRef obj,

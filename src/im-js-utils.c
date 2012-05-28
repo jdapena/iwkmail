@@ -53,6 +53,27 @@ im_js_string_to_utf8 (JSStringRef js_string)
   return result;
 }
 
+char *
+im_js_value_to_utf8 (JSContextRef context,
+		     JSValueRef js_value,
+		     JSValueRef *exception)
+{
+	JSStringRef string;
+	JSValueRef _exception = NULL;
+	char *result = NULL;
+
+	string = JSValueToStringCopy (context, js_value, &_exception);
+	if (_exception == NULL) {
+		result = im_js_string_to_utf8 (string);
+		JSStringRelease (string);
+	}
+
+	if (exception)
+		*exception = _exception;
+
+	return result;
+}
+
 JSValueRef
 im_js_object_get_property (JSContextRef context,
 			   JSObjectRef obj,
