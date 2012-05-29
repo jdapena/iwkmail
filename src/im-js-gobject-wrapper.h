@@ -39,6 +39,7 @@
 #ifndef __IM_JS_GOBJECT_WRAPPER_H__
 #define __IM_JS_GOBJECT_WRAPPER_H__
 
+#include <camel/camel.h>
 #include <glib-object.h>
 #include <JavaScriptCore/JavaScript.h>
 
@@ -76,6 +77,9 @@ JSObjectRef im_js_gobject_wrapper_init_constructor (ImJSGObjectWrapper *wrapper,
 
 GObject *im_js_gobject_wrapper_get_wrapped (ImJSGObjectWrapper *wrapper,
 					    JSObjectRef js_object);
+
+JSObjectRef im_js_wrap_camel_message_info (JSContextRef context,
+					   CamelMessageInfo *mi);
 
 G_END_DECLS
 

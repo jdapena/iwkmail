@@ -153,13 +153,17 @@ function addAccount (data)
 
     console.log (JSON.stringify (settings));
     console.log (data);
-    result = iwk.AccountMgr.addAccount(settings);
-    result.onSuccess = function (result) {
+    op = iwk.AccountMgr.addAccount(settings);
+    op.opId = addOperation (result, "Fetching messages");
+    op.onSuccess = function (result) {
 	    $.mobile.changePage("#page-accounts");
 	    refreshAccounts();
     };
-    result.onFailed = function (result) {
-	showError (result.message);
+    op.onFailed = function () {
+	showError (this.error.message);
+    };
+    op.onFinish = function () {
+	removeOperation (this.opId);
     };
 }
 

@@ -111,37 +111,46 @@ function clearAccountsList ()
 function abortShowMessages ()
 {
     if ('showMessages' in globalStatus.requests) {
-	globalStatus.requests["showMessages"].abort();
+	globalStatus.requests["showMessages"].cancel();
+	delete globalStatus.requests["showMessages"];
     }
 }
 
 function markMessageAsRead(uid)
 {
-    result = iwk.ServiceMgr.flagMessage(globalStatus.currentAccount,
-					globalStatus.currentFolder,
-					uid,
-					"seen",
-					"");
-    result.onSuccess = function (result) {
+    op = iwk.ServiceMgr.flagMessage(globalStatus.currentAccount,
+				    globalStatus.currentFolder,
+				    uid,
+				    "seen",
+				    "");
+    op.opId = addOperation (result, "Flagging message as read");
+    op.onSuccess = function (result) {
 	$("#message-item-"+uid).removeClass("iwk-unread-item");
 	$("#message-item-"+uid).addClass("iwk-read-item");
 	$("#message-view-mark-as-read").hide();
 	$("#message-view-mark-as-unread").show()
     };
+    op.onFinish = function () {
+	removeOperation (this.opId);
+    };
 }
 
 function markMessageAsUnread(uid)
 {
-    result = iwk.ServiceMgr.flagMessage(globalStatus.currentAccount,
-					globalStatus.currentFolder,
-					uid,
-					"",
-					"seen");
-    result.onSuccess = function (result) {
+    op = iwk.ServiceMgr.flagMessage(globalStatus.currentAccount,
+				    globalStatus.currentFolder,
+				    uid,
+				    "",
+				    "seen");
+    op.opId = addOperation (result, "Flagging message as unread");
+    op.onSuccess = function (result) {
 	$("#message-item-"+uid).removeClass("iwk-read-item");
 	$("#message-item-"+uid).addClass("iwk-unread-item");
 	$("#message-view-mark-as-unread").hide();
 	$("#message-view-mark-as-read").show();
+    };
+    op.onFinish = function () {
+	removeOperation (this.opId);
     };
 }
 
@@ -157,12 +166,16 @@ function markAsUnread ()
 
 function markMessageAsDeleted(uid)
 {
-    result = iwk.ServiceMgr.flagMessage(globalStatus.currentAccount,
-					globalStatus.currentFolder,
-					uid,
-					"deleted",
-					"");
+    op = iwk.ServiceMgr.flagMessage(globalStatus.currentAccount,
+				    globalStatus.currentFolder,
+				    uid,
+				    "deleted",
+				    "");
+    op.opId = addOperation (result, "Marking message as deleted");
     $(".iwk-message-item[data-iwk-message-id='"+uid+"']").hide ();
+    op.onFinish = function () {
+	removeOperation (this.opId);
+    }
 }
 
 function deleteMessage ()
@@ -179,16 +192,20 @@ function hasBlockedImages()
 
 function unblockImages ()
 {
-    result = iwk.ServiceMgr.flagMessage(globalStatus.currentAccount,
-					globalStatus.currentFolder,
-					globalStatus.currentMessage,
-					"unblockImages",
-					"");
-    result.onSuccess = function (result) {
+    op = iwk.ServiceMgr.flagMessage(globalStatus.currentAccount,
+				    globalStatus.currentFolder,
+				    globalStatus.currentMessage,
+				    "unblockImages",
+				    "");
+    op.opId = addOperation (op, "Marking unblockImages flag on message");
+    op.onSuccess = function (result) {
 	$("#page-message-blocked-images-banner").hide();
 	clearMessageViewBody ();
 	fillMessageViewBody (globalStatus.messageStructure);
     };
+    op.onFinish = function () {
+	removeOperation (this.opId);
+    }
 }
 
 function showMessage(message)
@@ -252,53 +269,55 @@ function showPreviousMessage ()
 
 function showMessages(accountId, folderId, onlyNew)
 {
-    try {
-	if ('showMessages' in globalStatus.requests) {
-	    globalStatus.requests["showMessages"].abort();
-	}
-
-	$("#messages-list-get-more-list").hide();
-	$("#messages-list-getting-more-list").show();
-	$("#messages-refresh").hide();
-	$("#messages-cancel").show();
-
-	retrieveCount = onlyNew?0:SHOW_MESSAGES_COUNT;
-	globalStatus.requests["showMessages"] = iwkRequest ("getMessages", "Fetching messages", {
-	    account: accountId,
-	    folder: folderId,
-	    newestUid: globalStatus.newestUid,
-	    oldestUid: globalStatus.oldestUid,
-	    count: retrieveCount
-	}).done(function (msg) {
-	    if (msg.result.newMessages.length > 0) {
-		globalStatus.newestUid = msg.result.newMessages[0].uid;
-	    }
-	    if (globalStatus.newestUid == null && msg.result.messages.length > 0) {
-		globalStatus.newestUid = msg.result.messages[0].uid;
-	    }
-	    if (msg.result.messages.length > 0) {
-		globalStatus.oldestUid = msg.result.messages[msg.result.messages.length - 1].uid;
-	    }
-	    msg.result.newMessages.reverse();
-	    for (i in msg.result.newMessages) {
-		dumpMessageInMessagesList (msg.result.newMessages[i], true, "#page-messages #messages-list");
-	    }
-	    for (i in msg.result.messages) {
-		dumpMessageInMessagesList (msg.result.messages[i], false, "#page-messages #messages-list");
-	    }
-	    if ($("#messages-list").hasClass("ui-listview"))
-		$("#messages-list").listview('refresh');
-	}).always(function(jqXHR, textStatus, errorThrown) {
-	    if ('showMessages' in globalStatus.requests)
-		delete globalStatus.requests["showMessages"];
-	    $("#messages-list-get-more-list").show();
-	    $("#messages-list-getting-more-list").hide();
-	    $("#messages-refresh").show();
-	    $("#messages-cancel").hide();
-	});
-    } catch (e) {
-	console.log(e.message);
+    if ('showMessages' in globalStatus.requests) {
+	globalStatus.requests["showMessages"].cancel();
+	delete globalStatus.requests["showMessages"];
     }
+
+    $("#messages-list-get-more-list").hide();
+    $("#messages-list-getting-more-list").show();
+    $("#messages-refresh").hide();
+    $("#messages-cancel").show();
+
+    retrieveCount = onlyNew?0:SHOW_MESSAGES_COUNT;
+
+    op = iwk.ServiceMgr.fetchMessages (accountId, folderId, retrieveCount,
+				       globalStatus.newestUid,
+				       globalStatus.oldestUid);
+    globalStatus.requests["showMessages"] = op;
+    op.opId = addOperation (op, "Fetching messages");
+    op.onSuccess = function (result) {
+	if (result.new_messages.length > 0) {
+	    globalStatus.newestUid = result.new_messages[0].uid;
+	}
+	if (globalStatus.newestUid == null && result.messages.length > 0) {
+	    globalStatus.newestUid = result.messages[0].uid;
+	}
+	if (result.messages.length > 0) {
+	    globalStatus.oldestUid = result.messages[result.messages.length - 1].uid;
+	}
+	result.new_messages.reverse();
+	for (i in result.new_messages) {
+	    dumpMessageInMessagesList (result.new_messages[i], true, "#page-messages #messages-list");
+	}
+	for (i in result.messages) {
+	    dumpMessageInMessagesList (result.messages[i], false, "#page-messages #messages-list");
+	}
+	if ($("#messages-list").hasClass("ui-listview"))
+	    $("#messages-list").listview('refresh');
+    };
+    op.onError = function () {
+	showError (this.error.message);
+    };
+    op.onFinish = function () {
+	removeOperation (this.opId);
+	if ('showMessages' in globalStatus.requests)
+	    delete globalStatus.requests["showMessages"];
+	$("#messages-list-get-more-list").show();
+	$("#messages-list-getting-more-list").hide();
+	$("#messages-refresh").show();
+	$("#messages-cancel").hide();
+    };
 }
 
 function fetchMoreMessages ()
@@ -368,7 +387,7 @@ function deleteAccount ()
 	history.go(-2);
     }
     result.onError = function (result) {
-	showError (result.message);
+	showError (this.error.message);
     }
 }
 

@@ -681,3 +681,55 @@ im_js_gobject_wrapper_get_wrapped (ImJSGObjectWrapper *wrapper,
 		return NULL;
 
 }
+
+JSObjectRef
+im_js_wrap_camel_message_info (JSContextRef context,
+			       CamelMessageInfo *mi)
+{
+	CamelMessageFlags flags;
+	JSObjectRef result;
+
+	result = JSObjectMake (context, NULL, NULL);
+
+	flags = camel_message_info_flags (mi);
+
+	im_js_object_set_property_from_string (context, result,
+					       "uid", camel_message_info_uid (mi), NULL);
+	im_js_object_set_property_from_string (context, result,
+					       "from", camel_message_info_from (mi), NULL);
+	im_js_object_set_property_from_string (context, result,
+					       "to", camel_message_info_to (mi), NULL);
+	im_js_object_set_property_from_string (context, result,
+					       "cc", camel_message_info_cc (mi), NULL);
+	im_js_object_set_property_from_string (context, result,
+					       "mlist", camel_message_info_mlist (mi), NULL);
+	im_js_object_set_property_from_value (context, result,
+					      "date_received", 
+					      JSValueMakeNumber (context, camel_message_info_date_received (mi)), NULL);
+	im_js_object_set_property_from_value (context, result,
+					      "date_sent", 
+					      JSValueMakeNumber (context, camel_message_info_date_sent (mi)), NULL);
+	im_js_object_set_property_from_string (context, result,
+					       "subject", camel_message_info_subject (mi), NULL);
+	im_js_object_set_property_from_value (context, result,
+					      "size", 
+					      JSValueMakeNumber (context, camel_message_info_size (mi)), NULL);
+	im_js_object_set_property_from_value (context, result,
+					      "unread",
+					      JSValueMakeBoolean (context, !(flags & CAMEL_MESSAGE_SEEN)), NULL);
+	im_js_object_set_property_from_value (context, result,
+					      "deleted",
+					      JSValueMakeBoolean (context, flags & CAMEL_MESSAGE_DELETED), NULL);
+	im_js_object_set_property_from_value (context, result,
+					      "draft",
+					      JSValueMakeBoolean (context, flags & CAMEL_MESSAGE_DRAFT), NULL);
+	im_js_object_set_property_from_value (context, result,
+					      "has_attachments",
+					      JSValueMakeBoolean (context, flags & CAMEL_MESSAGE_ATTACHMENTS), NULL);
+	im_js_object_set_property_from_value (context, result,
+					      "unblock_images",
+					      JSValueMakeBoolean (context, 
+								  camel_message_info_user_flag (mi,
+												"unblockImages")), NULL);
+	return result;
+}

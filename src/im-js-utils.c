@@ -62,6 +62,9 @@ im_js_value_to_utf8 (JSContextRef context,
 	JSValueRef _exception = NULL;
 	char *result = NULL;
 
+	if (JSValueIsNull (context, js_value))
+		return NULL;
+
 	string = JSValueToStringCopy (context, js_value, &_exception);
 	if (_exception == NULL) {
 		result = im_js_string_to_utf8 (string);
