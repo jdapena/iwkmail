@@ -347,13 +347,16 @@ function syncAllAccounts ()
 {
     for (i in globalStatus.accounts) {
 	var account = globalStatus.accounts[i];
-	iwkRequest("syncAccount", "Synchronizing account "+account.id, {
-	    account: account.id
-	}).done(function (msg) {
-	    globalSetAccountFolders (msg.result.accountId, msg.result);
+	op = iwk.ServiceMgr.syncAccount(account.id);
+	op.opId = addOperation (result, "Synchronizing account "+account.id);
+	op.onSuccess = function (result) {
+	    globalSetAccountFolders (result.accountId, result);
 	    fillAccountsListCounts ();
 	    fillFoldersList(globalStatus.currentAccount);
-	});
+	};
+	op.onFinish = function () {
+	    removeOperation (this.opId);
+	}
     }
 }
 
